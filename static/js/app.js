@@ -498,6 +498,7 @@ async function runScreen(){
     const tinfo = await fetchJSON(`/api/tickers?list=${encodeURIComponent(list)}`);
     const tickers = (tinfo && tinfo.tickers) || [];
     if(!tickers.length){ $("#scResult").innerHTML='<div class="empty">Daftar saham kosong.</div>'; return; }
+    showStatus("Memindai " + tickers.length + " saham... (batch 1 sedang diunduh)", true);
     const chunkSize = 100;
     let merged = [], scanned = 0;
     showScProgress(0, tickers.length, true);
