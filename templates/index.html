@@ -42,8 +42,8 @@
       <button class="btn" id="goBtn">Analisis</button>
     </div>
     <div class="hctl">
-      <label class="toggle"><input type="checkbox" id="refresh"> Live Data</label>
-      <label class="toggle"><input type="checkbox" id="auto"> <span class="live-dot"></span>Auto 60s</label>
+      <label class="toggle" data-tip="Ambil harga live (delay ~10 mnt) saat analisis"><input type="checkbox" id="refresh"> Live Data</label>
+      <label class="toggle" data-tip="Auto-refresh analisis tiap 60 detik"><input type="checkbox" id="auto"> <span class="live-dot"></span>Auto 60s</label>
     </div>
     <button class="themebtn" id="helpBtn" title="Bantuan &amp; shortcut (?)" aria-label="Bantuan">?</button>
     <button class="themebtn" id="themeBtn" title="Ganti tema terang/gelap" aria-label="Ganti tema">&#9681;</button>
@@ -79,7 +79,7 @@
       <span class="chip" data-t="GOTO">GOTO</span>
     </div>
     <div style="display:flex;gap:16px;align-items:center;margin:-6px 0 14px">
-      <label class="toggle"><input type="checkbox" id="cmp"> Compare IHSG</label>
+      <label class="toggle" data-tip="Overlay IHSG (ternormalisasi) di grafik"><input type="checkbox" id="cmp"> Compare IHSG</label>
       <span class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em">Model ML &amp; sentimen dimuat otomatis</span>
     </div>
     <div id="result">
