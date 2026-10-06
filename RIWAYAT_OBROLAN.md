@@ -298,3 +298,39 @@ py -m unittest discover -s tests
 - Data IDX gratis (yfinance/TradingView) delay ~10 menit; realtime penuh perlu vendor berbayar.
 - Di Vercel (serverless): scheduler tidak berjalan & DB/cache ephemeral (`/tmp`); untuk 24/7 pakai VPS/Docker.
 
+
+---
+
+# Sesi Lanjutan — Deploy Live & Reliability (Turn 20+)
+
+## Turn 20 — Universe screener luas
+- `universe.py`: daftar saham IDX **dinamis** (auto top-likuid ~150, full ~844) + fallback statis.
+- Preset baru: `liquid`, `idx80`, `semua`; opsi dropdown "AUTO · TOP LIKUID" & "ALL IDX".
+- `data.prefetch()` (batch download ~60 ticker/request) agar scan luas realistis.
+
+## Turn 21 — Push ke GitHub
+- Repo: https://github.com/akmalseptain/laumology (private).
+- `.gitignore` mengecualikan `.env`, `llm.json`, `realtime.json`, `.cache/`, `output/`, `Sciencebasedlifter/`.
+
+## Turn 22 — Deploy Render
+- `render.yaml` (Blueprint): web service `gunicorn webapp:app` + health check `/health`.
+- Auto-scanner in-process via `ENABLE_SCHEDULER=1` (+ window jam bursa).
+
+## Turn 23 — Fix 502 & reliability
+- Akar 502: free instance **spin-down** + respons non-JSON.
+- **Global JSON error handler** (`/api/*` selalu JSON).
+- **Scheduler aman**: delay awal 90s + single-flight + hanya jam bursa (WIB).
+- **Screener chunked + progress bar + retry** (`fetchJSON`).
+- `data.py` retry (401 "Invalid Crumb"), cache fundamentals/news diperpanjang; requirements + `curl_cffi`.
+- **UptimeRobot** ping `/health` tiap 5 mnt → Render tak spin-down.
+
+## Turn 24 — Percepat & scan latar
+- Screener **paralel** (3 batch sekaligus) + **hasil bertahap**.
+- **Scan Latar** server-side: `/api/scan/start`, `/api/scan/status`, `/api/scan/cancel` + toggle "Scan Latar".
+- **Warm-up cache** terjadwal (AUTO) saat jam bursa (`WARM_UNIVERSE`, `WARM_INTERVAL`).
+
+## Status Live
+- URL publik: **https://laumology.onrender.com** (Render free + UptimeRobot).
+- Web tetap jalan **walau laptop mati** (berjalan di cloud Render, bukan di laptop).
+- GitHub: https://github.com/akmalseptain/laumology
+- Credit: **AKMALSEPTAIN**.
