@@ -10,6 +10,16 @@ function signalClass(s){ if(s.includes("STRONG"))return "STRONG"; if(s==="BUY")r
 function scoreColor(s){ return s>=80 ? "#16a34a" : s>=65 ? "#4b8f6a" : s>=40 ? "#8a948d" : "#e5484d"; }
 function chg(v){ return `<span class="chg" style="color:${v>=0?'#26a69a':'#ef5350'}">${v>=0?'+':'−'}${fmt(Math.abs(v),2)}%</span>`; }
 
+async function mapLimit(items, limit, fn){
+  const ret = new Array(items.length);
+  let i = 0;
+  const n = Math.max(1, Math.min(limit, items.length));
+  const worker = async () => { while(i < items.length){ const idx = i++; ret[idx] = await fn(items[idx], idx); } };
+  await Promise.all(Array.from({length:n}, () => worker().catch(()=>{})));
+  return ret;
+}
+function throttle(fn, ms){ let t = 0; return function(){ const now = Date.now(); if(now - t >= ms){ t = now; fn(); } }; }
+
 async function fetchJSON(url, opts){
   opts = opts || {};
   const retries = (opts.retries!=null) ? opts.retries : 2;
@@ -499,23 +509,29 @@ async function runScreen(){
     const tickers = (tinfo && tinfo.tickers) || [];
     if(!tickers.length){ $("#scResult").innerHTML='<div class="empty">Daftar saham kosong.</div>'; return; }
     showStatus("Memindai " + tickers.length + " saham... (batch 1 sedang diunduh)", true);
-    const chunkSize = 100;
+    const chunkSize = 60, CONC = 3;
+    const chunks = [];
+    for(let i=0;i<tickers.length;i+=chunkSize) chunks.push(tickers.slice(i, i+chunkSize));
     let merged = [], scanned = 0;
+    const finalRows = () => {
+      let m = merged;
+      if($("#scSqz").checked) m = m.filter(x => x.Sqz==="OFF" && Number(x.SqzMom)>0);
+      m = m.slice().sort((a,b)=> (b.Score-a.Score) || (b.Conf-a.Conf));
+      const top = parseInt($("#scTop").value||"0",10);
+      return (top>0) ? m.slice(0, top) : m;
+    };
+    const renderNow = throttle(()=>{ renderScanRows(finalRows(), tickers.length, scanned); }, 900);
     showScProgress(0, tickers.length, true);
-    for(let i=0;i<tickers.length;i+=chunkSize){
-      if(_scCancel) break;
-      const chunk = tickers.slice(i, i+chunkSize);
+    await mapLimit(chunks, CONC, async (chunk)=>{
+      if(_scCancel) return;
       const url = `/api/screen?list=${encodeURIComponent(chunk.join(","))}&top=1000&min_score=${minS}&min_conf=${minC}&sector=${encodeURIComponent(sec)}&min_value=${mv}&only_bullish=${bull}&refresh=${rfr}`;
       try{ const d = await fetchJSON(url, {retries:2}); merged = merged.concat(d.rows||[]); }catch(e){}
       scanned += chunk.length;
       showScProgress(scanned, tickers.length, true);
-    }
+      renderNow();
+    });
     showScProgress(scanned, tickers.length, false);
-    if($("#scSqz").checked) merged = merged.filter(x => x.Sqz==="OFF" && Number(x.SqzMom)>0);
-    merged.sort((a,b)=> (b.Score-a.Score) || (b.Conf-a.Conf));
-    const top = parseInt($("#scTop").value||"0",10);
-    const dataRows = (top>0) ? merged.slice(0, top) : merged;
-    renderScanRows(dataRows, tickers.length, scanned);
+    renderScanRows(finalRows(), tickers.length, scanned);
     showStatus(_scCancel ? "Dibatalkan" : "Selesai");
   }catch(e){
     $("#scResult").innerHTML = '<div class="empty">Gagal: '+e.message+'. Server mungkin sedang bangun — coba lagi.</div>';
