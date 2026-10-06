@@ -23,6 +23,10 @@ services:
         value: "market"
       - key: SCAN_START_DELAY
         value: "90"
+      - key: WARM_UNIVERSE
+        value: "auto"
+      - key: WARM_INTERVAL
+        value: "1800"
       - key: RATE_LIMIT_PER_MIN
         value: "600"
       # Isi lewat dashboard (sync: false = minta input, tidak disimpan di repo)

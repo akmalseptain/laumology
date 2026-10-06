@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 import time
+import uuid
 import webbrowser
 from pathlib import Path
 
@@ -68,6 +69,50 @@ _rl_lock = threading.Lock()
 RATE_LIMIT_PER_MIN = int(os.environ.get("RATE_LIMIT_PER_MIN", "600"))
 API_KEY = os.environ.get("API_KEY", "")
 _PROTECTED = {"/api/paper/open", "/api/paper/close", "/api/notify"}
+
+# --- Background scan jobs (server-side) ---
+_scan_jobs: dict[str, dict] = {}
+_scan_lock = threading.Lock()
+_SCAN_JOBS_MAX = 6
+
+
+def _scan_worker(job_id: str, params: dict) -> None:
+    try:
+        tickers = screener.resolve_watchlist(params.get("list") or "auto")
+    except Exception as exc:
+        with _scan_lock:
+            _scan_jobs[job_id].update(state="error", error=str(exc))
+        return
+    total = len(tickers)
+    with _scan_lock:
+        _scan_jobs[job_id].update(state="running", total=total)
+    rows: list = []
+    chunk = 60
+    for i in range(0, total, chunk):
+        with _scan_lock:
+            if _scan_jobs[job_id].get("cancel"):
+                _scan_jobs[job_id]["state"] = "cancelled"
+                return
+        part = tickers[i:i + chunk]
+        try:
+            r = screener.screen(
+                part,
+                min_score=int(params.get("min_score") or 0),
+                top=1000,
+                refresh=bool(params.get("refresh")),
+                min_confidence=int(params.get("min_conf") or 0),
+                only_bullish=bool(params.get("only_bullish")),
+                sector=(params.get("sector") or None),
+                min_value=float(params.get("min_value") or 0),
+            )
+            rows.extend(r.to_dict("records"))
+        except Exception:
+            pass
+        with _scan_lock:
+            _scan_jobs[job_id]["scanned"] = min(i + chunk, total)
+            _scan_jobs[job_id]["rows"] = rows
+    with _scan_lock:
+        _scan_jobs[job_id].update(state="done", scanned=total, rows=rows)
 
 
 @app.before_request
@@ -928,6 +973,53 @@ def _lan_ips() -> list[str]:
     return sorted(ips)
 
 
+@app.route("/api/scan/start", methods=["POST"])
+def api_scan_start():
+    b = request.get_json(silent=True) or {}
+    jid = uuid.uuid4().hex[:12]
+    with _scan_lock:
+        done = [k for k, v in _scan_jobs.items() if v.get("state") in ("done", "error", "cancelled")]
+        while len(_scan_jobs) >= _SCAN_JOBS_MAX and done:
+            _scan_jobs.pop(done.pop(0), None)
+        _scan_jobs[jid] = {"state": "queued", "scanned": 0, "total": 0, "rows": [],
+                           "created": time.time(), "cancel": False, "error": None}
+    threading.Thread(target=_scan_worker, args=(jid, b), daemon=True, name="scan-" + jid).start()
+    return jsonify(job=jid)
+
+
+@app.route("/api/scan/status")
+def api_scan_status():
+    jid = (request.args.get("id") or "").strip()
+    with _scan_lock:
+        j = _scan_jobs.get(jid)
+        if not j:
+            return jsonify(error="job tidak ditemukan"), 404
+        rows = list(j.get("rows") or [])
+        payload = {"state": j.get("state"), "scanned": j.get("scanned", 0),
+                   "total": j.get("total", 0), "error": j.get("error"), "rows": rows}
+    top = request.args.get("top")
+    if top:
+        try:
+            t = int(top)
+            if t > 0:
+                payload["rows"] = sorted(rows, key=lambda x: (x.get("Score", 0), x.get("Conf", 0)),
+                                         reverse=True)[:t]
+        except ValueError:
+            pass
+    return jsonify(payload)
+
+
+@app.route("/api/scan/cancel", methods=["POST"])
+def api_scan_cancel():
+    b = request.get_json(silent=True) or {}
+    jid = str(b.get("id") or "")
+    with _scan_lock:
+        if jid in _scan_jobs:
+            _scan_jobs[jid]["cancel"] = True
+            return jsonify(ok=True)
+    return jsonify(error="job tidak ditemukan"), 404
+
+
 def _maybe_start_scheduler() -> None:
     """Jalankan auto-scanner in-process (untuk Render/VPS). Aktifkan via ENABLE_SCHEDULER=1.
 
@@ -945,6 +1037,8 @@ def _maybe_start_scheduler() -> None:
     universe = os.environ.get("SCAN_UNIVERSE", "lq45")
     window = os.environ.get("SCAN_WINDOW", "market").lower()
     start_delay = int(os.environ.get("SCAN_START_DELAY", "90"))
+    warm_universe = os.environ.get("WARM_UNIVERSE", "auto")
+    warm_interval = max(600, int(os.environ.get("WARM_INTERVAL", "1800")))
 
     def _in_window() -> bool:
         if window in ("24h", "all", "always"):
@@ -965,7 +1059,16 @@ def _maybe_start_scheduler() -> None:
         except Exception:
             pass
         running = False
+        last_warm = 0.0
         while True:
+            now = time.time()
+            if _in_window() and (now - last_warm) >= warm_interval:
+                last_warm = now
+                try:
+                    if warm_universe:
+                        sched_mod.warm(warm_universe)
+                except Exception:
+                    pass
             if _in_window() and not running:
                 running = True
                 try:

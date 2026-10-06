@@ -13,6 +13,7 @@ from signals import analyze
 
 def run_once(universe: str = "lq45", min_score: int = 65) -> int:
     tickers = screener.resolve_watchlist(universe)
+    data.prefetch(tickers)  # batch: percepat + hangatkan cache
     prev = {r["ticker"]: r["signal"] for r in store.recent_signals(limit=800)}
     buys = []
     n = 0
@@ -42,6 +43,16 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
         notify.dispatch(text, {"ticker": a.ticker, "signal": a.signal, "score": a.score})
         print(f"ALERT {text}")
     return len(buys)
+
+
+def warm(universe: str = "auto") -> int:
+    """Hangatkan cache (unduh data) tanpa analisis — agar scan manual berikutnya cepat."""
+    try:
+        tickers = screener.resolve_watchlist(universe)
+        return data.prefetch(tickers)
+    except Exception as exc:
+        print(f"  ! warm {universe}: {exc}")
+        return 0
 
 
 def main() -> None:

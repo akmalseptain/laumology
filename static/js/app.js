@@ -499,6 +499,7 @@ function renderScanRows(dataRows, totalUniverse, scanned){
 async function runScreen(){
   let list = $("#scList").value;
   if(list==="custom"){ list = $("#scCustom").value.trim(); if(!list){ showStatus("Isi daftar dulu"); return; } }
+  if($("#scBg") && $("#scBg").checked){ return runScreenBackground(list); }
   _scCancel = false;
   $("#scRun").disabled = true;
   const minS=$("#scMin").value, minC=$("#scConf").value, sec=$("#scSector").value,
@@ -538,6 +539,47 @@ async function runScreen(){
     showStatus("Gagal");
   }
   finally{ $("#scRun").disabled=false; }
+}
+let _bgJob = null;
+async function runScreenBackground(list){
+  _scCancel = false;
+  $("#scRun").disabled = true;
+  const body = {
+    list: list,
+    min_score: $("#scMin").value, min_conf: $("#scConf").value,
+    sector: $("#scSector").value, min_value: $("#scValue").value||0,
+    only_bullish: $("#scBull").checked, refresh: $("#scRefresh").checked
+  };
+  try{
+    showStatus("Menjalankan scan latar...", true);
+    const s = await fetchJSON('/api/scan/start', {fetchOpts:{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}});
+    _bgJob = s.job;
+    showScProgress(0, 1, true);
+    await new Promise((resolve)=>{
+      const tick = async ()=>{
+        try{
+          if(_scCancel){ try{ await fetchJSON('/api/scan/cancel', {fetchOpts:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:_bgJob})}}); }catch(e){} }
+          const st = await fetchJSON('/api/scan/status?id='+encodeURIComponent(_bgJob));
+          const total = st.total||0, done = st.scanned||0;
+          showScProgress(done, total||1, !(st.state==="done"||st.state==="error"||st.state==="cancelled"));
+          let m = st.rows||[];
+          if($("#scSqz").checked) m = m.filter(x => x.Sqz==="OFF" && Number(x.SqzMom)>0);
+          m = m.slice().sort((a,b)=> (b.Score-a.Score) || (b.Conf-a.Conf));
+          const top = parseInt($("#scTop").value||"0",10);
+          const rows = (top>0) ? m.slice(0, top) : m;
+          if(total) renderScanRows(rows, total, done);
+          if(st.state==="done"){ _bgJob=null; showScProgress(done,total,false); showStatus("Selesai"); resolve(); return; }
+          if(st.state==="error"){ showStatus("Gagal: "+(st.error||"")); resolve(); return; }
+          if(st.state==="cancelled"){ showStatus("Dibatalkan"); resolve(); return; }
+          setTimeout(tick, 1500);
+        }catch(e){ setTimeout(tick, 2500); }
+      };
+      tick();
+    });
+  }catch(e){
+    $("#scResult").innerHTML = '<div class="empty">Gagal: '+e.message+'. Server mungkin sedang bangun — coba lagi.</div>';
+    showStatus("Gagal");
+  } finally { $("#scRun").disabled=false; }
 }
 
 function pick(t){
