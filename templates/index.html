@@ -45,6 +45,7 @@
       <label class="toggle"><input type="checkbox" id="refresh"> Live Data</label>
       <label class="toggle"><input type="checkbox" id="auto"> <span class="live-dot"></span>Auto 60s</label>
     </div>
+    <button class="themebtn" id="helpBtn" title="Bantuan &amp; shortcut (?)" aria-label="Bantuan">?</button>
     <button class="themebtn" id="themeBtn" title="Ganti tema terang/gelap" aria-label="Ganti tema">&#9681;</button>
   </div>
   <div class="navrow">
@@ -63,6 +64,7 @@
 
 <main>
   <section class="panel active" id="panel-analisis">
+    <div id="summaryBar" class="summary-bar"></div>
     <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Technical Protocol</span></div>
     <h2 class="hero-title glow-text page-title">Signal <span>Engine.</span></h2>
     <div class="chips" id="chips">
@@ -355,6 +357,23 @@
 </footer>
 
 <div id="status"><span class="spinner"></span><span id="statusText">Memuat...</span></div>
+
+<div id="onboard" class="onboard">
+  <div class="onboard-card">
+    <img class="bm-light" src="/static/laumology.svg" alt="LAUMOLOGY" style="height:34px;margin-bottom:12px">
+    <img class="bm-dark" src="/static/laumology-dark.svg" alt="LAUMOLOGY" style="height:34px;margin-bottom:12px">
+    <h3>Selamat datang di LAUMOLOGY</h3>
+    <p>Terminal analisis saham IDX: sinyal &amp; skor, Musyawarah 5 agen, screener seluruh emiten (~900), backtest, akurasi, dan portofolio.</p>
+    <div class="onboard-steps">
+      <div><b>01 Analisis</b> — sinyal, indikator, fundamental, ML.</div>
+      <div><b>02 Screener</b> — pindai ALL IDX (~900 emiten).</div>
+      <div><b>04 Backtest</b> &amp; <b>06 Akurasi</b> — uji &amp; validasi strategi.</div>
+      <div><b>07 Pasar</b> &amp; <b>08 Musyawarah</b> — konteks pasar &amp; konsensus 5 agen.</div>
+    </div>
+    <div class="onboard-hint">Shortcut: tekan <kbd>1</kbd>–<kbd>8</kbd> ganti tab · <kbd>/</kbd> cari kode · <kbd>?</kbd> bantuan · <kbd>t</kbd> tema.</div>
+    <button class="btn" id="onboardClose">Mulai</button>
+  </div>
+</div>
 
 <nav class="bottomnav">
   <div class="tab active" data-tab="analisis"><span class="n">01</span>Analisis</div>

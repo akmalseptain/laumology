@@ -1149,6 +1149,58 @@ async function runDataQuality(){
   finally{ $("#dqRun").disabled=false; }
 }
 
+/* ===================== UI/UX v2 ===================== */
+function enhanceTables(){
+  document.querySelectorAll("table:not(.as-cards)").forEach(function(tbl){
+    var heads = Array.prototype.map.call(tbl.querySelectorAll("thead th"), function(th){ return th.textContent.trim(); });
+    if(!heads.length) return;
+    tbl.querySelectorAll("tbody tr").forEach(function(tr){
+      Array.prototype.forEach.call(tr.children, function(td,i){
+        if(heads[i] && !td.getAttribute("data-label")) td.setAttribute("data-label", heads[i]);
+      });
+    });
+    tbl.classList.add("as-cards");
+  });
+}
+var _tblTimer=null;
+function scheduleEnhance(){ clearTimeout(_tblTimer); _tblTimer=setTimeout(enhanceTables, 80); }
+new MutationObserver(scheduleEnhance).observe(document.body,{childList:true,subtree:true});
+
+async function loadSummary(){
+  var el=document.getElementById("summaryBar"); if(!el) return;
+  try{
+    var d=await (await fetch("/api/summary")).json();
+    var ih=d.ihsg||{}; var up=(Number(ih.ret_1d)||0)>=0;
+    var sc=(d.scans&&d.scans[0])||null;
+    var wl=(typeof watchlist!=="undefined" && watchlist)?watchlist.length:0;
+    el.innerHTML =
+      '<div class="s-card brand"><div class="k">IHSG</div><div class="v">'+fmt(ih.price)+'</div><div class="sub '+(up?'v-up':'v-red')+'">'+(up?'+':'-')+Math.abs(Number(ih.ret_1d)||0).toFixed(2)+'% · '+(ih.regime||'-')+'</div></div>'
+      + '<div class="s-card"><div class="k">Sinyal Beli Hari Ini</div><div class="v v-up">'+(d.signals_today||0)+'</div><div class="sub">dari riwayat scanner</div></div>'
+      + '<div class="s-card"><div class="k">Scan Terakhir</div><div class="v">'+(sc?sc.n:'-')+'</div><div class="sub">'+(sc?((sc.universe||"").toUpperCase()+' · '+sc.buys+' beli'):'belum ada')+'</div></div>'
+      + '<div class="s-card"><div class="k">Watchlist</div><div class="v">'+wl+'</div><div class="sub">saham dipantau</div></div>';
+  }catch(e){ el.innerHTML=''; }
+}
+
+function showOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.add("show"); }
+function hideOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.remove("show"); try{ localStorage.setItem("sbl_onboarded","1"); }catch(e){} }
+(function(){
+  var b=document.getElementById("onboardClose"); if(b) b.onclick=hideOnboard;
+  var h=document.getElementById("helpBtn"); if(h) h.onclick=showOnboard;
+  var o=document.getElementById("onboard"); if(o) o.addEventListener("click",function(e){ if(e.target.id==="onboard") hideOnboard(); });
+  var seen=false; try{ seen=!!localStorage.getItem("sbl_onboarded"); }catch(e){ seen=true; }
+  if(!seen) setTimeout(showOnboard, 700);
+})();
+
+var TAB_ORDER=["analisis","screener","live","backtest","portofolio","akurasi","pasar","musyawarah"];
+document.addEventListener("keydown",function(e){
+  var tag=(e.target.tagName||"").toLowerCase();
+  if(tag==="input"||tag==="select"||tag==="textarea") return;
+  if(e.key>="1"&&e.key<="8"){ var t=document.querySelector('.tab[data-tab="'+TAB_ORDER[Number(e.key)-1]+'"]'); if(t) t.click(); }
+  else if(e.key==="/"){ e.preventDefault(); var inp=document.getElementById("ticker"); if(inp){ inp.focus(); if(inp.select) inp.select(); } }
+  else if(e.key==="?"){ showOnboard(); }
+  else if(e.key==="t"||e.key==="T"){ var tb=document.getElementById("themeBtn"); if(tb) tb.click(); }
+});
+
 (function init(){
   try{ applyTheme(localStorage.getItem("sbl_theme") || "light"); }catch(e){}
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/static/sw.js", {updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}); }
@@ -1171,6 +1223,8 @@ async function runDataQuality(){
   const sc=$("#scList"), mk=$("#mkList");
   if(sc && mk){ Array.from(sc.options).forEach(o=>{ if(o.value && o.value!=="custom"){ const opt=document.createElement("option"); opt.value=o.value; opt.textContent=o.textContent; mk.appendChild(opt); } }); }
   renderJournal();
+  enhanceTables();
+  loadSummary();
   fetch("/api/llm/status").then(r=>r.json()).then(s=>{ const el=$("#myLlmStatus"); if(el) el.textContent = "Mode LLM: " + (s.configured ? ("siap (" + s.model + ")") : "belum dikonfigurasi (set OPENAI_API_KEY / LLM_API_KEY)") + " | prompt MD: " + (s.prompt ? "ditemukan" : "default"); }).catch(()=>{});
   renderWatchlist(); renderPositions(); renderAlerts(); loadHistory(); pollPortfolio();
   loadPaper(); loadDb();

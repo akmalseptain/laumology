@@ -869,6 +869,30 @@ def api_disclaimer():
     )
 
 
+@app.route("/api/summary")
+def api_summary():
+    out: dict = {}
+    try:
+        out["ihsg"] = market.ihsg()
+    except Exception:
+        out["ihsg"] = {}
+    try:
+        rows = store.recent_signals(limit=300)
+        today = time.strftime("%Y-%m-%d")
+        buys = [r for r in rows if str(r.get("ts", "")).startswith(today)
+                and r.get("signal") in ("BUY", "STRONG BUY")]
+        out["signals_today"] = len(buys)
+        out["latest_signals"] = rows[:8]
+    except Exception:
+        out["signals_today"] = 0
+        out["latest_signals"] = []
+    try:
+        out["scans"] = store.recent_scans(limit=3)
+    except Exception:
+        out["scans"] = []
+    return jsonify(out)
+
+
 def _lan_ips() -> list[str]:
     import socket
     ips: set[str] = set()
