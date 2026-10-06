@@ -1,0 +1,41 @@
+# Render Blueprint - LAUMOLOGY (web + auto-scanner in-process)
+# Deploy: Render Dashboard -> New -> Blueprint -> pilih repo ini.
+# Catatan: plan free akan "spin down" saat idle (scanner ikut pause).
+# Untuk 24/7 penuh, pakai plan berbayar atau ping berkala ke /health.
+services:
+  - type: web
+    name: laumology
+    runtime: python
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 webapp:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      # Auto-scanner berjalan di dalam proses web (thread) tiap SCAN_INTERVAL detik
+      - key: ENABLE_SCHEDULER
+        value: "1"
+      - key: SCAN_INTERVAL
+        value: "900"
+      - key: SCAN_UNIVERSE
+        value: "lq45"
+      - key: RATE_LIMIT_PER_MIN
+        value: "600"
+      # Isi lewat dashboard (sync: false = minta input, tidak disimpan di repo)
+      - key: API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: IDX_ALERT_WEBHOOK
+        sync: false
+
+# Disk persisten (butuh plan berbayar) - buka komentar agar DB/cache tidak hilang saat restart.
+#    disk:
+#      name: laumology-data
+#      mountPath: /var/data
+#      sizeGB: 1
+#    envVars:
+#      - key: DATA_DIR
+#        value: /var/data

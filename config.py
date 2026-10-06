@@ -135,6 +135,11 @@ import os as _os  # noqa: E402
 if _os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"):
     settings.cache_dir = "/tmp/.cache"
 
+# Render/VPS: gunakan disk persisten bila disediakan (DATA_DIR)
+_data_dir = _os.environ.get("DATA_DIR")
+if _data_dir:
+    settings.cache_dir = _os.path.join(_data_dir, ".cache")
+
 
 # --- Universe luas: daftar saham IDX likuid (fallback bila fetch otomatis gagal) ---
 IDX_LIQUID = [

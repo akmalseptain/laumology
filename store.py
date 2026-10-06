@@ -6,7 +6,10 @@ import threading
 import time
 from pathlib import Path
 
-if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
+_data_dir = os.environ.get("DATA_DIR")
+if _data_dir:
+    DB_PATH = Path(_data_dir) / "laumology.db"
+elif os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
     DB_PATH = Path("/tmp/laumology.db")
 else:
     DB_PATH = Path(".cache") / "laumology.db"

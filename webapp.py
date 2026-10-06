@@ -906,6 +906,35 @@ def _lan_ips() -> list[str]:
     return sorted(ips)
 
 
+def _maybe_start_scheduler() -> None:
+    """Jalankan auto-scanner in-process (untuk Render/VPS). Aktifkan via ENABLE_SCHEDULER=1."""
+    if os.environ.get("ENABLE_SCHEDULER") not in ("1", "true", "yes"):
+        return
+    try:
+        import scheduler as sched_mod
+    except Exception:
+        return
+    interval = int(os.environ.get("SCAN_INTERVAL", "900"))
+    universe = os.environ.get("SCAN_UNIVERSE", "lq45")
+
+    def loop() -> None:
+        try:
+            store.init()
+        except Exception:
+            pass
+        while True:
+            try:
+                sched_mod.run_once(universe)
+            except Exception:
+                pass
+            time.sleep(interval)
+
+    threading.Thread(target=loop, daemon=True, name="laumology-scanner").start()
+
+
+_maybe_start_scheduler()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="LAUMOLOGY IDX Trading Terminal (web)")
     parser.add_argument("--port", type=int, default=5000)
