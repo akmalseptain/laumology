@@ -205,3 +205,96 @@ py main.py backtest PTBA --trades
 
 - Alat bantu analisis, **bukan nasihat keuangan**. Selalu kelola risiko.
 - Data harga dari Yahoo Finance; live chart dari TradingView (butuh internet).
+
+---
+
+# Sesi Lanjutan — Build LAUMOLOGY (Turn 9–19)
+
+## Turn 9 — UI Web Trading
+- Klarifikasi: target = web trading (Flask `templates/index.html`), acuan = gaya ScienceBasedLifter.
+- Restyle UI (header merah/glass, ticker, label section, glass card, terminal boot).
+
+## Turn 10 — Chart live gratis
+- Integrasi **TradingView Lightweight Charts** (open-source), di-host lokal `static/vendor/`.
+- Endpoint `/api/ohlc` (candle + volume + MA/EMA/Supertrend + RSI + level ENTRY/SL/TP); chart di tab Analisis & Live Chart, update tiap 10 detik via `/api/quote`.
+
+## Turn 11 — Indikator komprehensif + fitur pendukung
+- Indikator: TTM/LazyBear Squeeze, Anchored VWAP, Volume Profile (POC/VAH/VAL), Choppiness, ADR, ATR percentile, divergensi RSI/MACD/OBV, pola candle tambahan, supply/demand zones.
+- Fitur: Backtest (statistik), Portofolio (watchlist + positions + alerts + journal), Screener lanjutan, Export CSV, Riwayat sinyal.
+
+## Turn 12 — Akurasi
+- `validation.py` + tab Akurasi (kalibrasi skor, edge per indikator, konfluensi vs hasil).
+- `ml.py` (regresi logistik numpy, walk-forward, probabilitas terkalibrasi).
+
+## Turn 13 — Fitur pendukung lanjutan
+- `store.py` (SQLite) + `scheduler.py` (auto-scan worker). `market.py` (IHSG/breadth/heatmap/RS), `fundamentals.py`, `risk.py` (sizing/korelasi/portofolio), `notify.py` (webhook).
+- Optimizer `/api/optimize`, paper trading `/api/paper`, news sentiment `/api/news`.
+- PWA (manifest+SW), dark mode toggle, compare IHSG, metrik risiko (Sharpe/Sortino/Calmar/VaR/CVaR/Kelly).
+- Deploy: Dockerfile, Procfile, requirements (+gunicorn).
+
+## Turn 14 — Integrasi MD "Musyawarah"
+- `musyawarah.py`: 5 agen (@technical, @bandarmologi, @fundamental, @sentiment, @risk_moderator) + aturan veto (distribusi masif & RRR < 1:2). Output persis format MD.
+- Ditingkatkan jadi **weighted consensus** (bobot 40/30/15/15, conviction, probabilitas ML).
+- `llm.py`: mode LLM opsional (system-prompt dari MD), aktif bila ada API key. `consensus_backtest.py` + `/api/optimize-weights` untuk setel bobot.
+
+## Turn 15 — Rebrand & tema
+- Nama **LAUMOLOGY**; logo SVG (`static/laumology.svg` + varian dark).
+- Tema gaya Stockbit (putih + hijau) + light/dark toggle.
+
+## Turn 16 — Perbaikan UI + batch enterprise
+- Hapus ticker, header 2 baris, logo mode gelap.
+- Realisme biaya backtest (fee beli 0.15% / jual 0.25%, slippage, eksekusi next-open). Dioptimizer & walk-forward juga.
+- `validate.py` (kualitas data), `/health`, `/api/version`, `/api/metrics`, `/api/schema`, `/api/disclaimer`, `/api/seasonality`.
+- Keamanan: API key + rate limit. Batas risiko (konsentrasi sektor/posisi). `tests/test_engine.py` (8 test lulus).
+- Indikator tambahan: Donchian, Elder Force Index, Garman-Klass, seasonality.
+
+## Turn 17 — Mobile + PWA + akses LAN
+- Layout responsif + bottom-nav; server bind `0.0.0.0` + cetak alamat LAN agar bisa dibuka dari HP.
+
+## Turn 18 — Refactor + Vercel + kredit
+- Refactor: `templates/index.html` 123 KB → 22 KB; CSS/JS dipindah ke `static/css/app.css` & `static/js/app.js` (via `tools/extract_frontend.py`).
+- Mobile disederhanakan (satu nav bernomor, header kompak).
+- Kredit **AKMALSEPTAIN** (footer + `<meta name="author">`).
+- Siap Vercel: `vercel.json`, `api/index.py`; path serverless → `/tmp`.
+
+## Turn 19 — Push ke GitHub
+- Repo: https://github.com/akmalseptain/laumology (private).
+- `.gitignore` mengecualikan `.env`, `llm.json`, `realtime.json`, `.cache/`, `output/`, `Sciencebasedlifter/`.
+
+## Struktur File (terbaru)
+| File | Fungsi |
+|------|--------|
+| `webapp.py` | Server Flask + semua endpoint API |
+| `templates/index.html` | UI (21 KB, refer ke CSS/JS eksternal) |
+| `static/css/app.css` | Styling (light/dark, responsif) |
+| `static/js/app.js` | Logika frontend |
+| `indicators.py` | Semua indikator teknikal |
+| `signals.py` | Engine skor/sinyal + konfluensi |
+| `musyawarah.py` | Multi-agent consensus (5 agen + veto) |
+| `backtest.py` / `consensus_backtest.py` | Backtest (berbiaya) & optimasi bobot |
+| `ml.py` / `validation.py` | Model ML & uji akurasi |
+| `market.py` / `fundamentals.py` / `news.py` | IHSG, fundamental, sentimen |
+| `risk.py` / `metrics.py` | Risiko portofolio & metrik |
+| `store.py` / `scheduler.py` | DB SQLite & auto-scanner |
+| `validate.py` | Validasi kualitas data |
+| `notify.py` / `llm.py` | Webhook & mode LLM opsional |
+| `vercel.json` / `api/index.py` / `Dockerfile` / `Procfile` | Deployment |
+
+## Cara Menjalankan (terbaru)
+```powershell
+# Web (bisa diakses dari HP di WiFi yang sama)
+py webapp.py --host 0.0.0.0
+# atau klik-dobel: Jalankan Web.bat
+
+# Auto-scan worker (opsional, terminal terpisah)
+py scheduler.py --list lq45 --interval 900
+
+# Test
+py -m unittest discover -s tests
+```
+
+## Catatan
+- Alat bantu analisis & edukasi, **bukan nasihat keuangan**.
+- Data IDX gratis (yfinance/TradingView) delay ~10 menit; realtime penuh perlu vendor berbayar.
+- Di Vercel (serverless): scheduler tidak berjalan & DB/cache ephemeral (`/tmp`); untuk 24/7 pakai VPS/Docker.
+
