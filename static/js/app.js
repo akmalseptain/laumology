@@ -211,7 +211,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   if(name==="analisis" && charts.analysis) setTimeout(()=>ChartKit.resize(charts.analysis), 80);
   if(window.matchMedia("(max-width:900px)").matches) window.scrollTo({top:0, behavior:"smooth"});
 });
-document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ $("#ticker").value=c.dataset.t; analyze(); });
+document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ $("#ticker").value=c.dataset.t; document.querySelectorAll(".chip").forEach(x=>x.classList.remove("active")); c.classList.add("active"); analyze(); });
 $("#goBtn").onclick = () => analyze();
 $("#ticker").addEventListener("keydown", e => { if(e.key==="Enter") analyze(); });
 $("#interval").onchange = () => analyze();

@@ -313,3 +313,46 @@
     th,td{padding:7px 8px}
     .flinks{gap:8px}
   }
+
+  /* ===================== POLISH PASS ===================== */
+  :root{ --ring:rgba(22,163,74,.3); }
+  body{background:radial-gradient(1100px 420px at 50% -120px, rgba(22,163,74,.07), transparent 60%), var(--background)}
+
+  .sec .num{font-weight:700;background:#eef7f1;color:var(--brand-dark);border:1px solid #cfe8d8;border-radius:7px;padding:1px 8px;font-size:11px}
+  .sec .line{width:38px;background:linear-gradient(90deg,var(--brand),transparent)}
+  .sec .badge{background:#fff;box-shadow:0 1px 2px rgba(15,23,18,.04)}
+  .sec .badge::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--brand);margin-right:7px}
+
+  .card{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:0 20px 44px -24px rgba(15,23,18,.4);border-color:#cfe8d8}
+
+  .metric{transition:border-color .16s, background .16s}
+  .metric:hover{border-color:#c3e0cf}
+  .metric .v{font-variant-numeric:tabular-nums}
+  .metric.hl{position:relative;overflow:hidden}
+  .metric.hl::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+
+  .btn:active{transform:translateY(1px)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--ring)}
+  input:hover,select:hover{border-color:#c3d3ca}
+  input:focus,select:focus{box-shadow:0 0 0 3px var(--ring)}
+
+  .chip.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .tab.active{font-weight:700}
+
+  table{font-variant-numeric:tabular-nums}
+  thead th{position:sticky;top:0;background:#f7faf8;z-index:1}
+  tbody tr:nth-child(even){background:rgba(15,23,18,.02)}
+  tbody tr:hover{background:rgba(22,163,74,.06)}
+
+  .empty::before{content:"\25CE";display:block;font-size:20px;opacity:.35;margin-bottom:6px}
+  .ring .val b{font-variant-numeric:tabular-nums}
+
+  [data-theme="dark"] .sec .num{background:#16241b;color:#4ade80;border-color:#24402f}
+  [data-theme="dark"] .sec .badge{background:#151d18}
+  [data-theme="dark"] .card:hover{border-color:#26402f;box-shadow:0 20px 44px -24px rgba(0,0,0,.7)}
+  [data-theme="dark"] .metric:hover{border-color:#26402f}
+  [data-theme="dark"] thead th{background:#151d18}
+  [data-theme="dark"] tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
+  [data-theme="dark"] tbody tr:hover{background:rgba(34,197,94,.09)}
+
