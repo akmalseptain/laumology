@@ -7,7 +7,7 @@ import yfinance as yf
 from data import to_yahoo
 
 _cache: dict[str, tuple[float, dict]] = {}
-_TTL = 3600.0
+_TTL = 21600.0
 
 
 def _clean(v):

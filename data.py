@@ -67,18 +67,30 @@ def get_ohlcv(
         if not cached.empty:
             return cached
 
-    raw = yf.download(
-        yt,
-        period=period,
-        interval=interval,
-        auto_adjust=True,
-        progress=False,
-        threads=False,
-    )
+    raw = None
+    last_err: Exception | None = None
+    for _attempt in range(2):
+        try:
+            raw = yf.download(
+                yt,
+                period=period,
+                interval=interval,
+                auto_adjust=True,
+                progress=False,
+                threads=False,
+            )
+        except Exception as exc:  # termasuk 401 "Invalid Crumb" sesaat
+            raw = None
+            last_err = exc
+        if raw is not None and not raw.empty:
+            break
+        time.sleep(1.0)
 
     if raw is None or raw.empty:
         if path.exists():
             return pd.read_csv(path, index_col=0, parse_dates=True)
+        if last_err is not None:
+            raise last_err
         raise ValueError(f"Tidak ada data untuk {ticker} ({yt})")
 
     df = _normalize(raw)

@@ -4,3 +4,4 @@ yfinance>=0.2.40
 matplotlib>=3.7
 flask>=3.0
 gunicorn>=21.2
+curl_cffi>=0.7

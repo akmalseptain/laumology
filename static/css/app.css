@@ -412,3 +412,10 @@
   }
 
 
+
+  /* Progress bar (screener) */
+  .progress{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .progress .bar{flex:1;height:10px;background:#eef3f0;border-radius:999px;overflow:hidden;border:1px solid var(--border)}
+  .progress .bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4ade80,var(--brand));transition:width .25s ease}
+  .progress #scProgressText{font-size:11px;color:var(--muted);white-space:nowrap}
+  [data-theme='dark'] .progress .bar{background:#1b2622}

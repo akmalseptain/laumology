@@ -10,6 +10,31 @@ function signalClass(s){ if(s.includes("STRONG"))return "STRONG"; if(s==="BUY")r
 function scoreColor(s){ return s>=80 ? "#16a34a" : s>=65 ? "#4b8f6a" : s>=40 ? "#8a948d" : "#e5484d"; }
 function chg(v){ return `<span class="chg" style="color:${v>=0?'#26a69a':'#ef5350'}">${v>=0?'+':'−'}${fmt(Math.abs(v),2)}%</span>`; }
 
+async function fetchJSON(url, opts){
+  opts = opts || {};
+  const retries = (opts.retries!=null) ? opts.retries : 2;
+  let delay = 2500, lastErr = null;
+  for(let i=0;i<=retries;i++){
+    try{
+      const r = await fetch(url, opts.fetchOpts);
+      if(r.ok){
+        try{ return await r.json(); }
+        catch(e){ throw new Error("Format respons tidak dikenali"); }
+      }
+      if([502,503,504,429].indexOf(r.status)>=0 && i<retries){
+        await new Promise(s=>setTimeout(s,delay)); delay=Math.round(delay*1.5); continue;
+      }
+      let msg = "HTTP "+r.status;
+      try{ const j = await r.json(); if(j && j.error) msg = j.error; }catch(e){}
+      throw new Error(msg);
+    }catch(err){
+      lastErr = err;
+      if(i<retries){ await new Promise(s=>setTimeout(s,delay)); delay=Math.round(delay*1.5); continue; }
+      throw lastErr;
+    }
+  }
+}
+
 /* ---------- Live chart: TradingView Lightweight Charts (free, open-source) ---------- */
 const charts = { analysis: null, live: null };
 let showBench = false;
@@ -190,8 +215,7 @@ async function loadChart(name, selector, ticker, interval, refresh) {
   ChartKit.load(async (err) => {
     if (err) { wrap.innerHTML = '<div class="empty">Gagal memuat library chart (butuh internet).</div>'; return; }
     try {
-      const r = await fetch(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=${interval}&refresh=${refresh ? 1 : 0}`);
-      const p = await r.json();
+      const p = await fetchJSON(`/api/ohlc?ticker=${encodeURIComponent(ticker)}&interval=${interval}&refresh=${refresh ? 1 : 0}`);
       if (p.error) throw new Error(p.error);
       if (!p.candles || !p.candles.length) throw new Error("data chart kosong");
       charts[name] = ChartKit.mount(wrap, p);
@@ -228,8 +252,7 @@ async function analyze(silent=false){
   if(!silent) showStatus("Mengambil " + ticker + " (" + interval + ")...", true);
   $("#goBtn").disabled = true;
   try{
-    const r = await fetch(`/api/analyze?ticker=${encodeURIComponent(ticker)}&interval=${interval}&refresh=${$("#refresh").checked?1:0}&log=${silent?0:1}`);
-    const d = await r.json();
+    const d = await fetchJSON(`/api/analyze?ticker=${encodeURIComponent(ticker)}&interval=${interval}&refresh=${$("#refresh").checked?1:0}&log=${silent?0:1}`, {retries:2});
     if(d.error) throw new Error(d.error);
     render(d);
     if(!silent) showStatus("Selesai");
@@ -425,47 +448,78 @@ setInterval(async () => {
 
 $("#scList").onchange = () => { $("#customWrap").style.display = $("#scList").value==="custom" ? "flex":"none"; };
 $("#scRun").onclick = runScreen;
+let _scCancel = false;
+(function(){ const b=document.getElementById("scCancelBtn"); if(b) b.onclick=()=>{ _scCancel=true; }; })();
+function showScProgress(done, total, show){
+  const box = $("#scProgress"); if(!box) return;
+  box.style.display = show ? "flex" : "none";
+  const pct = total ? Math.round(done/total*100) : 0;
+  const bar = box.querySelector(".bar > i"); if(bar) bar.style.width = pct+"%";
+  const txt = $("#scProgressText"); if(txt) txt.textContent = done+" / "+total+" dipindai ("+pct+"%)";
+}
+function renderScanRows(dataRows, totalUniverse, scanned){
+  if(!dataRows.length){ $("#scResult").innerHTML = '<div class="empty">Tidak ada hasil.</div>'; return; }
+  const rows = dataRows.map(x=>{
+    const sc = signalClass(x.Signal);
+    const valM = x.Value ? (x.Value/1e9).toFixed(1)+" M" : "-";
+    return `<tr onclick="pick('${x.Ticker}')">
+      <td style="font-weight:700">${x.Ticker}</td>
+      <td style="color:#a3a3a3">${x.Sector||"-"}</td>
+      <td>${fmt(x.Price)}</td>
+      <td><span class="tag s-${sc}">${x.Signal}</span></td>
+      <td style="color:#a3a3a3">${x.Action}</td>
+      <td>${x.Score}</td><td>${x.Conf}</td>
+      <td style="color:${x.Grade[0]==='A'?'#26a69a':'#a3a3a3'}">${x.Grade}</td>
+      <td style="color:#a3a3a3">${x.Trend}</td><td>${x.Wk}</td>
+      <td style="color:${String(x.MTF).includes('Bullish')?'#26a69a':'#a3a3a3'}">${x.MTF||"-"}</td>
+      <td>${fmt(x.ADX,1)}</td><td style="color:${x.ST==='UP'?'#26a69a':'#ef5350'}">${x.ST}</td>
+      <td>${fmt(x.RSI,1)}</td><td>${fmt(x.Vol,2)}</td>
+      <td style="color:${x.Sqz==='ON'?'#ef5350':'#a3a3a3'}">${x.Sqz}</td>
+      <td>${fmt(x.Chop,1)}</td>
+      <td>${valM}</td>
+      <td>${fmt(x.TP1)}</td><td style="color:#ef5350">${fmt(x.SL)}</td>
+      <td>1:${fmt(x.RR,1)}</td><td>${fmt(x["ATR%"],2)}%</td>
+    </tr>`;
+  }).join("");
+  $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned}) &middot; klik baris untuk detail</div>
+    <div style="overflow-x:auto"><table>
+    <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
 async function runScreen(){
   let list = $("#scList").value;
   if(list==="custom"){ list = $("#scCustom").value.trim(); if(!list){ showStatus("Isi daftar dulu"); return; } }
-  showStatus("Memindai saham...", true); $("#scRun").disabled = true;
+  _scCancel = false;
+  $("#scRun").disabled = true;
+  const minS=$("#scMin").value, minC=$("#scConf").value, sec=$("#scSector").value,
+        mv=$("#scValue").value||0, bull=$("#scBull").checked?1:0, rfr=$("#scRefresh").checked?1:0;
   try{
-    const url = `/api/screen?list=${encodeURIComponent(list)}&top=${$("#scTop").value}&min_score=${$("#scMin").value}&min_conf=${$("#scConf").value}&sector=${encodeURIComponent($("#scSector").value)}&min_value=${$("#scValue").value||0}&only_bullish=${$("#scBull").checked?1:0}&refresh=${$("#scRefresh").checked?1:0}`;
-    const r = await fetch(url); const d = await r.json();
-    if(d.error) throw new Error(d.error);
-    let dataRows = d.rows || [];
-    if($("#scSqz").checked) dataRows = dataRows.filter(x => x.Sqz==="OFF" && Number(x.SqzMom)>0);
-    if(!dataRows.length){ $("#scResult").innerHTML = `<div class="empty">Tidak ada hasil.</div>`; }
-    else{
-      const rows = dataRows.map(x=>{
-        const sc = signalClass(x.Signal);
-        const valM = x.Value ? (x.Value/1e9).toFixed(1)+" M" : "-";
-        return `<tr onclick="pick('${x.Ticker}')">
-          <td style="font-weight:700">${x.Ticker}</td>
-          <td style="color:#a3a3a3">${x.Sector||"-"}</td>
-          <td>${fmt(x.Price)}</td>
-          <td><span class="tag s-${sc}">${x.Signal}</span></td>
-          <td style="color:#a3a3a3">${x.Action}</td>
-          <td>${x.Score}</td><td>${x.Conf}</td>
-          <td style="color:${x.Grade[0]==='A'?'#26a69a':'#a3a3a3'}">${x.Grade}</td>
-          <td style="color:#a3a3a3">${x.Trend}</td><td>${x.Wk}</td>
-          <td style="color:${String(x.MTF).includes('Bullish')?'#26a69a':'#a3a3a3'}">${x.MTF||"-"}</td>
-          <td>${fmt(x.ADX,1)}</td><td style="color:${x.ST==='UP'?'#26a69a':'#ef5350'}">${x.ST}</td>
-          <td>${fmt(x.RSI,1)}</td><td>${fmt(x.Vol,2)}</td>
-          <td style="color:${x.Sqz==='ON'?'#ef5350':'#a3a3a3'}">${x.Sqz}</td>
-          <td>${fmt(x.Chop,1)}</td>
-          <td>${valM}</td>
-          <td>${fmt(x.TP1)}</td><td style="color:#ef5350">${fmt(x.SL)}</td>
-          <td>1:${fmt(x.RR,1)}</td><td>${fmt(x["ATR%"],2)}%</td>
-        </tr>`;
-      }).join("");
-      $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${d.scanned} saham &middot; klik baris untuk detail</div>
-        <div style="overflow-x:auto"><table>
-        <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>`;
+    showStatus("Menyiapkan daftar saham...", true);
+    const tinfo = await fetchJSON(`/api/tickers?list=${encodeURIComponent(list)}`);
+    const tickers = (tinfo && tinfo.tickers) || [];
+    if(!tickers.length){ $("#scResult").innerHTML='<div class="empty">Daftar saham kosong.</div>'; return; }
+    const chunkSize = 100;
+    let merged = [], scanned = 0;
+    showScProgress(0, tickers.length, true);
+    for(let i=0;i<tickers.length;i+=chunkSize){
+      if(_scCancel) break;
+      const chunk = tickers.slice(i, i+chunkSize);
+      const url = `/api/screen?list=${encodeURIComponent(chunk.join(","))}&top=1000&min_score=${minS}&min_conf=${minC}&sector=${encodeURIComponent(sec)}&min_value=${mv}&only_bullish=${bull}&refresh=${rfr}`;
+      try{ const d = await fetchJSON(url, {retries:2}); merged = merged.concat(d.rows||[]); }catch(e){}
+      scanned += chunk.length;
+      showScProgress(scanned, tickers.length, true);
     }
-    showStatus("Selesai");
-  }catch(e){ $("#scResult").innerHTML = `<div class="empty">Gagal: ${e.message}</div>`; showStatus("Gagal"); }
+    showScProgress(scanned, tickers.length, false);
+    if($("#scSqz").checked) merged = merged.filter(x => x.Sqz==="OFF" && Number(x.SqzMom)>0);
+    merged.sort((a,b)=> (b.Score-a.Score) || (b.Conf-a.Conf));
+    const top = parseInt($("#scTop").value||"0",10);
+    const dataRows = (top>0) ? merged.slice(0, top) : merged;
+    renderScanRows(dataRows, tickers.length, scanned);
+    showStatus(_scCancel ? "Dibatalkan" : "Selesai");
+  }catch(e){
+    $("#scResult").innerHTML = '<div class="empty">Gagal: '+e.message+'. Server mungkin sedang bangun — coba lagi.</div>';
+    showStatus("Gagal");
+  }
   finally{ $("#scRun").disabled=false; }
 }
 
@@ -906,7 +960,7 @@ async function asScan(){
   if(!list){ showStatus("Watchlist kosong"); return; }
   setAsStatus("Scanning...");
   try{
-    const d=await (await fetch('/api/screen?list=' + encodeURIComponent(list) + '&top=50')).json();
+    const d=await fetchJSON('/api/screen?list=' + encodeURIComponent(list) + '&top=50', {retries:2});
     if(d.error) throw new Error(d.error);
     const rows=d.rows||[]; const fresh=[];
     rows.forEach(x=>{ const prev=asSnapshot[x.Ticker]; const buy=x.Signal==="STRONG BUY"||x.Signal==="BUY";

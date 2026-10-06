@@ -8,7 +8,7 @@ import yfinance as yf
 from data import to_yahoo
 
 _cache: dict[str, tuple[float, dict]] = {}
-_TTL = 900.0
+_TTL = 3600.0
 
 _POS = {
     "naik", "menguat", "untung", "laba", "profit", "cuan", "beli", "buy", "growth", "tumbuh",

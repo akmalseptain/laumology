@@ -99,6 +99,18 @@ def _track(resp):
     return resp
 
 
+@app.errorhandler(Exception)
+def _json_errors(e):
+    """Pastikan semua error di /api/* SELALU dibalas JSON (bukan HTML)."""
+    from werkzeug.exceptions import HTTPException
+    code = e.code if isinstance(e, HTTPException) else 500
+    if request.path.startswith("/api/"):
+        return jsonify(error=str(e) or "error", code=code), code
+    if isinstance(e, HTTPException):
+        return e
+    return "Internal Server Error", 500
+
+
 INTERVAL_PERIOD = {
     "1d": "1y",
     "1wk": "5y",
@@ -611,8 +623,8 @@ def api_walkforward():
 @app.route("/api/market")
 def api_market():
     name = (request.args.get("list") or "lq45").strip()
-    tickers = screener.resolve_watchlist(name)
     try:
+        tickers = screener.resolve_watchlist(name)
         return jsonify(market.overview(tickers))
     except Exception as exc:
         return jsonify(error=str(exc)), 502
@@ -719,8 +731,8 @@ def api_screen():
         min_value = float(request.args.get("min_value", 0) or 0)
     except ValueError:
         top, min_score, min_conf, min_value = 20, 0, 0, 0.0
-    tickers = screener.resolve_watchlist(name)
     try:
+        tickers = screener.resolve_watchlist(name)
         result = screener.screen(
             tickers, min_score=min_score, top=top, refresh=refresh,
             min_confidence=min_conf, only_bullish=only_bullish,
@@ -746,6 +758,16 @@ def api_universe():
     try:
         data = universe.full_universe(limit) if full else universe.auto_universe(limit)
         return jsonify(count=len(data), full=full, tickers=data)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@app.route("/api/tickers")
+def api_tickers():
+    name = (request.args.get("list") or "lq45").strip()
+    try:
+        t = screener.resolve_watchlist(name)
+        return jsonify(count=len(t), tickers=t)
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 
@@ -833,8 +855,8 @@ def api_schema():
 @app.route("/api/data/quality")
 def api_data_quality():
     name = (request.args.get("list") or "lq45").strip()
-    tickers = screener.resolve_watchlist(name)[:60]
     try:
+        tickers = screener.resolve_watchlist(name)[:60]
         return jsonify(validate.data_quality(tickers))
     except Exception as exc:
         return jsonify(error=str(exc)), 502
@@ -907,26 +929,50 @@ def _lan_ips() -> list[str]:
 
 
 def _maybe_start_scheduler() -> None:
-    """Jalankan auto-scanner in-process (untuk Render/VPS). Aktifkan via ENABLE_SCHEDULER=1."""
+    """Jalankan auto-scanner in-process (untuk Render/VPS). Aktifkan via ENABLE_SCHEDULER=1.
+
+    Aman untuk boot: ada jeda awal, single-flight, dan (default) hanya saat jam bursa.
+    """
     if os.environ.get("ENABLE_SCHEDULER") not in ("1", "true", "yes"):
         return
     try:
         import scheduler as sched_mod
     except Exception:
         return
-    interval = int(os.environ.get("SCAN_INTERVAL", "900"))
+    import datetime as _dt
+
+    interval = max(120, int(os.environ.get("SCAN_INTERVAL", "900")))
     universe = os.environ.get("SCAN_UNIVERSE", "lq45")
+    window = os.environ.get("SCAN_WINDOW", "market").lower()
+    start_delay = int(os.environ.get("SCAN_START_DELAY", "90"))
+
+    def _in_window() -> bool:
+        if window in ("24h", "all", "always"):
+            return True
+        try:
+            now = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=7)  # WIB
+            if now.weekday() >= 5:  # Sabtu/Minggu
+                return False
+            minutes = now.hour * 60 + now.minute
+            return (8 * 60 + 45) <= minutes <= (16 * 60 + 20)
+        except Exception:
+            return True
 
     def loop() -> None:
+        time.sleep(start_delay)  # beri waktu server siap sebelum kerja berat
         try:
             store.init()
         except Exception:
             pass
+        running = False
         while True:
-            try:
-                sched_mod.run_once(universe)
-            except Exception:
-                pass
+            if _in_window() and not running:
+                running = True
+                try:
+                    sched_mod.run_once(universe)
+                except Exception:
+                    pass
+                running = False
             time.sleep(interval)
 
     threading.Thread(target=loop, daemon=True, name="laumology-scanner").start()
