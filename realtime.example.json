@@ -1,0 +1,25 @@
+{
+  "_comment": "OPTIONAL. Default provider is 'auto' (zero-config, uses public TradingView scanner then Yahoo). Create realtime.json only if you want a private/paid feed.",
+  "provider": "auto",
+
+  "_provider_options": "auto (zero-config) | tradingview | generic | twelvedata | eodhd | yfinance",
+
+  "api_key": "YOUR_API_KEY_HERE",
+
+  "_generic_note": "For any broker/vendor REST quote API. Use {symbol} (without .JK) or {symbol_full} and {key} in the URL.",
+  "url": "https://your-provider.example/api/quote?symbol={symbol}&apikey={key}",
+  "headers": {
+    "Authorization": "Bearer YOUR_TOKEN_HERE"
+  },
+  "mapping": {
+    "last": "data.close",
+    "prev_close": "data.previousClose",
+    "open": "data.open",
+    "high": "data.high",
+    "low": "data.low",
+    "volume": "data.volume"
+  },
+
+  "_twelvedata_note": "provider=twelvedata, api_key=<key>. Uses api.twelvedata.com/quote with exchange=IDX.",
+  "_eodhd_note": "provider=eodhd, api_key=<token>. Uses eodhd.com/api/real-time/{SYMBOL}.JK."
+}

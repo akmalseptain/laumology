@@ -1,0 +1,6 @@
+{
+  "_comment": "Salin file ini menjadi llm.json lalu isi api_key. Bisa juga pakai environment variable (OPENAI_API_KEY / OPENAI_BASE_URL / LLM_MODEL).",
+  "api_key": "",
+  "base_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-reasoner"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "LAUMOLOGY - IDX Trading Terminal",
+  "short_name": "LAUMOLOGY",
+  "description": "Analisis teknikal saham IDX: sinyal, screener, backtest, portofolio, dan uji akurasi.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f4f7f5",
+  "theme_color": "#16a34a",
+  "icons": [
+    { "src": "/static/laumology.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

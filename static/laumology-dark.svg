@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 436 72" width="436" height="72" role="img" aria-label="LAUMOLOGY">
+  <g stroke="#22c55e" fill="#22c55e">
+    <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+    <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+    <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+    <line x1="68" y1="8"  x2="68" y2="56" stroke-width="1.6"/>
+    <rect x="7"  y="40" width="10" height="14" rx="1.6"/>
+    <rect x="25" y="32" width="10" height="20" rx="1.6"/>
+    <rect x="44" y="24" width="10" height="26" rx="1.6"/>
+    <rect x="63" y="16" width="10" height="32" rx="1.6"/>
+    <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none"/>
+    <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4"/>
+  </g>
+  <text x="102" y="52" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800"
+        textLength="326" lengthAdjust="spacingAndGlyphs" fill="#f2f7f4">LAUMO<tspan fill="#22c55e">LOGY</tspan></text>
+</svg>
