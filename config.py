@@ -134,3 +134,34 @@ import os as _os  # noqa: E402
 
 if _os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"):
     settings.cache_dir = "/tmp/.cache"
+
+
+# --- Universe luas: daftar saham IDX likuid (fallback bila fetch otomatis gagal) ---
+IDX_LIQUID = [
+    "ACES", "ADMR", "ADRO", "AGII", "AGRO", "AISA", "AKRA", "AMRT", "ANTM", "ARTO",
+    "ASII", "ASRI", "ASSA", "AUTO", "AVIA", "BBCA", "BBNI", "BBRI", "BBTN", "BBYB",
+    "BFIN", "BIRD", "BJBR", "BJTM", "BMRI", "BMTR", "BNGA", "BNII", "BRIS", "BRMS",
+    "BRPT", "BSDE", "BSSR", "BUKA", "BUMI", "BYAN", "CARS", "CASA", "CBDK", "CLEO",
+    "CMRY", "CPIN", "CTRA", "DEWA", "DILD", "DMAS", "DOID", "DSSA", "ELSA", "EMTK",
+    "ENRG", "ERAA", "ESSA", "EXCL", "FAST", "GGRM", "GOTO", "HEAL", "HMSP", "HRUM",
+    "ICBP", "INCO", "INDF", "INDY", "INKP", "INTP", "ISAT", "ITMG", "JPFA", "JSMR",
+    "KAEF", "KLBF", "LSIP", "MAPA", "MBMA", "MDKA", "MEDC", "MIKA", "MNCN", "MTEL",
+    "MYOR", "NCKL", "NISP", "PGAS", "PGEO", "PNLF", "PTBA", "PWON", "RAJA", "RALS",
+    "SCMA", "SIDO", "SILO", "SMGR", "SMRA", "SRTG", "TAPG", "TINS", "TLKM", "TOWR",
+    "TPIA", "UNTR", "UNVR", "VICI", "WOOD", "AMMN", "ADHI", "AKKU", "APIC", "ARCI",
+    "BABP", "BACA", "BAJA", "BALI", "BBCA", "BEBS", "BESS", "BIMA", "BIPI", "BLTA",
+    "BMAS", "BOGA", "BRAM", "BSIM", "BTPS", "BULL", "CAMP", "CCSI", "CITA", "CNMA",
+    "CPRO", "DART", "DAYA", "DEFI", "DGIK", "DMMX", "DSFI", "DUTI", "DVLA", "FILM",
+    "FISH", "GJTL", "GULA", "HITS", "HOKI", "HRTA", "IATA", "IBST", "IGAR", "IMPC",
+    "INDS", "IPCM", "IRRA", "ISSP", "JARR", "KBLI", "KDSI", "KIJA", "KREN", "LIFE",
+    "LPCK", "LPKR", "LPPF", "MDLA", "MEGA", "MKPI", "MLIA", "MMLP", "MPMX", "MTLA",
+    "MSTI", "NELY", "NIKL", "PANI", "PANS", "PNIN", "POWR", "PSAB", "PTPP", "PZZA",
+    "RDTX", "RICY", "ROTI", "SCPI", "SFAN", "SIMP", "SLIS", "SMBR", "SOCD", "SPTO",
+    "SSIA", "STAA", "TARA", "TAXI", "TCPI", "TECH", "TFCO", "TOTL", "TRIS", "TRST",
+    "UCID", "ULTJ", "WIFI", "WTON", "YPAS", "ZBRA",
+]
+
+WATCHLIST_PRESETS["liquid"] = IDX_LIQUID
+WATCHLIST_PRESETS["idx80"] = IDX_LIQUID[:80]
+WATCHLIST_PRESETS["semua"] = IDX_LIQUID
+

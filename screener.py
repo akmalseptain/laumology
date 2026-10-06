@@ -5,10 +5,15 @@ import pandas as pd
 import data
 from config import WATCHLIST_PRESETS, sector_of
 from signals import analyze
+from universe import auto_universe
+
+_AUTO_KEYS = {"auto", "top", "most-active", "paling aktif", "palingaktif", "likuid", "liquid-auto"}
 
 
 def resolve_watchlist(name: str) -> list[str]:
     key = name.lower().strip()
+    if key in _AUTO_KEYS:
+        return auto_universe(150)
     if key in WATCHLIST_PRESETS:
         return WATCHLIST_PRESETS[key]
     return [t.strip().upper() for t in name.split(",") if t.strip()]

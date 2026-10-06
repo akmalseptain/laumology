@@ -28,6 +28,7 @@ import notify
 import risk
 import screener
 import store
+import universe
 import validate
 import validation
 from config import SECTORS, WATCHLIST_PRESETS, sector_of
@@ -733,6 +734,19 @@ def api_screen():
 @app.route("/api/presets")
 def api_presets():
     return jsonify(presets=list(WATCHLIST_PRESETS.keys()))
+
+
+@app.route("/api/universe")
+def api_universe():
+    try:
+        limit = max(20, min(int(request.args.get("limit", 180)), 400))
+    except ValueError:
+        limit = 180
+    try:
+        data = universe.auto_universe(limit)
+        return jsonify(count=len(data), tickers=data)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
 
 
 @app.route("/api/musyawarah")
