@@ -8,7 +8,9 @@ from config import IDX_LIQUID
 
 _SCAN_URL = "https://scanner.tradingview.com/indonesia/scan"
 _cache: dict = {"t": 0.0, "data": []}
+_full: dict = {"t": 0.0, "data": []}
 _TTL = 1800.0  # 30 menit
+_TTL_FULL = 21600.0  # 6 jam
 
 
 def _tv_query(limit: int) -> list[str]:
@@ -47,6 +49,22 @@ def auto_universe(limit: int = 150) -> list[str]:
         if data:
             _cache["t"] = now
             _cache["data"] = data
+            return data[:limit]
+    except Exception:
+        pass
+    return IDX_LIQUID[:limit]
+
+
+def full_universe(limit: int = 1000) -> list[str]:
+    """Seluruh emiten saham IDX (dynamic). Fallback ke daftar statis."""
+    now = time.time()
+    if _full["data"] and now - _full["t"] < _TTL_FULL and len(_full["data"]) >= limit:
+        return _full["data"][:limit]
+    try:
+        data = _tv_query(limit)
+        if len(data) > 300:
+            _full["t"] = now
+            _full["data"] = data
             return data[:limit]
     except Exception:
         pass

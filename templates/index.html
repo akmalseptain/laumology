@@ -103,6 +103,7 @@
         <div class="field"><label>Watchlist</label>
           <select id="scList">
             <option value="auto">AUTO · TOP LIKUID (dinamis)</option>
+            <option value="all">ALL IDX · SEMUA EMITEN (~900)</option>
             {% for p in presets %}<option value="{{ p }}">{{ p|upper }}</option>{% endfor %}
             <option value="custom">custom</option>
           </select>

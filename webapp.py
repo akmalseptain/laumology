@@ -738,13 +738,14 @@ def api_presets():
 
 @app.route("/api/universe")
 def api_universe():
+    full = request.args.get("full") in ("1", "true", "yes")
     try:
-        limit = max(20, min(int(request.args.get("limit", 180)), 400))
+        limit = max(20, min(int(request.args.get("limit", 180)), 1200))
     except ValueError:
         limit = 180
     try:
-        data = universe.auto_universe(limit)
-        return jsonify(count=len(data), tickers=data)
+        data = universe.full_universe(limit) if full else universe.auto_universe(limit)
+        return jsonify(count=len(data), full=full, tickers=data)
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 

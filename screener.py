@@ -5,15 +5,18 @@ import pandas as pd
 import data
 from config import WATCHLIST_PRESETS, sector_of
 from signals import analyze
-from universe import auto_universe
+from universe import auto_universe, full_universe
 
 _AUTO_KEYS = {"auto", "top", "most-active", "paling aktif", "palingaktif", "likuid", "liquid-auto"}
+_ALL_KEYS = {"all", "allidx", "all-idx", "semua-emiten", "seluruh", "idx-all", "allidx2"}
 
 
 def resolve_watchlist(name: str) -> list[str]:
     key = name.lower().strip()
     if key in _AUTO_KEYS:
         return auto_universe(150)
+    if key in _ALL_KEYS:
+        return full_universe(1000)
     if key in WATCHLIST_PRESETS:
         return WATCHLIST_PRESETS[key]
     return [t.strip().upper() for t in name.split(",") if t.strip()]
@@ -41,6 +44,11 @@ def screen(
     sector: str | None = None,
     min_value: float = 0.0,
 ) -> pd.DataFrame:
+    if len(tickers) > 40 and not refresh:
+        try:
+            data.prefetch(tickers, period=period)
+        except Exception:
+            pass
     rows = []
     for t in tickers:
         try:

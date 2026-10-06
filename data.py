@@ -104,6 +104,59 @@ def get_many(
     return out
 
 
+def prefetch(
+    tickers: list[str],
+    period: str | None = None,
+    interval: str | None = None,
+    chunk: int = 60,
+    suffix: str = ".JK",
+) -> int:
+    """Unduh banyak ticker sekaligus (batch) lalu simpan ke cache per ticker.
+
+    Ini yang membuat scan seluruh emiten IDX tetap realistis (1 request per
+    ~60 ticker, bukan 1 request per ticker).
+    """
+    period = period or settings.period
+    interval = interval or settings.interval
+    yts = [to_yahoo(t, suffix) for t in tickers]
+    done = 0
+    for i in range(0, len(yts), chunk):
+        part = yts[i: i + chunk]
+        try:
+            raw = yf.download(
+                part, period=period, interval=interval, auto_adjust=True,
+                progress=False, threads=True, group_by="ticker",
+            )
+        except Exception:
+            continue
+        if raw is None or raw.empty:
+            continue
+        for yt in part:
+            sub = None
+            try:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    if yt in raw.columns.get_level_values(0):
+                        sub = raw[yt]
+                    elif yt in raw.columns.get_level_values(-1):
+                        sub = raw.xs(yt, axis=1, level=-1)
+                elif len(part) == 1:
+                    sub = raw
+            except Exception:
+                sub = None
+            if sub is None or sub.empty:
+                continue
+            try:
+                df = _normalize(sub)
+                if df is not None and not df.empty:
+                    path = _cache_path(yt, period, interval)
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    df.to_csv(path)
+                    done += 1
+            except Exception:
+                continue
+    return done
+
+
 _quote_cache: dict[str, tuple[float, dict]] = {}
 _quote_lock = threading.Lock()
 
