@@ -35,36 +35,20 @@ def sector_context(sector: str | None) -> dict:
 
 # --- Data quality ---
 def data_quality(d: pd.DataFrame) -> dict:
+    import validate
+
+    q = validate.quality_score(d)
     n = len(d)
-    issues: list[str] = []
-    if n < 60:
-        issues.append("bar < 60")
     dup = int(d.index.duplicated().sum())
-    if dup:
-        issues.append(f"duplicate {dup}")
-    if d[["Open", "High", "Low", "Close"]].isna().any().any():
-        issues.append("OHLC NaN")
-    if (d["Volume"] < 0).any():
-        issues.append("negative volume")
     bad_hl = int((d["High"] < d["Low"]).sum())
-    if bad_hl:
-        issues.append(f"H<L {bad_hl}")
     last = pd.Timestamp(d.index[-1])
     try:
-        today = pd.Timestamp.now().normalize()
-        lag_days = int((today - last.normalize()).days)
+        lag_days = int((pd.Timestamp.now().normalize() - last.normalize()).days)
     except Exception:
         lag_days = 0
-    if lag_days > 7:
-        issues.append(f"stale {lag_days}h")
-    if n < 60:
-        status = "INSUFFICIENT"
-    elif issues:
-        status = "WARNING"
-    else:
-        status = "GOOD"
-    return {"n_bars": int(n), "duplicates": dup, "hl_violations": bad_hl,
-            "lag_days": lag_days, "status": status, "issues": issues}
+    return {"score": q["score"], "status": q["status"], "n_bars": int(n),
+            "duplicates": dup, "hl_violations": bad_hl, "lag_days": lag_days,
+            "issues": q.get("issues", [])}
 
 
 # --- Liquidity / execution quality (IDX: nilai transaksi Rp) ---
@@ -133,7 +117,7 @@ def tp_realism(price: float, tp: float, adr_pct: float) -> dict:
 def market_session(now: time.struct_time | None = None) -> str:
     import datetime as _dt
     try:
-        wib = _dt.datetime.utcnow() + _dt.timedelta(hours=7)
+        wib = _dt.datetime.now(_dt.timezone.utc).astimezone(_dt.timezone(_dt.timedelta(hours=7)))
     except Exception:
         return "UNKNOWN"
     if wib.weekday() >= 5:

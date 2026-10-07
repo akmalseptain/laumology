@@ -257,6 +257,79 @@ class TestStockLayer(unittest.TestCase):
         self.assertIn("risk_factors", st)
 
 
+def make_trend_df(n: int = 320, drift: float = 0.001, vol: float = 0.015, seed: int = 3) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    idx = pd.date_range(end=pd.Timestamp.now().normalize(), periods=n, freq="D")
+    ret = rng.normal(drift, vol, n)
+    close = 1000.0 * np.cumprod(1.0 + ret)
+    open_ = close * (1.0 + rng.normal(0, 0.004, n))
+    high = np.maximum(open_, close) * (1.0 + np.abs(rng.normal(0, 0.006, n)))
+    low = np.minimum(open_, close) * (1.0 - np.abs(rng.normal(0, 0.006, n)))
+    vol_u = rng.integers(1_000_000, 5_000_000, n).astype(float)
+    return pd.DataFrame({"Open": open_, "High": high, "Low": low, "Close": close, "Volume": vol_u}, index=idx)
+
+
+class TestBaselineRegimes(unittest.TestCase):
+    def _regimes(self):
+        return {
+            "uptrend": make_trend_df(drift=0.002, vol=0.012),
+            "downtrend": make_trend_df(drift=-0.002, vol=0.012),
+            "sideways": make_trend_df(drift=0.0, vol=0.010),
+            "highvol": make_trend_df(drift=0.0, vol=0.05),
+            "flat": make_trend_df(drift=0.0, vol=0.0001),
+        }
+
+    def test_analyze_all_regimes(self):
+        import signals
+        from config import settings
+        old = settings.regime_filter, settings.enable_decision
+        settings.regime_filter = False
+        settings.enable_decision = True
+        try:
+            for name, df in self._regimes().items():
+                a = signals.analyze(df, "REG")
+                self.assertIn(a.signal, ["STRONG BUY", "BUY", "ACCUMULATE", "HOLD", "SELL", "AVOID"], name)
+                self.assertTrue(0 <= a.score <= 100)
+                if a.decision:
+                    self.assertIn(a.decision["direction"],
+                                  ("BUY", "SELL", "HOLD", "ACCUMULATE", "HOLD (REDUCE)", "NO TRADE"))
+        finally:
+            settings.regime_filter, settings.enable_decision = old
+
+    def test_decision_runs_all_regimes(self):
+        import decision
+        import indicators
+        for name, df in self._regimes().items():
+            d = indicators.add_indicators(df)
+            dec = decision.evaluate(d, "REG", market="ranging")
+            self.assertTrue(0 <= dec["signal_score"] <= 100, name)
+            self.assertTrue(0 <= dec["confidence"] <= 100, name)
+
+
+class TestDataQualityGate(unittest.TestCase):
+    def test_quality_score_clean(self):
+        import validate
+        q = validate.quality_score(make_df(320))
+        self.assertGreaterEqual(q["score"], 80)
+        self.assertEqual(q["status"], "GOOD")
+
+    def test_quality_score_bad(self):
+        import validate
+        df = make_df(320)
+        df.iloc[5, df.columns.get_loc("High")] = df["Low"].iloc[5] - 1.0
+        q = validate.quality_score(df)
+        self.assertLess(q["score"], 80)
+        self.assertIn(q["status"], ("WARNING", "INSUFFICIENT"))
+
+    def test_decision_no_trade_low_quality(self):
+        import decision
+        import indicators
+        d = indicators.add_indicators(make_df())
+        dec = decision.evaluate(d, "X", data_quality_score=5.0)
+        self.assertTrue(dec["no_trade"])
+        self.assertTrue(any("Kualitas data" in r for r in dec["no_trade_reasons"]))
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

@@ -52,6 +52,29 @@ def check_df(df: pd.DataFrame, max_stale_days: int = 7) -> dict:
             "stale_days": stale, "issues": hard + soft, "errors": hard, "warnings": soft}
 
 
+def quality_score(df: pd.DataFrame, max_stale_days: int = 7) -> dict:
+    """Skor kualitas data 0-100 + status, dari check_df (additive, tidak mengubah legacy)."""
+    r = check_df(df, max_stale_days=max_stale_days)
+    score = 100.0
+    score -= 30.0 * len(r.get("errors", []))
+    score -= 6.0 * len(r.get("warnings", []))
+    rows = int(r.get("rows", 0))
+    if rows < 60:
+        score -= 34.0
+    elif rows < 120:
+        score -= 12.0
+    score = max(0.0, min(100.0, score))
+    if not r.get("ok") or score < 50:
+        status = "INSUFFICIENT"
+    elif score < 80:
+        status = "WARNING"
+    else:
+        status = "GOOD"
+    return {"score": int(round(score)), "status": status, "rows": rows,
+            "issues": r.get("issues", []), "errors": r.get("errors", []),
+            "warnings": r.get("warnings", [])}
+
+
 def data_quality(tickers: list[str]) -> dict:
     items = []
     for t in tickers:

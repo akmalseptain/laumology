@@ -129,6 +129,7 @@ def evaluate(
     data_status: str | None = None,
     liquidity_status: str | None = None,
     gap_pct: float = 0.0,
+    data_quality_score: float | None = None,
 ) -> dict:
     """Bangun keputusan lengkap dari bar terakhir `d` (sudah via add_indicators)."""
     close = _last(d, "Close")
@@ -187,6 +188,9 @@ def evaluate(
     if data_status == "INSUFFICIENT":
         no_trade = True
         reasons_no.append("Data tidak cukup (INSUFFICIENT) - NO TRADE")
+    if data_quality_score is not None and data_quality_score < settings.min_data_quality:
+        no_trade = True
+        reasons_no.append(f"Kualitas data rendah ({data_quality_score:.0f}) - NO TRADE")
     if chop >= 61.8 and adx < 20:
         no_trade = True
         reasons_no.append("Pasar sideways (choppiness tinggi, ADX lemah)")

@@ -498,7 +498,8 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
             decision_data = decision_mod.evaluate(
                 d, ticker, market=mkt_regime, weekly=w_trend, monthly=m_trend,
                 support=support, resistance=resistance, fib=fib, vp=vp, turnover=avg_turnover,
-                data_status=dataq["status"], liquidity_status=liq["status"], gap_pct=gapv["gap_pct"])
+                data_status=dataq["status"], liquidity_status=liq["status"], gap_pct=gapv["gap_pct"],
+                data_quality_score=dataq.get("score"))
             stock_data = stock_mod.evaluate_stock(
                 d, ticker, decision_data, sector_name=sector_of(ticker),
                 rs_change=rs_change, rs_strong=rs_strong)
