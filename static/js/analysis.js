@@ -260,6 +260,7 @@ function renderScanRows(dataRows, totalUniverse, scanned){
       <td style="color:#a3a3a3">${x.Sector||"-"}</td>
       <td>${fmt(x.Price)}</td>
       <td><span class="tag s-${sc}">${x.Signal}</span></td>
+      <td style="font-weight:600;color:${(x.Decision==='BUY'||x.Decision==='ACCUMULATE')?'#26a69a':((x.Decision==='SELL'||x.Decision==='HOLD (REDUCE)')?'#ef5350':'#a3a3a3')}">${x.Decision||'-'}</td>
       <td style="color:#a3a3a3">${x.Action}</td>
       <td>${x.Score}</td><td>${x.Conf}</td>
       <td style="color:${x.Grade[0]==='A'?'#26a69a':'#a3a3a3'}">${x.Grade}</td>
@@ -276,7 +277,7 @@ function renderScanRows(dataRows, totalUniverse, scanned){
   }).join("");
   $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned}) &middot; klik baris untuk detail</div>
     <div style="overflow-x:auto"><table>
-    <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
+    <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Reko</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 async function runScreen(){
@@ -286,7 +287,8 @@ async function runScreen(){
   _scCancel = false;
   $("#scRun").disabled = true;
   const minS=$("#scMin").value, minC=$("#scConf").value, sec=$("#scSector").value,
-        mv=$("#scValue").value||0, bull=$("#scBull").checked?1:0, rfr=$("#scRefresh").checked?1:0;
+        mv=$("#scValue").value||0, bull=$("#scBull").checked?1:0, rfr=$("#scRefresh").checked?1:0,
+        dec=($("#scDecision")&&$("#scDecision").value)||"";
   try{
     showStatus("Menyiapkan daftar saham...", true);
     const tinfo = await fetchJSON(`/api/tickers?list=${encodeURIComponent(list)}`);
@@ -308,7 +310,7 @@ async function runScreen(){
     showScProgress(0, tickers.length, true);
     await mapLimit(chunks, CONC, async (chunk)=>{
       if(_scCancel) return;
-      const url = `/api/screen?list=${encodeURIComponent(chunk.join(","))}&top=1000&min_score=${minS}&min_conf=${minC}&sector=${encodeURIComponent(sec)}&min_value=${mv}&only_bullish=${bull}&refresh=${rfr}`;
+      const url = `/api/screen?list=${encodeURIComponent(chunk.join(","))}&top=1000&min_score=${minS}&min_conf=${minC}&sector=${encodeURIComponent(sec)}&min_value=${mv}&only_bullish=${bull}&refresh=${rfr}&decision=${dec}`;
       try{ const d = await fetchJSON(url, {retries:2}); merged = merged.concat(d.rows||[]); }catch(e){}
       scanned += chunk.length;
       showScProgress(scanned, tickers.length, true);
@@ -331,7 +333,8 @@ async function runScreenBackground(list){
     list: list,
     min_score: $("#scMin").value, min_conf: $("#scConf").value,
     sector: $("#scSector").value, min_value: $("#scValue").value||0,
-    only_bullish: $("#scBull").checked, refresh: $("#scRefresh").checked
+    only_bullish: $("#scBull").checked, refresh: $("#scRefresh").checked,
+    decision: ($("#scDecision")&&$("#scDecision").value)||""
   };
   try{
     showStatus("Menjalankan scan latar...", true);

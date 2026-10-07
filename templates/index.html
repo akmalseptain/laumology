@@ -156,6 +156,14 @@
         <div class="field w-sm"><label>Min skor</label><input id="scMin" type="number" value="0"></div>
         <div class="field w-sm"><label>Min conf</label><input id="scConf" type="number" value="0"></div>
         <div class="field"><label>Sektor</label><select id="scSector"><option value="">semua</option></select></div>
+        <div class="field"><label>Rekomendasi</label>
+          <select id="scDecision">
+            <option value="">semua</option>
+            <option value="buyable">Bisa Dibeli (BUY/ACC)</option>
+            <option value="buy">Harus Beli (BUY)</option>
+            <option value="notrade">NO TRADE</option>
+          </select>
+        </div>
         <div class="field w-md"><label>Min nilai (Rp)</label><input id="scValue" type="number" value="0"></div>
         <button class="btn" id="scRun">Pindai</button>
       </div>

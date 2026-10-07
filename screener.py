@@ -50,6 +50,7 @@ def screen(
     only_bullish: bool = False,
     sector: str | None = None,
     min_value: float = 0.0,
+    decision: str | None = None,
 ) -> pd.DataFrame:
     if len(tickers) > 40 and not refresh:
         try:
@@ -96,6 +97,12 @@ def screen(
         out = out[out["Value"] >= min_value]
     if only_bullish:
         out = out[out["_rank"] >= 4]
+    if decision == "buyable" and "Buyable" in out.columns:
+        out = out[out["Buyable"] == True]  # noqa: E712
+    elif decision == "buy" and "Decision" in out.columns:
+        out = out[out["Decision"] == "BUY"]
+    elif decision == "notrade" and "NoTrade" in out.columns:
+        out = out[out["NoTrade"] == True]  # noqa: E712
     out = out.sort_values(
         ["_rank", "Score", "Conf"], ascending=[False, False, False]
     ).drop(columns=["_rank"]).reset_index(drop=True)

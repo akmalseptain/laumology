@@ -247,6 +247,10 @@ class Analysis:
             "Chop": round(self.chop, 1),
             "ADR%": round(self.adr_pct, 2),
             "MTF": self.mtf,
+            "Decision": (self.decision or {}).get("direction", ""),
+            "Buyable": bool((self.decision or {}).get("direction") in ("BUY", "ACCUMULATE")),
+            "NoTrade": bool((self.decision or {}).get("no_trade")),
+            "Conf2": (self.decision or {}).get("confidence"),
             "POC": round(self.vp.get("poc", 0.0), 2) if self.vp else 0.0,
             "VAH": round(self.vp.get("vah", 0.0), 2) if self.vp else 0.0,
             "VAL": round(self.vp.get("val", 0.0), 2) if self.vp else 0.0,
@@ -490,7 +494,7 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False) -> Analysis
 
     decision_data: dict = {}
     stock_data: dict = {}
-    if settings.enable_decision and not light:
+    if settings.enable_decision:
         try:
             import decision as decision_mod
             import stock as stock_mod

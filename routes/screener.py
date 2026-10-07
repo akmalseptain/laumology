@@ -39,6 +39,7 @@ def _scan_worker(job_id: str, params: dict) -> None:
                 only_bullish=bool(params.get("only_bullish")),
                 sector=(params.get("sector") or None),
                 min_value=float(params.get("min_value") or 0),
+                decision=(params.get("decision") or None),
             )
             rows.extend(r.to_dict("records"))
         except Exception:
@@ -53,6 +54,7 @@ def api_screen():
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     only_bullish = request.args.get("only_bullish") in ("1", "true", "yes")
     sector = (request.args.get("sector") or "").strip()
+    decision = (request.args.get("decision") or "").strip() or None
     try:
         top = int(request.args.get("top", 20))
         min_score = int(request.args.get("min_score", 0))
@@ -65,7 +67,7 @@ def api_screen():
         result = screener.screen(
             tickers, min_score=min_score, top=top, refresh=refresh,
             min_confidence=min_conf, only_bullish=only_bullish,
-            sector=sector or None, min_value=min_value,
+            sector=sector or None, min_value=min_value, decision=decision,
         )
     except Exception as exc:
         return jsonify(error=str(exc)), 502
