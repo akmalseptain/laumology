@@ -242,7 +242,7 @@ setInterval(async () => {
 $("#scList").onchange = () => { $("#customWrap").style.display = $("#scList").value==="custom" ? "flex":"none"; };
 $("#scRun").onclick = runScreen;
 let _scCancel = false;
-(function(){ const b=document.getElementById("scCancelBtn"); if(b) b.onclick=()=>{ _scCancel=true; }; })();
+(function(){ const b=document.getElementById("scCancelBtn"); if(b) b.onclick=()=>{ _scCancel=true; try{ if(window.__scES) window.__scES.close(); }catch(e){} }; })();
 function showScProgress(done, total, show){
   const box = $("#scProgress"); if(!box) return;
   box.style.display = show ? "flex" : "none";
@@ -290,6 +290,7 @@ async function runScreen(){
   if(list==="custom"){ list = $("#scCustom").value.trim(); if(!list){ showStatus("Isi daftar dulu"); return; } }
   if($("#scBg") && $("#scBg").checked){ return runScreenBackground(list); }
   _scCancel = false;
+  if(window.EventSource){ const ok = await runScreenStream(list); if(ok || _scCancel) return; }
   $("#scRun").disabled = true;
   const minS=$("#scMin").value, minC=$("#scConf").value, sec=$("#scSector").value,
         mv=$("#scValue").value||0, bull=$("#scBull").checked?1:0, rfr=$("#scRefresh").checked?1:0,
@@ -330,6 +331,31 @@ async function runScreen(){
     showStatus("Gagal");
   }
   finally{ $("#scRun").disabled=false; }
+}
+
+/* Streaming scan via SSE: hasil muncul per sub-chunk (fallback ke chunked bila gagal). */
+async function runScreenStream(list){
+  const minS=$("#scMin").value, minC=$("#scConf").value, sec=$("#scSector").value,
+        mv=$("#scValue").value||0, bull=$("#scBull").checked?1:0, rfr=$("#scRefresh").checked?1:0,
+        dec=($("#scDecision")&&$("#scDecision").value)||"";
+  $("#scRun").disabled = true;
+  const qs = `list=${encodeURIComponent(list)}&min_score=${minS}&min_conf=${minC}&sector=${encodeURIComponent(sec)}&min_value=${mv}&only_bullish=${bull}&refresh=${rfr}&decision=${dec}`;
+  return await new Promise((resolve)=>{
+    let merged=[], total=0, scanned=0, done=false;
+    const finalRows=()=>{ let m=merged; if($("#scSqz").checked) m=m.filter(x=>x.Sqz==="OFF"&&Number(x.SqzMom)>0); m=m.slice().sort((a,b)=>(b.Score-a.Score)||(b.Conf-a.Conf)); const top=parseInt($("#scTop").value||"0",10); return top>0?m.slice(0,top):m; };
+    const renderNow = throttle(()=>renderScanRows(finalRows(), total, scanned), 700);
+    let es;
+    try{ es = new EventSource('/api/screen/stream?'+qs); }catch(e){ $("#scRun").disabled=false; return resolve(false); }
+    window.__scES = es;
+    const finish=(ok)=>{ if(done) return; done=true; try{es.close();}catch(e){} window.__scES=null; $("#scRun").disabled=false; resolve(ok); };
+    showStatus("Memindai (stream)...", true);
+    showScProgress(0,1,true);
+    es.addEventListener('meta', e=>{ try{ total=JSON.parse(e.data).total||0; }catch(_){} showScProgress(0, total||1, true); });
+    es.addEventListener('progress', e=>{ try{ const d=JSON.parse(e.data); scanned=d.scanned||scanned; total=d.total||total; }catch(_){} showScProgress(scanned, total||1, true); });
+    es.addEventListener('rows', e=>{ try{ merged=merged.concat(JSON.parse(e.data)); }catch(_){} renderNow(); });
+    es.addEventListener('done', ()=>{ showScProgress(scanned, total||1, false); renderScanRows(finalRows(), total, scanned); showStatus("Selesai"); finish(true); });
+    es.onerror = ()=>{ finish(false); };
+  });
 }
 let _bgJob = null;
 async function runScreenBackground(list){

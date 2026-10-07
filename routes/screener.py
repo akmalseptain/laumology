@@ -1,9 +1,10 @@
 """Endpoint screener, universe, preset, dan scan latar (server-side)."""
 from __future__ import annotations
 
+import json
 import threading
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request, stream_with_context
 
 import screener
 import state
@@ -76,6 +77,54 @@ def api_screen():
     except Exception as exc:
         return jsonify(error=str(exc)), 502
     return jsonify(rows=result.to_dict("records"), count=len(result), scanned=len(tickers))
+
+
+@bp.route("/api/screen/stream")
+def api_screen_stream():
+    """SSE: kirim hasil per sub-chunk agar hasil awal muncul cepat (behavior sama)."""
+    name = (request.args.get("list") or "lq45").strip()
+    refresh = request.args.get("refresh") in ("1", "true", "yes")
+    only_bullish = request.args.get("only_bullish") in ("1", "true", "yes")
+    sector = (request.args.get("sector") or "").strip()
+    decision = (request.args.get("decision") or "").strip() or None
+    try:
+        min_score = int(request.args.get("min_score", 0))
+        min_conf = int(request.args.get("min_conf", 0))
+        min_value = float(request.args.get("min_value", 0) or 0)
+    except ValueError:
+        min_score, min_conf, min_value = 0, 0, 0.0
+
+    try:
+        tickers = screener.resolve_watchlist(name)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+    def generate():
+        total = len(tickers)
+        yield f"event: meta\ndata: {json.dumps({'total': total})}\n\n"
+        i = 0
+        first = True
+        while i < total:
+            chunk = 8 if first else 24
+            part = tickers[i:i + chunk]
+            try:
+                r = screener.screen(
+                    part, min_score=min_score, top=1000, refresh=refresh,
+                    min_confidence=min_conf, only_bullish=only_bullish,
+                    sector=sector or None, min_value=min_value, decision=decision,
+                )
+                rows = r.to_dict("records")
+            except Exception:
+                rows = []
+            i += chunk
+            first = False
+            yield f"event: progress\ndata: {json.dumps({'scanned': min(i, total), 'total': total})}\n\n"
+            if rows:
+                yield f"event: rows\ndata: {json.dumps(rows)}\n\n"
+        yield "event: done\ndata: {}\n\n"
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"}
+    return Response(stream_with_context(generate()), mimetype="text/event-stream", headers=headers)
 
 
 @bp.route("/api/sectors")
