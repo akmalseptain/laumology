@@ -584,9 +584,8 @@ async function runScreenBackground(list){
 
 function pick(t){
   $("#ticker").value = t;
-  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab==="analisis"));
   document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
-  document.querySelector('.tab[data-tab="analisis"]').classList.add("active");
   $("#panel-analisis").classList.add("active");
   analyze();
 }

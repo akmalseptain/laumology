@@ -9,7 +9,7 @@
 <title>LAUMOLOGY · IDX Trading Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=DM+Serif+Display&family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <meta name="theme-color" content="#16a34a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,21 +17,29 @@
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-<div class="science-grid"></div>
-<div class="scanline"></div>
 
-<header>
-  <div class="halftone"></div>
-  <div class="redline"></div>
+<header class="topbar">
   <div class="hwrap">
-    <a class="brand" href="/">
-      <img class="brandimg bm-light" src="/static/laumology.svg" alt="LAUMOLOGY">
-      <img class="brandimg bm-dark" src="/static/laumology-dark.svg" alt="LAUMOLOGY">
-      <div class="name"><span class="gt">&gt;</span><b>IDX Trading Terminal</b></div>
+    <a class="brand" href="/" aria-label="LAUMOLOGY">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
     </a>
     <div class="search">
-      <input id="ticker" placeholder="KODE SAHAM" value="BBCA" autocomplete="off">
-      <select id="interval" style="max-width:90px">
+      <input id="ticker" placeholder="Kode saham" value="BBCA" autocomplete="off" spellcheck="false">
+      <select id="interval" aria-label="Interval">
         <option value="1d">1D</option>
         <option value="1h">1H</option>
         <option value="30m">30M</option>
@@ -42,31 +50,31 @@
       <button class="btn" id="goBtn">Analisis</button>
     </div>
     <div class="hctl">
-      <label class="toggle" data-tip="Ambil harga live (delay ~10 mnt) saat analisis"><input type="checkbox" id="refresh"> Live Data</label>
-      <label class="toggle" data-tip="Auto-refresh analisis tiap 60 detik"><input type="checkbox" id="auto"> <span class="live-dot"></span>Auto 60s</label>
+      <label class="toggle" data-tip="Ambil harga live (delay ~10 menit) saat analisis"><input type="checkbox" id="refresh"> Live</label>
+      <label class="toggle" data-tip="Auto-refresh analisis tiap 60 detik"><input type="checkbox" id="auto"> Auto 60s</label>
+      <button class="iconbtn" id="helpBtn" title="Bantuan (?)" aria-label="Bantuan">?</button>
+      <button class="iconbtn" id="themeBtn" title="Ganti tema" aria-label="Ganti tema">&#9681;</button>
     </div>
-    <button class="themebtn" id="helpBtn" title="Bantuan &amp; shortcut (?)" aria-label="Bantuan">?</button>
-    <button class="themebtn" id="themeBtn" title="Ganti tema terang/gelap" aria-label="Ganti tema">&#9681;</button>
   </div>
-  <div class="navrow">
-    <nav class="nav">
-      <div class="tab active" data-tab="analisis"><span class="n">01</span>Analisis</div>
-      <div class="tab" data-tab="screener"><span class="n">02</span>Screener</div>
-      <div class="tab" data-tab="live"><span class="n">03</span>Live Chart</div>
-      <div class="tab" data-tab="backtest"><span class="n">04</span>Backtest</div>
-      <div class="tab" data-tab="portofolio"><span class="n">05</span>Portofolio</div>
-      <div class="tab" data-tab="akurasi"><span class="n">06</span>Akurasi</div>
-      <div class="tab" data-tab="pasar"><span class="n">07</span>Pasar</div>
-      <div class="tab" data-tab="musyawarah"><span class="n">08</span>Musyawarah</div>
-    </nav>
-  </div>
+  <nav class="nav" aria-label="Navigasi utama">
+    <div class="tab active" data-tab="analisis">Analisis</div>
+    <div class="tab" data-tab="screener">Screener</div>
+    <div class="tab" data-tab="live">Live Chart</div>
+    <div class="tab" data-tab="backtest">Backtest</div>
+    <div class="tab" data-tab="portofolio">Portofolio</div>
+    <div class="tab" data-tab="akurasi">Akurasi</div>
+    <div class="tab" data-tab="pasar">Pasar</div>
+    <div class="tab" data-tab="musyawarah">Musyawarah</div>
+  </nav>
 </header>
 
 <main>
   <section class="panel active" id="panel-analisis">
     <div id="summaryBar" class="summary-bar"></div>
-    <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Technical Protocol</span></div>
-    <h2 class="hero-title glow-text page-title">Signal <span>Engine.</span></h2>
+    <div class="panel-head">
+      <h2>Analisis</h2>
+      <p>Ringkasan sinyal, rencana trade, indikator, dan konfluensi.</p>
+    </div>
     <div class="chips" id="chips">
       <span class="chip" data-t="BBCA">BBCA</span>
       <span class="chip" data-t="BBRI">BBRI</span>
@@ -78,29 +86,21 @@
       <span class="chip" data-t="ICBP">ICBP</span>
       <span class="chip" data-t="GOTO">GOTO</span>
     </div>
-    <div style="display:flex;gap:16px;align-items:center;margin:-6px 0 14px">
-      <label class="toggle" data-tip="Overlay IHSG (ternormalisasi) di grafik"><input type="checkbox" id="cmp"> Compare IHSG</label>
-      <span class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em">Model ML &amp; sentimen dimuat otomatis</span>
+    <div class="inline-note">
+      <label class="toggle"><input type="checkbox" id="cmp"> Bandingkan dengan IHSG</label>
+      <span class="muted">Model ML &amp; sentimen dimuat otomatis</span>
     </div>
     <div id="result">
-      <div class="card glass modish terminal">
-        <div class="term-head">
-          <span class="d"></span><span class="d2"></span><span class="d3"></span>
-          <span class="term-title">idx_trading ~ boot</span>
-        </div>
-        <pre class="term-body">&gt; initializing signal engine...
-&gt; modules loaded: trend, momentum, volume, setup, risk
-&gt; indicator stack: RSI, MACD, ADX, Supertrend, Ichimoku
-&gt; feed: yfinance + tradingview
-&gt; status: READY<span class="cursor-blink">_</span></pre>
-      </div>
+      <div class="card empty">Tekan <b>Analisis</b> untuk memuat sinyal saham.</div>
     </div>
   </section>
 
   <section class="panel" id="panel-screener">
-    <div class="sec"><span class="num">02</span><div class="line"></div><span class="badge">Market Scanner</span></div>
-    <h2 class="hero-title glow-text page-title">Screener <span>Deck.</span></h2>
-    <div class="card glass modish">
+    <div class="panel-head">
+      <h2>Screener</h2>
+      <p>Pindai watchlist atau seluruh emiten IDX dan urutkan berdasarkan skor.</p>
+    </div>
+    <div class="card">
       <div class="toolbar">
         <div class="field"><label>Watchlist</label>
           <select id="scList">
@@ -113,31 +113,35 @@
         <div class="field" id="customWrap" style="display:none"><label>Daftar saham</label>
           <input id="scCustom" placeholder="BBCA,BBRI,TLKM" style="width:220px">
         </div>
-        <div class="field" style="max-width:90px"><label>Top</label><input id="scTop" type="number" value="25"></div>
-        <div class="field" style="max-width:100px"><label>Min skor</label><input id="scMin" type="number" value="0"></div>
-        <div class="field" style="max-width:110px"><label>Min conf</label><input id="scConf" type="number" value="0"></div>
+        <div class="field w-sm"><label>Top</label><input id="scTop" type="number" value="25"></div>
+        <div class="field w-sm"><label>Min skor</label><input id="scMin" type="number" value="0"></div>
+        <div class="field w-sm"><label>Min conf</label><input id="scConf" type="number" value="0"></div>
         <div class="field"><label>Sektor</label><select id="scSector"><option value="">semua</option></select></div>
-        <div class="field" style="max-width:140px"><label>Min nilai (Rp)</label><input id="scValue" type="number" value="0"></div>
+        <div class="field w-md"><label>Min nilai (Rp)</label><input id="scValue" type="number" value="0"></div>
         <button class="btn" id="scRun">Pindai</button>
-        <label class="toggle" style="padding-bottom:11px"><input type="checkbox" id="scBull"> Hanya bullish</label>
-        <label class="toggle" style="padding-bottom:11px"><input type="checkbox" id="scSqz"> Squeeze release</label>
-        <label class="toggle" style="padding-bottom:11px" data-tip="Server memindai di belakang; hasil muncul bertahap tanpa menunggu di layar"><input type="checkbox" id="scBg"> Scan Latar</label>
-        <label class="toggle" style="padding-bottom:11px"><input type="checkbox" id="scRefresh"> Live Data</label>
+      </div>
+      <div class="toolbar toggles">
+        <label class="toggle"><input type="checkbox" id="scBull"> Hanya bullish</label>
+        <label class="toggle"><input type="checkbox" id="scSqz"> Squeeze release</label>
+        <label class="toggle" data-tip="Server memindai di belakang; hasil muncul bertahap tanpa menunggu di layar"><input type="checkbox" id="scBg"> Scan latar</label>
+        <label class="toggle"><input type="checkbox" id="scRefresh"> Live data</label>
       </div>
       <div id="scProgress" class="progress" style="display:none">
         <div class="bar"><i></i></div>
         <span id="scProgressText" class="mono"></span>
         <button class="btn ghost" id="scCancelBtn" type="button">Batal</button>
       </div>
-      <div id="scResult" style="margin-top:18px"><div class="empty">Pilih watchlist lalu tekan PINDAI.</div></div>
+      <div id="scResult" class="result-block"><div class="empty">Pilih watchlist lalu tekan Pindai.</div></div>
     </div>
   </section>
 
   <section class="panel" id="panel-live">
-    <div class="sec"><span class="num">03</span><div class="line"></div><span class="badge">Real-Time Feed</span></div>
-    <h2 class="hero-title glow-text page-title">Live <span>Chart.</span></h2>
-    <div class="card glass modish">
-      <div class="toolbar" style="margin-bottom:14px">
+    <div class="panel-head">
+      <h2>Live Chart</h2>
+      <p>Chart candlestick real-time dengan overlay indikator.</p>
+    </div>
+    <div class="card">
+      <div class="toolbar">
         <div class="field"><label>Symbol</label><input id="tvSym" value="BBCA" style="width:150px"></div>
         <div class="tvbtns" id="tvBtns">
           <button class="tvbtn active" data-i="D">1D</button>
@@ -148,141 +152,146 @@
         </div>
         <button class="btn" id="tvGo">Muat</button>
       </div>
-      <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">
-        <span class="live-dot" style="display:inline-block"></span> &nbsp;Chart live (Lightweight Charts, gratis) &middot; sumber: yfinance / tradingview
+      <div class="inline-note">
+        <span class="live-dot"></span>
+        <span class="muted">Lightweight Charts · sumber: yfinance / tradingview</span>
       </div>
       <div id="tv_chart" class="lwchart"></div>
     </div>
   </section>
 
   <section class="panel" id="panel-backtest">
-    <div class="sec"><span class="num">04</span><div class="line"></div><span class="badge">Strategy Lab</span></div>
-    <h2 class="hero-title glow-text page-title">Backtest <span>Lab.</span></h2>
-    <div class="card glass modish">
+    <div class="panel-head">
+      <h2>Backtest</h2>
+      <p>Uji strategi pada data historis dengan biaya realistis.</p>
+    </div>
+    <div class="card">
       <div class="toolbar">
         <div class="field"><label>Symbol</label><input id="btTicker" value="PTBA" style="width:140px"></div>
-        <div class="field" style="max-width:110px"><label>Min skor</label><input id="btMin" type="number" value="65"></div>
-        <div class="field" style="max-width:90px"><label>TP RR</label><input id="btTp" type="number" step="0.5" value="3"></div>
-        <div class="field" style="max-width:90px"><label>SL x ATR</label><input id="btSl" type="number" step="0.5" value="2"></div>
-        <div class="field" style="max-width:110px"><label>Max hold</label><input id="btHold" type="number" value="20"></div>
-        <div class="field" style="max-width:92px"><label>Fee beli %</label><input id="btFeeB" type="number" step="0.01" value="0.15"></div>
-        <div class="field" style="max-width:92px"><label>Fee jual %</label><input id="btFeeS" type="number" step="0.01" value="0.25"></div>
-        <div class="field" style="max-width:92px"><label>Slippage %</label><input id="btSlip" type="number" step="0.01" value="0.10"></div>
+        <div class="field w-md"><label>Min skor</label><input id="btMin" type="number" value="65"></div>
+        <div class="field w-sm"><label>TP RR</label><input id="btTp" type="number" step="0.5" value="3"></div>
+        <div class="field w-sm"><label>SL x ATR</label><input id="btSl" type="number" step="0.5" value="2"></div>
+        <div class="field w-md"><label>Max hold</label><input id="btHold" type="number" value="20"></div>
+        <div class="field w-md"><label>Fee beli %</label><input id="btFeeB" type="number" step="0.01" value="0.15"></div>
+        <div class="field w-md"><label>Fee jual %</label><input id="btFeeS" type="number" step="0.01" value="0.25"></div>
+        <div class="field w-md"><label>Slippage %</label><input id="btSlip" type="number" step="0.01" value="0.10"></div>
         <button class="btn" id="btRun">Uji</button>
         <button class="btn ghost" id="btWfRun">Walk-forward</button>
         <button class="btn ghost" id="optRun">Optimalkan</button>
       </div>
-      <div id="btResult" style="margin-top:18px"><div class="empty">Isi parameter lalu tekan UJI.</div></div>
-      <div id="btWf" style="margin-top:16px"></div>
-      <div id="optResult" style="margin-top:16px"></div>
+      <div id="btResult" class="result-block"><div class="empty">Isi parameter lalu tekan Uji.</div></div>
+      <div id="btWf" class="result-block"></div>
+      <div id="optResult" class="result-block"></div>
     </div>
   </section>
 
   <section class="panel" id="panel-portofolio">
-    <div class="sec"><span class="num">05</span><div class="line"></div><span class="badge">Watchlist &middot; Positions &middot; Alerts</span></div>
-    <h2 class="hero-title glow-text page-title">Porto<span>folio.</span></h2>
+    <div class="panel-head">
+      <h2>Portofolio</h2>
+      <p>Watchlist, posisi, alert, jurnal, dan analisa risiko.</p>
+    </div>
     <div class="cols">
-      <div class="card glass modish">
-        <div class="sec"><span class="num">A</span><div class="line"></div><span class="badge">Watchlist</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="flex:1;min-width:140px"><label>Tambah kode</label><input id="wlInput" placeholder="BBCA"></div>
+      <div class="card">
+        <div class="sec"><span class="badge">Watchlist</span></div>
+        <div class="toolbar">
+          <div class="field grow"><label>Tambah kode</label><input id="wlInput" placeholder="BBCA"></div>
           <button class="btn" id="wlAdd">Tambah</button>
         </div>
         <div id="wlList"></div>
       </div>
-      <div class="card glass modish">
-        <div class="sec"><span class="num">B</span><div class="line"></div><span class="badge">Position Tracker</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="min-width:96px"><label>Kode</label><input id="posTicker" placeholder="BBCA"></div>
-          <div class="field" style="max-width:100px"><label>Entry</label><input id="posEntry" type="number"></div>
-          <div class="field" style="max-width:80px"><label>Lot</label><input id="posLots" type="number" value="10"></div>
-          <div class="field" style="max-width:100px"><label>Stop</label><input id="posSl" type="number"></div>
-          <div class="field" style="max-width:100px"><label>Target</label><input id="posTp" type="number"></div>
+      <div class="card">
+        <div class="sec"><span class="badge">Position Tracker</span></div>
+        <div class="toolbar">
+          <div class="field"><label>Kode</label><input id="posTicker" placeholder="BBCA"></div>
+          <div class="field w-sm"><label>Entry</label><input id="posEntry" type="number"></div>
+          <div class="field w-xs"><label>Lot</label><input id="posLots" type="number" value="10"></div>
+          <div class="field w-sm"><label>Stop</label><input id="posSl" type="number"></div>
+          <div class="field w-sm"><label>Target</label><input id="posTp" type="number"></div>
           <button class="btn" id="posAdd">Catat</button>
         </div>
         <div id="posList"></div>
       </div>
     </div>
     <div class="cols">
-      <div class="card glass modish">
-        <div class="sec"><span class="num">C</span><div class="line"></div><span class="badge">Alerts TP/SL</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="min-width:96px"><label>Kode</label><input id="alTicker" placeholder="BBCA"></div>
-          <div class="field" style="max-width:120px"><label>Kondisi</label>
-            <select id="alDir"><option value="above">&ge; harga</option><option value="below">&le; harga</option></select>
+      <div class="card">
+        <div class="sec"><span class="badge">Alerts TP / SL</span></div>
+        <div class="toolbar">
+          <div class="field"><label>Kode</label><input id="alTicker" placeholder="BBCA"></div>
+          <div class="field"><label>Kondisi</label>
+            <select id="alDir"><option value="above">≥ harga</option><option value="below">≤ harga</option></select>
           </div>
-          <div class="field" style="max-width:110px"><label>Harga</label><input id="alPrice" type="number"></div>
+          <div class="field w-md"><label>Harga</label><input id="alPrice" type="number"></div>
           <button class="btn" id="alAdd">Pasang</button>
           <button class="btn ghost" id="alNotify">Notifikasi</button>
         </div>
         <div id="alList"></div>
       </div>
-      <div class="card glass modish">
-        <div class="sec"><span class="num">D</span><div class="line"></div><span class="badge">Riwayat Sinyal</span>
-          <button class="btn ghost" id="histClear" style="margin-left:auto;padding:6px 12px">Bersihkan</button>
+      <div class="card">
+        <div class="sec"><span class="badge">Riwayat Sinyal</span>
+          <button class="btn ghost sm" id="histClear">Bersihkan</button>
         </div>
         <div id="histList"></div>
       </div>
     </div>
     <div class="cols">
-      <div class="card glass modish">
-        <div class="sec"><span class="num">E</span><div class="line"></div><span class="badge">Risk Calculator</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="max-width:150px"><label>Modal (Rp)</label><input id="rkCapital" type="number" value="100000000"></div>
-          <div class="field" style="max-width:100px"><label>Risiko %</label><input id="rkRisk" type="number" step="0.5" value="1.5"></div>
-          <div class="field" style="max-width:110px"><label>Entry</label><input id="rkEntry" type="number"></div>
-          <div class="field" style="max-width:110px"><label>Stop</label><input id="rkStop" type="number"></div>
+      <div class="card">
+        <div class="sec"><span class="badge">Risk Calculator</span></div>
+        <div class="toolbar">
+          <div class="field w-lg"><label>Modal (Rp)</label><input id="rkCapital" type="number" value="100000000"></div>
+          <div class="field w-sm"><label>Risiko %</label><input id="rkRisk" type="number" step="0.5" value="1.5"></div>
+          <div class="field w-md"><label>Entry</label><input id="rkEntry" type="number"></div>
+          <div class="field w-md"><label>Stop</label><input id="rkStop" type="number"></div>
           <button class="btn" id="rkCalc">Hitung</button>
         </div>
-        <div id="rkResult"><div class="empty" style="padding:20px">Isi lalu HITUNG.</div></div>
+        <div id="rkResult"><div class="empty sm">Isi lalu Hitung.</div></div>
       </div>
-      <div class="card glass modish">
-        <div class="sec"><span class="num">F</span><div class="line"></div><span class="badge">Portfolio Risk &amp; Correlation</span></div>
-        <button class="btn" id="pfRiskRun" style="margin-bottom:10px">Analisa Risiko</button>
-        <div id="pfRisk"><div class="empty" style="padding:20px">Butuh posisi terisi di tracker.</div></div>
+      <div class="card">
+        <div class="sec"><span class="badge">Portfolio Risk &amp; Correlation</span></div>
+        <button class="btn ghost" id="pfRiskRun">Analisa Risiko</button>
+        <div id="pfRisk" class="result-block"><div class="empty sm">Butuh posisi terisi di tracker.</div></div>
       </div>
     </div>
     <div class="cols">
-      <div class="card glass modish">
-        <div class="sec"><span class="num">G</span><div class="line"></div><span class="badge">Trade Journal</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="min-width:90px"><label>Kode</label><input id="jrTicker" placeholder="BBCA"></div>
-          <div class="field" style="flex:1;min-width:160px"><label>Alasan / catatan</label><input id="jrNote" placeholder="breakout + volume"></div>
-          <div class="field" style="max-width:110px"><label>Hasil %</label><input id="jrResult" type="number" placeholder="+5"></div>
+      <div class="card">
+        <div class="sec"><span class="badge">Trade Journal</span></div>
+        <div class="toolbar">
+          <div class="field"><label>Kode</label><input id="jrTicker" placeholder="BBCA"></div>
+          <div class="field grow"><label>Alasan / catatan</label><input id="jrNote" placeholder="breakout + volume"></div>
+          <div class="field w-md"><label>Hasil %</label><input id="jrResult" type="number" placeholder="+5"></div>
           <button class="btn" id="jrAdd">Simpan</button>
         </div>
         <div id="jrList"></div>
       </div>
-      <div class="card glass modish">
-        <div class="sec"><span class="num">H</span><div class="line"></div><span class="badge">Auto-Scan Watchlist</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="max-width:130px"><label>Interval</label>
+      <div class="card">
+        <div class="sec"><span class="badge">Auto-Scan Watchlist</span></div>
+        <div class="toolbar">
+          <div class="field w-md"><label>Interval</label>
             <select id="asInterval"><option value="5">5 menit</option><option value="10">10 menit</option><option value="15" selected>15 menit</option><option value="30">30 menit</option><option value="60">60 menit</option></select>
           </div>
           <button class="btn" id="asToggle">Mulai Auto</button>
           <button class="btn ghost" id="asRun">Scan Sekarang</button>
         </div>
-        <div class="mono" id="asStatus" style="color:#737373;font-size:11px">Auto-scan OFF.</div>
-        <div id="asResult" style="margin-top:10px"></div>
+        <div class="mono muted" id="asStatus" style="font-size:12px">Auto-scan OFF.</div>
+        <div id="asResult" class="result-block"></div>
       </div>
     </div>
     <div class="cols">
-      <div class="card glass modish">
-        <div class="sec"><span class="num">I</span><div class="line"></div><span class="badge">Paper Trading</span></div>
-        <div class="toolbar" style="margin-bottom:10px">
-          <div class="field" style="min-width:90px"><label>Kode</label><input id="ppTicker" placeholder="BBCA"></div>
-          <div class="field" style="max-width:96px"><label>Entry</label><input id="ppEntry" type="number"></div>
-          <div class="field" style="max-width:80px"><label>Lot</label><input id="ppLots" type="number" value="10"></div>
-          <div class="field" style="max-width:96px"><label>Stop</label><input id="ppStop" type="number"></div>
-          <div class="field" style="max-width:96px"><label>TP</label><input id="ppTp" type="number"></div>
+      <div class="card">
+        <div class="sec"><span class="badge">Paper Trading</span></div>
+        <div class="toolbar">
+          <div class="field"><label>Kode</label><input id="ppTicker" placeholder="BBCA"></div>
+          <div class="field w-sm"><label>Entry</label><input id="ppEntry" type="number"></div>
+          <div class="field w-xs"><label>Lot</label><input id="ppLots" type="number" value="10"></div>
+          <div class="field w-sm"><label>Stop</label><input id="ppStop" type="number"></div>
+          <div class="field w-sm"><label>TP</label><input id="ppTp" type="number"></div>
           <button class="btn" id="ppOpen">Buka</button>
           <button class="btn ghost" id="ppRefresh">Refresh</button>
         </div>
         <div id="ppList"></div>
       </div>
-      <div class="card glass modish">
-        <div class="sec"><span class="num">J</span><div class="line"></div><span class="badge">Log Scanner &amp; Sinyal DB</span>
-          <button class="btn ghost" id="dbRefresh" style="margin-left:auto;padding:6px 12px">Refresh</button>
+      <div class="card">
+        <div class="sec"><span class="badge">Log Scanner &amp; Sinyal DB</span>
+          <button class="btn ghost sm" id="dbRefresh">Refresh</button>
         </div>
         <div id="dbList"></div>
       </div>
@@ -290,74 +299,85 @@
   </section>
 
   <section class="panel" id="panel-akurasi">
-    <div class="sec"><span class="num">06</span><div class="line"></div><span class="badge">Accuracy &amp; Edge Study</span></div>
-    <h2 class="hero-title glow-text page-title">Akurasi <span>Engine.</span></h2>
-    <div class="card glass modish">
+    <div class="panel-head">
+      <h2>Akurasi</h2>
+      <p>Uji win-rate dan forward return historis per indikator dan tingkat skor.</p>
+    </div>
+    <div class="card">
       <div class="toolbar">
         <div class="field"><label>Symbol</label><input id="acTicker" value="PTBA" style="width:140px"></div>
-        <div class="field" style="max-width:150px"><label>Horizon (bar)</label><input id="acHorizon" type="number" value="10"></div>
+        <div class="field w-lg"><label>Horizon (bar)</label><input id="acHorizon" type="number" value="10"></div>
         <button class="btn" id="acRun">Uji Akurasi</button>
       </div>
-      <div class="mono" style="color:#737373;font-size:11px;margin-top:10px;line-height:1.7">
-        Mengukur win-rate &amp; rata-rata forward return historis per indikator dan per tingkat skor.
-        Ini uji statistik, bukan jaminan masa depan.
-      </div>
-      <div id="acResult" style="margin-top:18px"><div class="empty">Tekan UJI AKURASI untuk mulai.</div></div>
+      <p class="muted note">Uji statistik historis, bukan jaminan masa depan.</p>
+      <div id="acResult" class="result-block"><div class="empty">Tekan Uji Akurasi untuk mulai.</div></div>
     </div>
   </section>
 
   <section class="panel" id="panel-pasar">
-    <div class="sec"><span class="num">07</span><div class="line"></div><span class="badge">Market Context</span></div>
-    <h2 class="hero-title glow-text page-title">Pasar <span>Overview.</span></h2>
-    <div class="card glass modish">
+    <div class="panel-head">
+      <h2>Pasar</h2>
+      <p>Konteks pasar IHSG, breadth, heatmap, dan kualitas data.</p>
+    </div>
+    <div class="card">
       <div class="toolbar">
         <div class="field"><label>Universe</label><select id="mkList"></select></div>
         <button class="btn" id="mkRun">Muat Pasar</button>
         <button class="btn ghost" id="dqRun">Kualitas Data</button>
       </div>
-      <div id="dqResult" style="margin-top:14px"></div>
-      <div id="mkResult" style="margin-top:18px"><div class="empty">Tekan MUAT PASAR.</div></div>
+      <div id="dqResult" class="result-block"></div>
+      <div id="mkResult" class="result-block"><div class="empty">Tekan Muat Pasar.</div></div>
     </div>
   </section>
 
   <section class="panel" id="panel-musyawarah">
-    <div class="sec"><span class="num">08</span><div class="line"></div><span class="badge">Multi-Agent Consensus</span></div>
-    <h2 class="hero-title glow-text page-title">Musyawarah <span>Agent.</span></h2>
-    <div class="card glass modish">
+    <div class="panel-head">
+      <h2>Musyawarah</h2>
+      <p>Konsensus 5 agen dengan aturan veto risiko.</p>
+    </div>
+    <div class="card">
       <div class="toolbar">
         <div class="field"><label>Kode saham</label><input id="myTicker" value="PTBA" style="width:150px"></div>
         <button class="btn" id="myRun">Jalankan Musyawarah</button>
         <button class="btn ghost" id="myCopy">Copy Hasil</button>
         <button class="btn ghost" id="myWeightsBtn">Setel Bobot (backtest)</button>
-        <label class="toggle" style="padding-bottom:11px"><input type="checkbox" id="myLlm"> Mode LLM</label>
+        <label class="toggle"><input type="checkbox" id="myLlm"> Mode LLM</label>
       </div>
-      <div class="mono" id="myLlmStatus" style="color:#8a9a90;font-size:10px;margin-top:6px"></div>
-      <div id="myWeights" style="margin-top:14px"></div>
-      <div class="mono" style="color:#8a9a90;font-size:11px;margin-top:10px">
-        5 agen: @technical · @bandarmologi · @fundamental · @sentiment · @risk_moderator (veto RRR &lt; 1:2 / distribusi masif).
-      </div>
-      <div id="myResult" style="margin-top:16px"><div class="empty">Tekan JALANKAN MUSYAWARAH.</div></div>
+      <div class="mono muted" id="myLlmStatus" style="font-size:12px;margin-top:8px"></div>
+      <div id="myWeights" class="result-block"></div>
+      <p class="muted note">5 agen: @technical · @bandarmologi · @fundamental · @sentiment · @risk_moderator (veto RRR &lt; 1:2 / distribusi masif).</p>
+      <div id="myResult" class="result-block"><div class="empty">Tekan Jalankan Musyawarah.</div></div>
     </div>
   </section>
 
-  <div class="disclaimer">Bukan nasihat keuangan &middot; Kelola risiko &middot; Data yfinance + TradingView</div>
+  <div class="disclaimer">Bukan nasihat keuangan · Kelola risiko · Data yfinance + TradingView</div>
 </main>
 
 <footer class="site-footer">
-  <div class="halftone"></div>
   <div class="fwrap">
     <div class="fbrand">
-      <img class="bm-light" src="/static/laumology.svg" alt="LAUMOLOGY" style="height:34px;width:auto;margin-bottom:8px">
-      <img class="bm-dark" src="/static/laumology-dark.svg" alt="LAUMOLOGY" style="height:34px;width:auto;margin-bottom:8px">
-      <p>Platform analisis teknikal saham IDX berbasis evidence: sinyal, rencana trade, position sizing, screener, backtest, dan portofolio dalam satu terminal.</p>
-      <div class="flinks">
-        <span>analisis</span><span>screener</span><span>live chart</span><span>backtest</span><span>akurasi</span><span>portofolio</span>
+      <div class="flogo">
+        <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+          <g stroke="currentColor" fill="currentColor">
+            <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+            <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+            <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+            <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+            <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+            <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+            <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+            <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+            <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+            <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+        <span class="logo-word">LAUMO<i>LOGY</i></span>
       </div>
+      <p>Platform analisis teknikal saham IDX berbasis evidence: sinyal, rencana trade, position sizing, screener, backtest, dan portofolio dalam satu terminal.</p>
     </div>
     <div class="fmeta">
-      <div class="fsys"><span class="dot"></span><span>All systems nominal</span></div>
-      <p style="margin:0">&copy; <span id="yr"></span> LAUMOLOGY. All rights reserved.</p>
-      <p style="margin:0;color:#8a9a90;font-size:10px;letter-spacing:.08em">Crafted by <b style="color:var(--foreground)">AKMALSEPTAIN</b></p>
+      <p>&copy; <span id="yr"></span> LAUMOLOGY. All rights reserved.</p>
+      <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
     </div>
   </div>
 </footer>
@@ -366,30 +386,45 @@
 
 <div id="onboard" class="onboard">
   <div class="onboard-card">
-    <img class="bm-light" src="/static/laumology.svg" alt="LAUMOLOGY" style="height:34px;margin-bottom:12px">
-    <img class="bm-dark" src="/static/laumology-dark.svg" alt="LAUMOLOGY" style="height:34px;margin-bottom:12px">
-    <h3>Selamat datang di LAUMOLOGY</h3>
-    <p>Terminal analisis saham IDX: sinyal &amp; skor, Musyawarah 5 agen, screener seluruh emiten (~900), backtest, akurasi, dan portofolio.</p>
-    <div class="onboard-steps">
-      <div><b>01 Analisis</b> — sinyal, indikator, fundamental, ML.</div>
-      <div><b>02 Screener</b> — pindai ALL IDX (~900 emiten).</div>
-      <div><b>04 Backtest</b> &amp; <b>06 Akurasi</b> — uji &amp; validasi strategi.</div>
-      <div><b>07 Pasar</b> &amp; <b>08 Musyawarah</b> — konteks pasar &amp; konsensus 5 agen.</div>
+    <div class="flogo center">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
     </div>
-    <div class="onboard-hint">Shortcut: tekan <kbd>1</kbd>–<kbd>8</kbd> ganti tab · <kbd>/</kbd> cari kode · <kbd>?</kbd> bantuan · <kbd>t</kbd> tema.</div>
+    <h3>Selamat datang di LAUMOLOGY</h3>
+    <p>Terminal analisis saham IDX: sinyal &amp; skor, Musyawarah 5 agen, screener seluruh emiten, backtest, akurasi, dan portofolio.</p>
+    <div class="onboard-steps">
+      <div><b>Analisis</b> — sinyal, indikator, fundamental, ML.</div>
+      <div><b>Screener</b> — pindai seluruh emiten IDX.</div>
+      <div><b>Backtest</b> &amp; <b>Akurasi</b> — uji dan validasi strategi.</div>
+      <div><b>Pasar</b> &amp; <b>Musyawarah</b> — konteks pasar dan konsensus 5 agen.</div>
+    </div>
+    <div class="onboard-hint">Shortcut: <kbd>1</kbd>–<kbd>8</kbd> ganti tab · <kbd>/</kbd> cari kode · <kbd>?</kbd> bantuan · <kbd>t</kbd> tema.</div>
     <button class="btn" id="onboardClose">Mulai</button>
   </div>
 </div>
 
 <nav class="bottomnav">
-  <div class="tab active" data-tab="analisis"><span class="n">01</span>Analisis</div>
-  <div class="tab" data-tab="screener"><span class="n">02</span>Screener</div>
-  <div class="tab" data-tab="live"><span class="n">03</span>Live</div>
-  <div class="tab" data-tab="backtest"><span class="n">04</span>Backtest</div>
-  <div class="tab" data-tab="portofolio"><span class="n">05</span>Portofolio</div>
-  <div class="tab" data-tab="akurasi"><span class="n">06</span>Akurasi</div>
-  <div class="tab" data-tab="pasar"><span class="n">07</span>Pasar</div>
-  <div class="tab" data-tab="musyawarah"><span class="n">08</span>Musyawarah</div>
+  <div class="tab active" data-tab="analisis">Analisis</div>
+  <div class="tab" data-tab="screener">Screener</div>
+  <div class="tab" data-tab="live">Live</div>
+  <div class="tab" data-tab="backtest">Backtest</div>
+  <div class="tab" data-tab="portofolio">Portofolio</div>
+  <div class="tab" data-tab="akurasi">Akurasi</div>
+  <div class="tab" data-tab="pasar">Pasar</div>
+  <div class="tab" data-tab="musyawarah">Musyawarah</div>
 </nav>
 
 <script src="/static/js/app.js"></script>
