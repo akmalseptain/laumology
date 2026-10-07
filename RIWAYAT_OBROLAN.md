@@ -334,3 +334,46 @@ py -m unittest discover -s tests
 - Web tetap jalan **walau laptop mati** (berjalan di cloud Render, bukan di laptop).
 - GitHub: https://github.com/akmalseptain/laumology
 - Credit: **AKMALSEPTAIN**.
+
+---
+
+# Turn 25 — UI Modern + Tab Fundamental/Berita + Indikator Mutakhir
+
+## A. UI modern + logo glow + tipografi
+- Redesign bersih: **Inter** (UI) + **Space Grotesk** (display) + **JetBrains Mono** (angka).
+- Logo LAUMOLOGY (inline SVG + wordmark) **glow** halus + animasi napas; hormati `prefers-reduced-motion`.
+- Tipografi nyaman: body 14.5px/1.6, `font-optical-sizing` + fitur Inter, `tnum` untuk angka, kontras `--muted` dinaikkan.
+- Commit: `fa5584c` (style(ui): redesign modern + glow logo + tipografi).
+
+## B. Tab baru: Fundamental & Berita (analisa komprehensif)
+- Tab `Fundamental` + `Berita` ditambah di nav atas & bottom-nav HP (shortcut keyboard `1`–`9` / `0`).
+- `fundamentals.py` diperkaya: harga, PER forward, PEG, P/S, margin kotor/operasi, current ratio, buku/saham, pendapatan, laba bersih, EBITDA, FCF, kas, utang, shares.
+- Kartu Fundamental: ringkasan penilaian heuristik (Valuasi / Profitabilitas / Leverage / Pertumbuhan) + grid lengkap + posisi rentang 52w.
+- Kartu Berita: sentimen (label/skor/jumlah) + daftar tautan berita (publisher + waktu).
+- Endpoint lama dipakai ulang: `/api/fundamental`, `/api/news` (cache 6 jam / 1 jam).
+
+## C. Indikator teknikal — audit & modernisasi
+**Indikator yang dipakai** (`indicators.py` + `signals.py`):
+- Tren/MA: SMA 20/50/200, EMA 9/21, Supertrend, Ichimoku (Tenkan/Kijun/Senkou), Keltner, Hull MA*, KAMA*.
+- Momentum: RSI(14), MACD(12,26,9), Stochastic(14,3,3), StochRSI, CCI(20), Williams %R, Awesome Oscillator*, Ultimate Oscillator*.
+- Volatilitas: ATR(14)/ATR%/persentil, Bollinger + width, Choppiness, ADR, Garman-Klass.
+- Volume/flow: Vol MA20, OBV+MA, MFI(14), CMF(21), RVOL*, VWAP, Anchored VWAP, Volume Profile (POC/VAH/VAL).
+- Struktur/setup: Donchian 20, breakout 20-bar, pola candle, Squeeze Momentum (TTM), supply/demand zones, divergensi RSI/MACD/OBV, Fibonacci, pivot, swing points.
+- (*) = **baru (mutakhir)**: HMA, KAMA, Aroon, Vortex, Awesome Oscillator, Ultimate Oscillator, RVOL — ditambahkan sebagai kolom.
+
+**Penilaian akurasi/output:**
+- Skor (`score_frame`) bebas lookahead: hanya memakai bar saat ini + rolling. Aman.
+- Ichimoku `shift(kijun)` = cloud yang terlihat sekarang (dihitung 26 bar lalu) → benar, bukan kebocoran masa depan.
+- `swing_points`/`divergence` memang memakai `shift(-k)` (bar depan), tetapi **hanya deskriptif** (S/R & divergensi) dan **tidak** masuk `score_frame`; pada bar terakhir tidak ada bar depan → aman untuk sinyal live.
+- Backtest eksekusi **next-open** + fee/slippage → tidak repainting. ML **walk-forward** (out-of-sample).
+- Catatan: skor clip 100 dari total 115 → ada saturasi; tetap heuristik, bukan jaminan. Data gratis delay ~10 menit.
+- Tes: `py -m unittest discover -s tests` → **8/8 OK** (setelah penambahan indikator).
+
+## D. Lanjut nanti (TODO)
+1. **Validasi & kalibrasi bobot** indikator baru (HMA/KAMA/Aroon/Vortex/AO/UO/RVOL) via tab Akurasi / `validation.py` / `ml.py` **sebelum** dimasukkan ke skor.
+2. (Opsional) Tampilkan indikator baru di kartu indikator tab Analisis.
+3. Uji `/api/fundamental` & `/api/news` di Render live.
+4. (Opsional) Berita pasar/IHSG agregat (bukan per emiten).
+
+## Status
+- Semua perubahan Turn 25 di-commit & di-push ke `main`.

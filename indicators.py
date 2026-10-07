@@ -507,6 +507,75 @@ def candle_patterns(
     return out.fillna(False)
 
 
+def wma(series: pd.Series, n: int) -> pd.Series:
+    weights = np.arange(1, n + 1, dtype=float)
+    return series.rolling(window=n, min_periods=1).apply(
+        lambda x: float(np.dot(x, weights[-len(x):]) / weights[-len(x):].sum()), raw=True
+    )
+
+
+def hma(series: pd.Series, n: int = 20) -> pd.Series:
+    half = max(1, n // 2)
+    root = max(1, int(np.sqrt(n)))
+    return wma(2.0 * wma(series, half) - wma(series, n), root)
+
+
+def kama(series: pd.Series, n: int = 10, fast: int = 2, slow: int = 30) -> pd.Series:
+    change = (series - series.shift(n)).abs()
+    volatility = series.diff().abs().rolling(window=n, min_periods=1).sum()
+    er = (change / volatility.replace(0.0, np.nan)).fillna(0.0)
+    fast_sc = 2.0 / (fast + 1.0)
+    slow_sc = 2.0 / (slow + 1.0)
+    sc = (er * (fast_sc - slow_sc) + slow_sc) ** 2
+    values = series.to_numpy(dtype=float)
+    smooth = sc.to_numpy(dtype=float)
+    out = np.empty(len(values), dtype=float)
+    prev = values[0] if len(values) else np.nan
+    for i in range(len(values)):
+        prev = prev + smooth[i] * (values[i] - prev)
+        out[i] = prev
+    return pd.Series(out, index=series.index)
+
+
+def aroon(high: pd.Series, low: pd.Series, n: int = 14) -> tuple[pd.Series, pd.Series]:
+    up = high.rolling(n + 1, min_periods=1).apply(lambda x: float(np.argmax(x)) / n * 100.0, raw=True)
+    down = low.rolling(n + 1, min_periods=1).apply(lambda x: (n - float(np.argmin(x))) / n * 100.0, raw=True)
+    return up, down
+
+
+def vortex(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14) -> tuple[pd.Series, pd.Series]:
+    tr = true_range(high, low, close).rolling(n, min_periods=1).sum()
+    vm_plus = (high - low.shift(1)).abs().rolling(n, min_periods=1).sum()
+    vm_minus = (low - high.shift(1)).abs().rolling(n, min_periods=1).sum()
+    tr = tr.replace(0.0, np.nan)
+    return vm_plus / tr, vm_minus / tr
+
+
+def awesome_oscillator(high: pd.Series, low: pd.Series) -> pd.Series:
+    median = (high + low) / 2.0
+    return sma(median, 5) - sma(median, 34)
+
+
+def ultimate_oscillator(
+    high: pd.Series, low: pd.Series, close: pd.Series,
+    fast: int = 7, mid: int = 14, slow: int = 28,
+) -> pd.Series:
+    prev_close = close.shift(1)
+    true_low = pd.concat([low, prev_close], axis=1).min(axis=1)
+    true_high = pd.concat([high, prev_close], axis=1).max(axis=1)
+    bp = close - true_low
+    tr = (true_high - true_low).replace(0.0, np.nan)
+
+    def avg(n: int) -> pd.Series:
+        return bp.rolling(n, min_periods=1).sum() / tr.rolling(n, min_periods=1).sum()
+
+    return 100.0 * (4.0 * avg(fast) + 2.0 * avg(mid) + avg(slow)) / 7.0
+
+
+def rvol(volume: pd.Series, n: int = 20) -> pd.Series:
+    return volume / sma(volume, n).replace(0.0, np.nan)
+
+
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
     d.columns = [str(c).title() for c in d.columns]
@@ -612,6 +681,14 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     co = np.log(close / close.shift(1)) ** 2
     gk = np.sqrt(np.clip((0.5 * hl) - ((2.0 * np.log(2.0) - 1.0) * co), 0.0, None))
     d["gk_vol"] = gk.rolling(20, min_periods=5).mean() * np.sqrt(252.0) * 100.0
+
+    d["hma20"] = hma(close, 20)
+    d["kama"] = kama(close)
+    d["aroon_up"], d["aroon_down"] = aroon(high, low)
+    d["vortex_plus"], d["vortex_minus"] = vortex(high, low, close)
+    d["ao"] = awesome_oscillator(high, low)
+    d["uo"] = ultimate_oscillator(high, low, close)
+    d["rvol"] = rvol(volume)
 
     d["month"] = pd.DatetimeIndex(d.index).month
 

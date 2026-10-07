@@ -58,6 +58,21 @@ def get_fundamentals(ticker: str) -> dict:
         "beta": _clean(g("beta")),
         "high_52w": _clean(g("fiftyTwoWeekHigh")),
         "low_52w": _clean(g("fiftyTwoWeekLow")),
+        "price": _clean(g("currentPrice", "regularMarketPrice")),
+        "pe_forward": _clean(g("forwardPE")),
+        "peg": _clean(g("pegRatio", "trailingPegRatio")),
+        "ps": _clean(g("priceToSalesTrailing12Months")),
+        "gross_margin": _clean(g("grossMargins")),
+        "operating_margin": _clean(g("operatingMargins")),
+        "current_ratio": _clean(g("currentRatio")),
+        "book_value": _clean(g("bookValue")),
+        "revenue": _clean(g("totalRevenue")),
+        "net_income": _clean(g("netIncomeToCommon")),
+        "ebitda": _clean(g("ebitda")),
+        "free_cashflow": _clean(g("freeCashflow")),
+        "cash": _clean(g("totalCash")),
+        "debt": _clean(g("totalDebt")),
+        "shares": _clean(g("sharesOutstanding")),
     })
     _cache[yt] = (now, out)
     return out

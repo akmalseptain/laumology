@@ -58,6 +58,8 @@
   </div>
   <nav class="nav" aria-label="Navigasi utama">
     <div class="tab active" data-tab="analisis">Analisis</div>
+    <div class="tab" data-tab="fundamental">Fundamental</div>
+    <div class="tab" data-tab="berita">Berita</div>
     <div class="tab" data-tab="screener">Screener</div>
     <div class="tab" data-tab="live">Live Chart</div>
     <div class="tab" data-tab="backtest">Backtest</div>
@@ -92,6 +94,36 @@
     </div>
     <div id="result">
       <div class="card empty">Tekan <b>Analisis</b> untuk memuat sinyal saham.</div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-fundamental">
+    <div class="panel-head">
+      <h2>Fundamental</h2>
+      <p>Valuasi, profitabilitas, leverage, dan pertumbuhan emiten untuk analisa komprehensif.</p>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <div class="field"><label>Kode saham</label><input id="fuTicker" value="BBCA" style="width:150px" autocomplete="off" spellcheck="false"></div>
+        <button class="btn" id="fuRun">Muat</button>
+        <span class="muted" style="font-size:12px">Sumber yfinance · cache 6 jam</span>
+      </div>
+      <div id="fuResult" class="result-block"><div class="empty">Masukkan kode lalu tekan Muat.</div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-berita">
+    <div class="panel-head">
+      <h2>Berita</h2>
+      <p>Sentimen berita terkini per emiten sebagai konteks tambahan analisa.</p>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <div class="field"><label>Kode saham</label><input id="beTicker" value="BBCA" style="width:150px" autocomplete="off" spellcheck="false"></div>
+        <button class="btn" id="beRun">Muat</button>
+        <span class="muted" style="font-size:12px">Sumber yfinance · cache 1 jam</span>
+      </div>
+      <div id="beResult" class="result-block"><div class="empty">Masukkan kode lalu tekan Muat.</div></div>
     </div>
   </section>
 
@@ -406,18 +438,21 @@
     <h3>Selamat datang di LAUMOLOGY</h3>
     <p>Terminal analisis saham IDX: sinyal &amp; skor, Musyawarah 5 agen, screener seluruh emiten, backtest, akurasi, dan portofolio.</p>
     <div class="onboard-steps">
-      <div><b>Analisis</b> — sinyal, indikator, fundamental, ML.</div>
+      <div><b>Analisis</b> — sinyal, indikator, ML.</div>
+      <div><b>Fundamental</b> &amp; <b>Berita</b> — valuasi, rasio, sentimen.</div>
       <div><b>Screener</b> — pindai seluruh emiten IDX.</div>
       <div><b>Backtest</b> &amp; <b>Akurasi</b> — uji dan validasi strategi.</div>
       <div><b>Pasar</b> &amp; <b>Musyawarah</b> — konteks pasar dan konsensus 5 agen.</div>
     </div>
-    <div class="onboard-hint">Shortcut: <kbd>1</kbd>–<kbd>8</kbd> ganti tab · <kbd>/</kbd> cari kode · <kbd>?</kbd> bantuan · <kbd>t</kbd> tema.</div>
+    <div class="onboard-hint">Shortcut: <kbd>1</kbd>–<kbd>9</kbd>/<kbd>0</kbd> ganti tab · <kbd>/</kbd> cari kode · <kbd>?</kbd> bantuan · <kbd>t</kbd> tema.</div>
     <button class="btn" id="onboardClose">Mulai</button>
   </div>
 </div>
 
 <nav class="bottomnav">
   <div class="tab active" data-tab="analisis">Analisis</div>
+  <div class="tab" data-tab="fundamental">Fundamental</div>
+  <div class="tab" data-tab="berita">Berita</div>
   <div class="tab" data-tab="screener">Screener</div>
   <div class="tab" data-tab="live">Live</div>
   <div class="tab" data-tab="backtest">Backtest</div>
