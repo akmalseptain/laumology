@@ -330,6 +330,28 @@ class TestDataQualityGate(unittest.TestCase):
         self.assertTrue(any("Kualitas data" in r for r in dec["no_trade_reasons"]))
 
 
+class TestMusyawarahReconcile(unittest.TestCase):
+    def test_veto_on_no_trade(self):
+        import musyawarah
+        v = musyawarah.reconcile_vetoes("BUY", {"no_trade": True, "no_trade_reasons": ["Volatilitas ekstrem (pctl 98)"]}, "uptrend")
+        self.assertTrue(any("NO TRADE" in x for x in v))
+
+    def test_veto_on_conflicting_direction(self):
+        import musyawarah
+        v = musyawarah.reconcile_vetoes("BUY", {"direction": "SELL", "no_trade": False}, "uptrend")
+        self.assertTrue(any("SELL" in x for x in v))
+
+    def test_veto_on_downtrend(self):
+        import musyawarah
+        v = musyawarah.reconcile_vetoes("BUY", {"direction": "HOLD", "no_trade": False}, "downtrend")
+        self.assertTrue(any("downtrend" in x for x in v))
+
+    def test_no_veto_when_wait_or_aligned(self):
+        import musyawarah
+        self.assertEqual(musyawarah.reconcile_vetoes("WAIT", {"no_trade": True}, "uptrend"), [])
+        self.assertEqual(musyawarah.reconcile_vetoes("BUY", {"direction": "BUY", "no_trade": False}, "uptrend"), [])
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

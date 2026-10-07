@@ -115,6 +115,21 @@ def _fundamental(f: dict) -> dict:
     }
 
 
+def reconcile_vetoes(base: str, decision_engine: dict, market_regime: str | None) -> list[str]:
+    """Veto Risk Moderator agar Musyawarah konsisten dengan Decision Engine & regime IHSG."""
+    out: list[str] = []
+    if base != "BUY" or not decision_engine:
+        return out
+    if decision_engine.get("no_trade"):
+        why = "; ".join((decision_engine.get("no_trade_reasons") or [])[:2]) or "filter risiko"
+        out.append(f"Decision Engine: NO TRADE ({why}).")
+    elif decision_engine.get("direction") in ("SELL", "HOLD (REDUCE)"):
+        out.append(f"Decision Engine menilai {decision_engine['direction']} (konflik dengan BUY).")
+    if market_regime == "downtrend":
+        out.append("Regime IHSG downtrend -> tahan BUY.")
+    return out
+
+
 def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     ticker = ticker.upper().strip()
     df = data.get_ohlcv(ticker)
@@ -227,6 +242,12 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
 
     base = "BUY" if (consensus >= 0.35 and tech_vote > 0) else (
         "SKIP" if consensus <= -0.35 else "WAIT")
+
+    # Rekonsiliasi dengan Decision Engine (Market Decision) & regime IHSG.
+    dec = getattr(a, "decision", {}) or {}
+    mkt_regime = getattr(a, "market_regime", None)
+    vetoes.extend(reconcile_vetoes(base, dec, mkt_regime))
+
     decision = ("SKIP" if base == "SKIP" else "WAIT") if vetoes else base
 
     entry = a.buy_zone_high or a.entry
@@ -293,6 +314,12 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         "conviction": conviction,
         "vetoes": vetoes,
         "decision": decision,
+        "decision_engine": {
+            "direction": dec.get("direction"),
+            "no_trade": dec.get("no_trade"),
+            "reasons": (dec.get("no_trade_reasons") or []) + (dec.get("reasons") or [])[:3],
+            "market_regime": mkt_regime,
+        },
         "entry": entry, "target": target, "stop_loss": sl, "rr": rr,
     }
 
@@ -322,6 +349,12 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         "ml_prob_up": ml_prob,
         "vetoes": vetoes,
         "engine": engine,
+        "decision_engine": {
+            "direction": dec.get("direction"),
+            "no_trade": dec.get("no_trade"),
+            "reasons": (dec.get("no_trade_reasons") or []) + (dec.get("reasons") or [])[:3],
+            "market_regime": mkt_regime,
+        },
         "perspectives": {
             "technical": {"bias": tech_bias, "text": technical["summary"]},
             "bandarmologi": {"status": bandar["status"], "text": bandar_summary},
