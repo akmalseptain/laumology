@@ -119,6 +119,7 @@ class Settings:
     ml_blend_alpha: float = 0.5        # 0 = murni heuristik, 1 = murni probabilitas ML
     min_oos_auc: float = 0.53          # ambang AUC out-of-sample agar blend diaktifkan
     score_model_path: str = ""         # kosong = <cache_dir>/score_model.json
+    regime_filter: bool = True         # tahan sinyal beli saat IHSG downtrend (akurasi)
 
     # --- Transaction costs & execution realism (IDX retail approx) ---
     fee_buy_pct: float = 0.15      # komisi beli

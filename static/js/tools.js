@@ -160,6 +160,35 @@ async function runCalibrate(){
   finally{ if(cbRunEl) cbRunEl.disabled=false; }
 }
 
+/* ---------- Edge per market regime ---------- */
+const rgRunEl = $("#rgRun");
+if(rgRunEl) rgRunEl.onclick = runRegimeEdge;
+async function runRegimeEdge(){
+  const list = ($("#rgList")||{}).value || "lq45";
+  const horizon = ($("#rgHorizon")||{}).value || 10;
+  showStatus("Menguji edge per regime...", true);
+  if(rgRunEl) rgRunEl.disabled = true;
+  try{
+    const d = await (await fetch(`/api/regime-edge?list=${encodeURIComponent(list)}&horizon=${horizon}`)).json();
+    if(d.error) throw new Error(d.error);
+    const pct = (v)=> v==null?"-":(Number(v)*100).toFixed(1)+"%";
+    const order = ["uptrend","ranging","downtrend"];
+    let html = '<div class="grid">';
+    order.forEach(r=>{ const g=(d.regimes||{})[r]||{}; html+='<div class="metric"><div class="k">'+r+'</div><div class="v v-muted">'+(g.base_win_rate==null?'-':pct(g.base_win_rate))+' <span style="color:#8a9a90;font-size:10px">n='+(g.n||0)+'</span></div></div>'; });
+    html += '</div>';
+    order.forEach(r=>{
+      const g = (d.regimes||{})[r]||{};
+      const rows = (g.factors||[]).slice(0,8).map(x=>'<tr><td style="text-align:left">'+(x.candidate?'<b>'+x.factor+'</b>':x.factor)+'</td><td>'+x.n+'</td><td>'+pct(x.win_rate)+'</td><td class="'+(x.edge>=0?'v-up':'v-red')+'">'+(x.edge>=0?'+':'')+pct(x.edge)+'</td></tr>').join("");
+      html += '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">'+r+' (base '+(g.base_win_rate==null?'-':pct(g.base_win_rate))+')</div>'
+        + '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Faktor</th><th>N</th><th>WR</th><th>Edge</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" style="text-align:center;color:#8a9a90">data kurang</td></tr>')+'</tbody></table></div>';
+    });
+    html += '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Terbaik saat IHSG uptrend; sinyal beli ditahan saat downtrend (regime filter).</div>';
+    $("#rgResult").innerHTML = html;
+    showStatus("Selesai");
+  }catch(e){ $("#rgResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  finally{ if(rgRunEl) rgRunEl.disabled = false; }
+}
+
 /* ---------- Market news ---------- */
 const mkNewsBtn = $("#mkNewsRun");
 if(mkNewsBtn) mkNewsBtn.onclick = loadMarketNews;

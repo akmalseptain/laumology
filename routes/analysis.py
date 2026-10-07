@@ -145,6 +145,20 @@ def api_model():
     return jsonify(calibration.status())
 
 
+@bp.route("/api/regime-edge")
+def api_regime_edge():
+    name = (request.args.get("list") or "lq45").strip()
+    try:
+        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+    except ValueError:
+        horizon = 10
+    try:
+        tickers = resolve_watchlist(name)
+        return jsonify(validation.calibrate_regime(tickers, horizon=horizon))
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
 @bp.route("/api/train")
 def api_train():
     name = (request.args.get("list") or "idx30").strip()

@@ -96,6 +96,38 @@ def relative_strength(df: pd.DataFrame) -> tuple[float | None, bool | None]:
         return None, None
 
 
+_MKT_CACHE: dict = {"ts": 0.0, "regime": "unknown"}
+
+
+def market_regime() -> str:
+    """Regime pasar dari IHSG (uptrend/downtrend/ranging), cache 5 menit.
+
+    Bukti uji: edge faktor jauh lebih baik saat IHSG uptrend, ~0/negatif saat downtrend.
+    """
+    import time as _t
+    now = _t.time()
+    if now - _MKT_CACHE["ts"] < 300 and _MKT_CACHE["regime"] != "unknown":
+        return _MKT_CACHE["regime"]
+    regime = "unknown"
+    try:
+        import data as datamod
+        b = add_indicators(datamod.get_ohlcv(
+            settings.benchmark, suffix=settings.benchmark_suffix, period=settings.period))
+        c = float(b["Close"].iloc[-1])
+        ma20 = float(b["ma20"].iloc[-1])
+        ma50 = float(b["ma50"].iloc[-1])
+        if c > ma50 and ma20 > ma50:
+            regime = "uptrend"
+        elif c < ma50:
+            regime = "downtrend"
+        else:
+            regime = "ranging"
+    except Exception:
+        regime = "unknown"
+    _MKT_CACHE.update(ts=now, regime=regime)
+    return regime
+
+
 @dataclass
 class Analysis:
     ticker: str
@@ -185,6 +217,7 @@ class Analysis:
     score_opt: float | None = None
     prob_up: float | None = None
     model_used: bool = False
+    market_regime: str = "unknown"
 
     def as_row(self) -> dict:
         return {
@@ -388,6 +421,10 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
     signal, action = _action(score, uptrend, extended, breakout)
     grade = _grade(score, confidence, uptrend)
 
+    mkt_regime = market_regime() if settings.regime_filter else "unknown"
+    if settings.regime_filter and mkt_regime == "downtrend" and signal in ("BUY", "STRONG BUY"):
+        signal, action = "HOLD", "TAHAN (IHSG downtrend)"
+
     stop_loss = min(
         price - settings.atr_sl_mult * atr_val,
         support - 0.3 * atr_val,
@@ -554,6 +591,12 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
         warnings.append("Choppiness tinggi (pasar sideways, sinyal rawan palsu)")
     if adr_pct and (tp1 - price) / price * 100.0 > 3.0 * adr_pct:
         warnings.append(f"TP1 > 3x ADR harian ({adr_pct:.1f}%) - butuh waktu lebih lama")
+    if mkt_regime == "downtrend":
+        warnings.append("IHSG downtrend - sinyal beli ditahan (regime filter)")
+    elif mkt_regime == "ranging":
+        warnings.append("IHSG ranging - edge faktor lemah, utamakan saham terkuat")
+    if mkt_regime == "uptrend":
+        reasons.append("IHSG uptrend - edge faktor historis lebih baik")
 
     return Analysis(
         ticker=ticker.upper(),
@@ -621,6 +664,7 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
         score_opt=score_opt,
         prob_up=prob_up,
         model_used=model_used,
+        market_regime=mkt_regime,
         st_dir_up=bool(last["st_dir"] == 1),
         squeeze_on=bool(last["squeeze_on"]),
         squeeze_mom=float(last["sqz_mom"]) if np.isfinite(last["sqz_mom"]) else 0.0,

@@ -507,3 +507,31 @@ Menindaklanjuti permintaan: buat keluaran akurat & maksimal (#1 optimasi bobot k
 
 ## Status
 - Siap di-commit & push ke `main`.
+
+---
+
+# Turn 29 — Edge per-Regime + Filter Regime Pasar
+
+Orientasi: hasil akurat. Diuji apakah edge faktor berubah menurut regime IHSG.
+
+## Temuan uji (LQ45, horizon 10, base WR ~43%)
+- **IHSG uptrend**: faktor mayoritas positif — `ma50>ma200` +3.8%, `volume_surge`/`rvol>1.2` +2.4%,
+  `rsi_50_78` +1.8%, `squeeze_release` +1.6%, `macd_bull` +1.6%, `hma20_naik` +2.1%, `kama_naik` +2.0%.
+- **IHSG downtrend**: nol/negatif (edge terbaik hanya ~+2% dgn n kecil).
+- **IHSG ranging**: campuran (ada yang +7–24% tapi n kecil).
+- **Kesimpulan**: edge faktor **kondisional pada regime pasar**; paling andal saat IHSG uptrend.
+
+## Yang dibangun
+- `signals.market_regime()`: regime IHSG (uptrend/downtrend/ranging) dari MA20/MA50, cache 5 menit.
+- `signals.analyze`: field `market_regime` + **filter regime** (`config.regime_filter`): saat IHSG
+  downtrend, sinyal `BUY/STRONG BUY` ditahan → `HOLD "TAHAN (IHSG downtrend)"`; tambah warning/reason.
+- `validation.calibrate_regime(tickers, horizon)`: edge tiap faktor dipisah per regime.
+- Endpoint `/api/regime-edge`; UI tab Akurasi kartu **"Edge per Regime Pasar"**; hero menampilkan `Pasar:<regime>`.
+- `config.regime_filter = True`.
+
+## Verifikasi
+- Smoke: `/api/analyze` mengembalikan `market_regime`; `/api/regime-edge` OK (uptrend top `ma50>ma200` +3.0%).
+- Tests: **19/19 OK**; `node --check` 6/6 OK.
+
+## Status
+- Siap di-commit & push ke `main`.

@@ -46,6 +46,7 @@ class TestSignals(unittest.TestCase):
         self.assertGreaterEqual(a.aroon_up, 0)
         self.assertGreaterEqual(a.vortex_plus, 0)
         self.assertGreaterEqual(a.rvol, 0)
+        self.assertIsInstance(a.market_regime, str)
 
 
 class TestCandidates(unittest.TestCase):

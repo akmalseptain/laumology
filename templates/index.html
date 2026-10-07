@@ -370,6 +370,23 @@
       <div id="cbResult" class="result-block"><div class="empty">Tekan Kalibrasi untuk menguji bobot kandidat.</div></div>
     </div>
     <div class="card">
+      <div class="sec"><span class="badge">Edge per Regime Pasar</span></div>
+      <p class="muted note">Edge tiap faktor dipisah menurut regime IHSG (uptrend/downtrend/ranging). Dasar filter regime di sinyal.</p>
+      <div class="toolbar">
+        <div class="field"><label>Universe</label>
+          <select id="rgList">
+            <option value="lq45">LQ45</option>
+            <option value="idx30">IDX30</option>
+            <option value="idx80">IDX80</option>
+            <option value="bluechip">BLUECHIP</option>
+          </select>
+        </div>
+        <div class="field w-lg"><label>Horizon (bar)</label><input id="rgHorizon" type="number" value="10"></div>
+        <button class="btn" id="rgRun">Uji per Regime</button>
+      </div>
+      <div id="rgResult" class="result-block"><div class="empty">Tekan Uji per Regime.</div></div>
+    </div>
+    <div class="card">
       <div class="sec"><span class="badge">Optimasi Skor (Walk-forward)</span>
         <button class="btn ghost sm" id="mdStatusBtn">Status Model</button>
       </div>

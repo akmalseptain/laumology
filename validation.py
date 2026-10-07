@@ -177,3 +177,69 @@ def calibrate(tickers: list[str], horizon: int = 10, min_edge: float = MIN_EDGE,
         "promoted": promoted,
         "errors": errors,
     }
+
+
+REGIMES = ("uptrend", "downtrend", "ranging")
+
+
+def _benchmark_regime() -> pd.Series:
+    import data as datamod
+
+    b = add_indicators(datamod.get_ohlcv("^JKSE", suffix=""))
+    reg = pd.Series("ranging", index=b.index)
+    reg[(b["Close"] > b["ma50"]) & (b["ma20"] > b["ma50"])] = "uptrend"
+    reg[b["Close"] < b["ma50"]] = "downtrend"
+    return reg
+
+
+def calibrate_regime(tickers: list[str], horizon: int = 10, min_n: int = 50) -> dict:
+    """Edge tiap faktor dipisah menurut regime pasar (IHSG up/down/ranging)."""
+    import data as datamod
+
+    reg = _benchmark_regime()
+    keys = FACTOR_KEYS + CANDIDATE_FACTORS
+    acc = {r: {k: [0, 0] for k in keys} for r in REGIMES}
+    base = {r: [0, 0] for r in REGIMES}
+    used: list[str] = []
+    errors: list[dict] = []
+
+    for t in tickers:
+        try:
+            d = add_indicators(datamod.get_ohlcv(t)).dropna(subset=["ma50", "ma200", "atr", "supertrend"])
+            if len(d) < 80:
+                errors.append({"ticker": t.upper(), "error": "data kurang"})
+                continue
+            f = confluence_frame(d)[FACTOR_KEYS].join(candidate_frame(d)[CANDIDATE_FACTORS])
+            fwd = (d["Close"].shift(-horizon) / d["Close"] - 1.0)
+            rr = reg.reindex(d.index).ffill()
+            used.append(t.upper())
+            for r in REGIMES:
+                m = (rr == r).to_numpy()
+                fl = fwd[m].dropna().to_numpy()
+                if len(fl):
+                    base[r][0] += int((fl > 0).sum())
+                    base[r][1] += len(fl)
+                for k in keys:
+                    mask = m & f[k].to_numpy()
+                    fr = fwd[mask].dropna().to_numpy()
+                    if len(fr):
+                        acc[r][k][0] += int((fr > 0).sum())
+                        acc[r][k][1] += len(fr)
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"ticker": t.upper(), "error": str(exc)})
+
+    out: dict[str, dict] = {}
+    for r in REGIMES:
+        bwr = base[r][0] / base[r][1] if base[r][1] else None
+        rows = []
+        for k in keys:
+            w, n = acc[r][k]
+            if n < min_n or bwr is None:
+                continue
+            rows.append({"factor": k, "n": n, "win_rate": w / n,
+                         "edge": w / n - bwr, "candidate": k in CANDIDATE_FACTORS})
+        rows.sort(key=lambda x: x["edge"], reverse=True)
+        out[r] = {"base_win_rate": bwr, "n": base[r][1], "factors": rows}
+
+    return {"horizon": int(horizon), "min_n": int(min_n), "universe": used,
+            "regimes": out, "errors": errors}
