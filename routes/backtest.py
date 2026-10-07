@@ -10,6 +10,7 @@ import backtest as backtest_mod
 import consensus_backtest as consensus_mod
 import data
 import metrics
+import screener
 from payloads import INTERVAL_PERIOD
 
 bp = Blueprint("backtest", __name__)
@@ -92,6 +93,45 @@ def api_walkforward():
             df, ticker, folds=folds, min_score=min_score, max_hold=max_hold, tp_rr=tp_rr, sl_mult=sl_mult
         )
         return jsonify(ticker=ticker, folds=rows)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@bp.route("/api/compare-backtest")
+def api_compare_backtest():
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify(error="Kode saham kosong"), 400
+    interval = request.args.get("interval", "1d")
+    if interval not in INTERVAL_PERIOD:
+        interval = "1d"
+    period = INTERVAL_PERIOD.get(interval, "1y")
+    refresh = request.args.get("refresh") in ("1", "true", "yes")
+    try:
+        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        tp_rr = float(request.args.get("tp_rr", 3.0))
+        sl_mult = float(request.args.get("sl_mult", 2.0))
+    except ValueError:
+        max_hold, tp_rr, sl_mult = 20, 3.0, 2.0
+    try:
+        df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
+        return jsonify(backtest_mod.compare_backtest(df, ticker, max_hold=max_hold, tp_rr=tp_rr, sl_mult=sl_mult))
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@bp.route("/api/compare-universe")
+def api_compare_universe():
+    name = (request.args.get("list") or "idx30").strip()
+    try:
+        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        tp_rr = float(request.args.get("tp_rr", 3.0))
+        sl_mult = float(request.args.get("sl_mult", 2.0))
+    except ValueError:
+        max_hold, tp_rr, sl_mult = 20, 3.0, 2.0
+    try:
+        tickers = screener.resolve_watchlist(name)
+        return jsonify(backtest_mod.compare_universe(tickers, max_hold=max_hold, tp_rr=tp_rr, sl_mult=sl_mult))
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 

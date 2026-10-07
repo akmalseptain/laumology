@@ -144,6 +144,86 @@ class TestCalibration(unittest.TestCase):
                 pass
 
 
+class TestLegacyRegression(unittest.TestCase):
+    def _freeze(self):
+        from config import settings
+        old = (settings.regime_filter, settings.enable_decision, settings.use_optimized_score)
+        settings.regime_filter = False
+        settings.enable_decision = False
+        settings.use_optimized_score = False
+        return old
+
+    def _restore(self, old):
+        from config import settings
+        settings.regime_filter, settings.enable_decision, settings.use_optimized_score = old
+
+    def test_analyze_golden(self):
+        import signals
+        old = self._freeze()
+        try:
+            a = signals.analyze(make_df(), "TEST")
+            self.assertEqual(a.signal, "SELL")
+            self.assertEqual(a.score, 26)
+            self.assertAlmostEqual(a.stop_loss, 476.26, places=1)
+            self.assertAlmostEqual(a.tp1, 602.84, places=1)
+        finally:
+            self._restore(old)
+
+    def test_score_frame_unchanged(self):
+        import factors
+        import indicators
+        d = indicators.add_indicators(make_df())
+        sc = factors.score_frame(d)
+        self.assertEqual(list(sc.columns), factors.SCORE_COMPONENTS + ["score"])
+        self.assertTrue(bool(sc["score"].between(0, 100).all()))
+
+
+class TestDecision(unittest.TestCase):
+    def test_structure(self):
+        import indicators
+        import structure
+        d = indicators.add_indicators(make_df())
+        s = structure.market_structure(d)
+        self.assertIn(s["bias"], ("bullish", "bearish", "ranging"))
+        self.assertIn("bos", s)
+        self.assertIn("last_swing_low", s)
+
+    def test_decision_shape(self):
+        import decision
+        import indicators
+        d = indicators.add_indicators(make_df())
+        dec = decision.evaluate(d, "TEST", market="ranging", weekly="Netral", monthly="Netral")
+        self.assertIn(dec["direction"], ("BUY", "SELL", "HOLD", "ACCUMULATE", "HOLD (REDUCE)", "NO TRADE"))
+        self.assertTrue(0 <= dec["confidence"] <= 100)
+        self.assertTrue(0 <= dec["signal_score"] <= 100)
+        self.assertIn("regime", dec)
+        self.assertIn("reasons", dec)
+
+    def test_signal_series(self):
+        import decision
+        import indicators
+        d = indicators.add_indicators(make_df())
+        sig = decision.signal_series(d)
+        self.assertEqual(len(sig), len(d))
+        self.assertTrue(set(int(x) for x in sig.unique()).issubset({-1, 0, 1}))
+
+
+class TestABCompare(unittest.TestCase):
+    def test_decision_backtest_runs(self):
+        import backtest
+        r = backtest.backtest_decision(make_df(320), "TEST")
+        self.assertGreaterEqual(r.n_trades, 0)
+        self.assertEqual(len(r.equity_curve), len(r.dates))
+
+    def test_compare_keys(self):
+        import backtest
+        res = backtest.compare_backtest(make_df(320), "TEST", max_hold=20, tp_rr=3.0, sl_mult=2.0)
+        for side in ("legacy", "decision"):
+            for f in ("n_trades", "win_rate", "profit_factor", "expectancy",
+                      "avg_bars", "tp_rate", "sl_rate", "timeout_rate"):
+                self.assertIn(f, res[side])
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

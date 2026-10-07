@@ -217,10 +217,24 @@
         <button class="btn" id="btRun">Uji</button>
         <button class="btn ghost" id="btWfRun">Walk-forward</button>
         <button class="btn ghost" id="optRun">Optimalkan</button>
+        <button class="btn ghost" id="btAB">A/B: Legacy vs Decision</button>
       </div>
       <div id="btResult" class="result-block"><div class="empty">Isi parameter lalu tekan Uji.</div></div>
       <div id="btWf" class="result-block"></div>
       <div id="optResult" class="result-block"></div>
+      <div id="abResult" class="result-block"></div>
+      <div class="toolbar" style="margin-top:10px">
+        <div class="field"><label>Universe A/B</label>
+          <select id="abList">
+            <option value="idx30">IDX30</option>
+            <option value="lq45">LQ45</option>
+            <option value="bluechip">BLUECHIP</option>
+            <option value="idx80">IDX80</option>
+          </select>
+        </div>
+        <button class="btn ghost" id="btABU">Uji A/B Universe</button>
+      </div>
+      <div id="abuResult" class="result-block"></div>
     </div>
   </section>
 

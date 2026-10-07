@@ -281,3 +281,56 @@ const mdStatusBtnEl = $("#mdStatusBtn");
 if(mdStatusBtnEl) mdStatusBtnEl.onclick = loadModelStatus;
 loadModelStatus();
 
+
+/* ---------- A/B comparison: legacy vs decision engine ---------- */
+function abMetricsTable(leg, dec){
+  const pct = (v)=> v==null?"-":(Number(v)*100).toFixed(1)+"%";
+  const num = (v)=> v==null?"-":Number(v).toFixed(2);
+  const row = (label, a, b, inv)=>{
+    let clsA="", clsB="";
+    if(a!=null && b!=null){
+      const better = inv ? (b<a) : (b>a);
+      clsB = better ? "v-up" : "v-red";
+    }
+    return '<tr><td style="text-align:left">'+label+'</td><td class="'+clsA+'">'+a+'</td><td class="'+clsB+'">'+b+'</td></tr>';
+  };
+  const decP = dec.profit_factor==null?"~":num(dec.profit_factor);
+  const legP = leg.profit_factor==null?"~":num(leg.profit_factor);
+  return '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Metrik</th><th>Legacy</th><th>Decision</th></tr></thead><tbody>'
+    + row('Jumlah Trade', leg.n_trades, dec.n_trades, false)
+    + row('Win Rate', pct(leg.win_rate), pct(dec.win_rate), false)
+    + row('Profit Factor', legP, decP, false)
+    + row('Expectancy %', num(leg.expectancy_pct!=null?leg.expectancy_pct:(leg.expectancy||0)*100), num(dec.expectancy_pct!=null?dec.expectancy_pct:(dec.expectancy||0)*100), false)
+    + row('Avg Return %', num(leg.avg_return_pct!=null?leg.avg_return_pct:(leg.total_return||0)*100), num(dec.avg_return_pct!=null?dec.avg_return_pct:(dec.total_return||0)*100), false)
+    + row('Max DD %', num(leg.avg_max_dd_pct!=null?leg.avg_max_dd_pct:(leg.max_drawdown||0)*100), num(dec.avg_max_dd_pct!=null?dec.avg_max_dd_pct:(dec.max_drawdown||0)*100), true)
+    + row('TP rate', pct(leg.tp_rate), pct(dec.tp_rate), false)
+    + row('SL rate', pct(leg.sl_rate), pct(dec.sl_rate), true)
+    + row('Avg bars', num(leg.avg_bars), num(dec.avg_bars), true)
+    + '</tbody></table></div>';
+}
+const btABEl = $("#btAB");
+if(btABEl) btABEl.onclick = async function(){
+  const t=($("#btTicker").value||"").trim().toUpperCase(); if(!t) return;
+  showStatus("A/B backtest "+t+"...", true); btABEl.disabled=true;
+  try{
+    const d=await (await fetch(`/api/compare-backtest?ticker=${encodeURIComponent(t)}&tp_rr=${$("#btTp").value}&sl_mult=${$("#btSl").value}&max_hold=${$("#btHold").value}`)).json();
+    if(d.error) throw new Error(d.error);
+    $("#abResult").innerHTML='<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">A/B '+d.ticker+' (parameter sama)</div>'+abMetricsTable(d.legacy,d.decision)
+      +'<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:8px">Decision = structure + regime + filter no-trade. Jangan menilai dari satu emiten.</div>';
+    showStatus("Selesai");
+  }catch(e){ $("#abResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  finally{ btABEl.disabled=false; }
+};
+const btABUEl = $("#btABU");
+if(btABUEl) btABUEl.onclick = async function(){
+  const list=($("#abList")||{}).value||"idx30";
+  showStatus("A/B universe "+list+"... (~30-60 dtk)", true); btABUEl.disabled=true;
+  try{
+    const d=await (await fetch(`/api/compare-universe?list=${encodeURIComponent(list)}&tp_rr=${$("#btTp")?$("#btTp").value:3}&sl_mult=${$("#btSl")?$("#btSl").value:2}&max_hold=${$("#btHold")?$("#btHold").value:20}`)).json();
+    if(d.error) throw new Error(d.error);
+    $("#abuResult").innerHTML='<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">A/B Universe '+list+' ('+d.n_tickers+' emiten, agregat)</div>'+abMetricsTable(d.legacy,d.decision)
+      +'<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:8px">Agregat lintas emiten: patokan robustness, bukan win-rate semata.</div>';
+    showStatus("Selesai");
+  }catch(e){ $("#abuResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  finally{ btABUEl.disabled=false; }
+};

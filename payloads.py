@@ -75,6 +75,7 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
         "prob_up": a.prob_up,
         "model_used": a.model_used,
         "market_regime": a.market_regime,
+        "decision": a.decision,
         "trend": a.trend,
         "weekly_trend": a.weekly_trend,
         "regime": a.regime,

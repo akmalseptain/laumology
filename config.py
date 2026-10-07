@@ -120,6 +120,7 @@ class Settings:
     min_oos_auc: float = 0.53          # ambang AUC out-of-sample agar blend diaktifkan
     score_model_path: str = ""         # kosong = <cache_dir>/score_model.json
     regime_filter: bool = True         # tahan sinyal beli saat IHSG downtrend (akurasi)
+    enable_decision: bool = True       # hitung Decision Engine (BUY/SELL/HOLD/NO TRADE)
 
     # --- Transaction costs & execution realism (IDX retail approx) ---
     fee_buy_pct: float = 0.15      # komisi beli

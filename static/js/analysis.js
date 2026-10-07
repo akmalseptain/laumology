@@ -72,6 +72,8 @@ function render(d){
       </div>
     </div>
 
+    ${(d.decision && d.decision.direction) ? decisionCard(d.decision) : ''}
+
     <div class="card glass modish">
       <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Trade Plan</span></div>
       <div class="grid">
@@ -382,3 +384,46 @@ document.querySelectorAll(".tvbtn").forEach(b=>b.onclick=()=>{
   b.classList.add("active"); tvInterval = TV_INT[b.dataset.i] || "1d"; loadLiveChart();
 });
 
+
+/* ---------- Market Decision card (additive) ---------- */
+function decisionCard(dec){
+  const dir = dec.direction || "HOLD";
+  const cls = (dir==="BUY"||dir==="ACCUMULATE") ? "v-up" : ((dir==="SELL"||dir==="HOLD (REDUCE)") ? "v-red" : "v-muted");
+  const noTrade = dec.no_trade;
+  const c = dec.components || {};
+  const compRow = (k,v)=>'<div class="metric"><div class="k">'+k+'</div><div class="v '+(v>0.15?'v-up':(v<-0.15?'v-red':'v-muted'))+'">'+(v>0?'+':'')+Number(v).toFixed(2)+'</div></div>';
+  const plan = (dir==="BUY"||dir==="ACCUMULATE") ? `
+      <div class="grid">
+        <div class="metric hl"><div class="k">Ideal Entry</div><div class="v v-white">${idr(dec.ideal_entry)}</div></div>
+        <div class="metric"><div class="k">Zona Entry</div><div class="v v-muted">${fmt(dec.entry_zone_low)} – ${fmt(dec.entry_zone_high)}</div></div>
+        <div class="metric"><div class="k">Invalidation</div><div class="v v-red">${idr(dec.invalidation)}</div></div>
+        <div class="metric"><div class="k">Stop Loss</div><div class="v v-red">${dec.stop_loss!=null?idr(dec.stop_loss):'-'}</div></div>
+        <div class="metric"><div class="k">TP1 (RR ${dec.rr1})</div><div class="v v-up">${dec.tp1!=null?idr(dec.tp1):'-'}</div></div>
+        <div class="metric"><div class="k">TP2 (RR ${dec.rr2})</div><div class="v v-up">${dec.tp2!=null?idr(dec.tp2):'-'}</div></div>
+        <div class="metric"><div class="k">TP3 (RR ${dec.rr3})</div><div class="v v-up">${dec.tp3!=null?idr(dec.tp3):'-'}</div></div>
+        <div class="metric"><div class="k">Risk/Reward</div><div class="v v-white">1 : ${dec.rr2}</div></div>
+      </div>` : '';
+  const nt = (dec.no_trade_reasons||[]).length ? '<div class="mono" style="color:#e5484d;font-size:11px;margin-top:10px;line-height:1.6">NO TRADE: '+dec.no_trade_reasons.join(' &middot; ')+'</div>' : '';
+  const why = (dec.reasons||[]).map(x=>'<li>'+x+'</li>').join('');
+  const st = dec.structure || {};
+  return `
+    <div class="card glass modish${noTrade?'':''}">
+      <div class="sec"><span class="num">DEC</span><div class="line"></div><span class="badge">Market Decision</span></div>
+      <div class="grid">
+        <div class="metric hl"><div class="k">Keputusan</div><div class="v ${cls}" style="font-size:18px">${dir}</div></div>
+        <div class="metric"><div class="k">Confidence</div><div class="v ${cls}">${dec.confidence}%</div></div>
+        <div class="metric"><div class="k">Signal Score</div><div class="v v-muted">${dec.signal_score}/100</div></div>
+        <div class="metric"><div class="k">Market Regime</div><div class="v v-muted">${dec.regime}</div></div>
+        <div class="metric"><div class="k">Struktur</div><div class="v ${st.bias==='bullish'?'v-up':(st.bias==='bearish'?'v-red':'v-muted')}">${st.label||'-'}${st.bos&&st.bos!=='none'?' (BOS '+st.bos+')':''}${st.choch?' + CHoCH':''}</div></div>
+        <div class="metric"><div class="k">IHSG</div><div class="v v-muted">${dec.market||'-'}</div></div>
+      </div>
+      ${plan}
+      ${nt}
+      <div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Komponen (signed)</div>
+      <div class="grid">
+        ${compRow('Trend', c.trend||0)}${compRow('Struktur', c.structure||0)}${compRow('Momentum', c.momentum||0)}
+        ${compRow('Volume', c.volume||0)}${compRow('HTF', c.htf||0)}${compRow('Entry', c.entry||0)}
+      </div>
+      ${why?`<div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Why ${dir}</div><ul class="list">${why}</ul>`:''}
+    </div>`;
+}

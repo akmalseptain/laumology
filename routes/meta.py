@@ -53,6 +53,8 @@ def api_schema():
         {"method": "GET", "path": "/api/quote", "params": ["ticker"]},
         {"method": "GET", "path": "/api/screen", "params": ["list", "top", "min_score", "min_conf", "sector", "min_value", "only_bullish"]},
         {"method": "GET", "path": "/api/backtest", "params": ["ticker", "interval", "min_score", "tp_rr", "sl_mult", "max_hold"]},
+        {"method": "GET", "path": "/api/compare-backtest", "params": ["ticker", "interval", "tp_rr", "sl_mult", "max_hold"]},
+        {"method": "GET", "path": "/api/compare-universe", "params": ["list", "tp_rr", "sl_mult", "max_hold"]},
         {"method": "GET", "path": "/api/walkforward", "params": ["ticker", "folds"]},
         {"method": "GET", "path": "/api/optimize", "params": ["ticker"]},
         {"method": "GET", "path": "/api/optimize-weights", "params": ["list"]},

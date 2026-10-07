@@ -305,3 +305,192 @@ def optimize(df: pd.DataFrame, ticker: str = "", max_hold: int = 20,
         reverse=True,
     )
     return {"ticker": ticker.upper(), "tested": len(results), "best": results[0] if results else None, "top": results[:10]}
+
+
+def backtest_decision(
+    df: pd.DataFrame,
+    ticker: str = "",
+    max_hold: int = 20,
+    tp_rr: float | None = None,
+    sl_mult: float | None = None,
+    fee_buy: float | None = None,
+    fee_sell: float | None = None,
+    slip: float | None = None,
+) -> BacktestResult:
+    """Backtest memakai Decision Engine (structure + regime + filter) vs legacy."""
+    from decision import signal_series
+
+    tp_rr = tp_rr if tp_rr is not None else settings.tp2_rr
+    sl_mult = sl_mult if sl_mult is not None else settings.atr_sl_mult
+    fee_buy = (settings.fee_buy_pct / 100.0) if fee_buy is None else fee_buy
+    fee_sell = (settings.fee_sell_pct / 100.0) if fee_sell is None else fee_sell
+    slip = (settings.slippage_pct / 100.0) if slip is None else slip
+
+    d = add_indicators(df).dropna(subset=["ma50", "atr"])
+    if len(d) < 30:
+        raise ValueError(f"Data terlalu pendek untuk backtest-decision {ticker}")
+
+    regime = None
+    try:
+        from validation import _benchmark_regime
+        regime = _benchmark_regime().reindex(d.index).ffill()
+    except Exception:
+        regime = None
+    sig = signal_series(d, regime=regime).to_numpy(dtype=int)
+    open_ = d["Open"].to_numpy(dtype=float)
+    high = d["High"].to_numpy(dtype=float)
+    low = d["Low"].to_numpy(dtype=float)
+    close = d["Close"].to_numpy(dtype=float)
+    atr_v = d["atr"].to_numpy(dtype=float)
+    ma50 = d["ma50"].to_numpy(dtype=float)
+    dates = d.index
+
+    position = None
+    trades = []
+    equity = 1.0
+    curve = [1.0]
+    for i in range(1, len(d)):
+        if position is None:
+            if sig[i - 1] == 1 and close[i] > ma50[i]:
+                entry = open_[i]
+                risk = sl_mult * atr_v[i - 1]
+                position = {"entry": entry, "sl": entry - risk, "tp": entry + tp_rr * risk,
+                            "i": i, "risk": risk}
+        else:
+            reason = None
+            exit_price = None
+            if low[i] <= position["sl"]:
+                exit_price, reason = position["sl"], "SL"
+            elif high[i] >= position["tp"]:
+                exit_price, reason = position["tp"], "TP"
+            elif i - position["i"] >= max_hold:
+                exit_price, reason = close[i], "TIMEOUT"
+            if reason:
+                entry_eff = position["entry"] * (1.0 + slip) * (1.0 + fee_buy)
+                exit_eff = exit_price * (1.0 - slip) * (1.0 - fee_sell)
+                ret = exit_eff / entry_eff - 1.0
+                equity *= 1.0 + ret
+                trades.append({"entry_date": dates[position["i"]], "exit_date": dates[i],
+                               "entry": round(position["entry"], 2), "exit": round(exit_price, 2),
+                               "bars": i - position["i"], "reason": reason,
+                               "return_pct": round(ret * 100.0, 2)})
+                position = None
+        curve.append(equity)
+
+    buy_hold = close[-1] / close[0] - 1.0
+    tdf = pd.DataFrame(trades)
+    curve_out = [round(float(x), 4) for x in curve]
+    dates_out = [str(x)[:10] for x in dates]
+    if tdf.empty:
+        return BacktestResult(ticker.upper(), 0.0, buy_hold, 0, 0.0, 0.0, 0.0, 0.0, 0.0, tdf, curve_out, dates_out)
+    rets = tdf["return_pct"].to_numpy() / 100.0
+    wins = rets[rets > 0]
+    losses = rets[rets <= 0]
+    gw = wins.sum() if wins.size else 0.0
+    gl = -losses.sum() if losses.size else 0.0
+    pf = gw / gl if gl > 0 else float("inf")
+    arr = np.array(curve)
+    peak = np.maximum.accumulate(arr)
+    dd = (arr - peak) / peak
+    return BacktestResult(
+        ticker=ticker.upper(), total_return=equity - 1.0, buy_hold_return=buy_hold,
+        n_trades=len(tdf), win_rate=float(len(wins) / len(tdf)),
+        avg_win=float(wins.mean()) if wins.size else 0.0,
+        avg_loss=float(losses.mean()) if losses.size else 0.0,
+        profit_factor=pf, max_drawdown=float(dd.min()) if dd.size else 0.0,
+        expectancy=float(rets.mean()), trades=tdf, equity_curve=curve_out, dates=dates_out,
+    )
+
+
+def _pack(r: BacktestResult) -> dict:
+    import metrics
+
+    tr = r.trades
+    trades = [t.get("return_pct") for t in tr.to_dict("records")] if not tr.empty else []
+    tp = sl = to = 0
+    avg_bars = 0.0
+    if not tr.empty:
+        reasons = tr["reason"].tolist()
+        tp = reasons.count("TP")
+        sl = reasons.count("SL")
+        to = reasons.count("TIMEOUT")
+        avg_bars = float(tr["bars"].mean())
+    return {
+        "total_return": r.total_return, "buy_hold": r.buy_hold_return, "n_trades": r.n_trades,
+        "win_rate": r.win_rate, "profit_factor": (r.profit_factor if math.isfinite(r.profit_factor) else None),
+        "max_drawdown": r.max_drawdown, "expectancy": r.expectancy,
+        "avg_win": r.avg_win, "avg_loss": r.avg_loss,
+        "tp_hits": tp, "sl_hits": sl, "timeouts": to,
+        "tp_rate": (tp / r.n_trades) if r.n_trades else 0.0,
+        "sl_rate": (sl / r.n_trades) if r.n_trades else 0.0,
+        "timeout_rate": (to / r.n_trades) if r.n_trades else 0.0,
+        "avg_bars": round(avg_bars, 1),
+        "risk": metrics.risk_metrics(r.equity_curve, trades),
+    }
+
+
+def compare_backtest(df: pd.DataFrame, ticker: str = "", **kwargs) -> dict:
+    """Bandingkan sistem legacy (skor) vs Decision Engine pada data sama."""
+    legacy = backtest(df, ticker, **kwargs)
+    decision = backtest_decision(df, ticker, **kwargs)
+    return {"ticker": ticker.upper(), "legacy": _pack(legacy), "decision": _pack(decision)}
+
+
+def compare_universe(tickers: list[str], **kwargs) -> dict:
+    """A/B lintas emiten: agregat legacy vs Decision Engine (win-rate, PF, expectancy, DD)."""
+    import data as datamod
+
+    acc = {"legacy": {"n": 0, "wins": 0, "gw": 0.0, "gl": 0.0, "exp": [], "ret": [], "dd": [],
+                      "tp": 0, "sl": 0, "to": 0, "bars": []},
+           "decision": {"n": 0, "wins": 0, "gw": 0.0, "gl": 0.0, "exp": [], "ret": [], "dd": [],
+                        "tp": 0, "sl": 0, "to": 0, "bars": []}}
+    used = 0
+    errors: list[dict] = []
+    for t in tickers:
+        try:
+            df = datamod.get_ohlcv(t)
+            if len(df) < 120:
+                errors.append({"ticker": t.upper(), "error": "data kurang"})
+                continue
+            used += 1
+            for name, res in (("legacy", backtest(df, t, **kwargs)),
+                              ("decision", backtest_decision(df, t, **kwargs))):
+                if res.trades.empty:
+                    continue
+                tr = res.trades
+                rets = tr["return_pct"].to_numpy() / 100.0
+                w = rets[rets > 0]
+                losses = rets[rets <= 0]
+                a = acc[name]
+                a["n"] += len(rets)
+                a["wins"] += len(w)
+                a["gw"] += float(w.sum())
+                a["gl"] += float(-losses.sum())
+                a["exp"].append(float(rets.mean()))
+                a["ret"].append(res.total_return)
+                a["dd"].append(res.max_drawdown)
+                a["bars"].extend(tr["bars"].tolist())
+                rs = tr["reason"].tolist()
+                a["tp"] += rs.count("TP")
+                a["sl"] += rs.count("SL")
+                a["to"] += rs.count("TIMEOUT")
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"ticker": t.upper(), "error": str(exc)})
+
+    def summarize(a: dict) -> dict:
+        pf = (a["gw"] / a["gl"]) if a["gl"] > 0 else None
+        return {
+            "n_trades": a["n"],
+            "win_rate": round(a["wins"] / a["n"], 4) if a["n"] else 0.0,
+            "profit_factor": round(pf, 3) if pf is not None else None,
+            "expectancy_pct": round(float(np.mean(a["exp"])) * 100.0, 3) if a["exp"] else 0.0,
+            "avg_return_pct": round(float(np.mean(a["ret"])) * 100.0, 2) if a["ret"] else 0.0,
+            "avg_max_dd_pct": round(float(np.mean(a["dd"])) * 100.0, 2) if a["dd"] else 0.0,
+            "tp_rate": round(a["tp"] / a["n"], 3) if a["n"] else 0.0,
+            "sl_rate": round(a["sl"] / a["n"], 3) if a["n"] else 0.0,
+            "timeout_rate": round(a["to"] / a["n"], 3) if a["n"] else 0.0,
+            "avg_bars": round(float(np.mean(a["bars"])) if a["bars"] else 0.0, 1),
+        }
+
+    return {"n_tickers": used, "legacy": summarize(acc["legacy"]),
+            "decision": summarize(acc["decision"]), "errors": errors}

@@ -218,6 +218,7 @@ class Analysis:
     prob_up: float | None = None
     model_used: bool = False
     market_regime: str = "unknown"
+    decision: dict = field(default_factory=dict)
 
     def as_row(self) -> dict:
         return {
@@ -424,6 +425,17 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
     mkt_regime = market_regime() if settings.regime_filter else "unknown"
     if settings.regime_filter and mkt_regime == "downtrend" and signal in ("BUY", "STRONG BUY"):
         signal, action = "HOLD", "TAHAN (IHSG downtrend)"
+
+    decision_data: dict = {}
+    if settings.enable_decision:
+        try:
+            import decision as decision_mod
+            avg_turnover = float((d["Close"] * d["Volume"]).tail(20).mean())
+            decision_data = decision_mod.evaluate(
+                d, ticker, market=mkt_regime, weekly=w_trend, monthly=m_trend,
+                support=support, resistance=resistance, fib=fib, vp=vp, turnover=avg_turnover)
+        except Exception:
+            decision_data = {}
 
     stop_loss = min(
         price - settings.atr_sl_mult * atr_val,
@@ -665,6 +677,7 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
         prob_up=prob_up,
         model_used=model_used,
         market_regime=mkt_regime,
+        decision=decision_data,
         st_dir_up=bool(last["st_dir"] == 1),
         squeeze_on=bool(last["squeeze_on"]),
         squeeze_mom=float(last["sqz_mom"]) if np.isfinite(last["sqz_mom"]) else 0.0,

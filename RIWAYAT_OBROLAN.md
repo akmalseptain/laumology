@@ -535,3 +535,52 @@ Orientasi: hasil akurat. Diuji apakah edge faktor berubah menurut regime IHSG.
 
 ## Status
 - Siap di-commit & push ke `main`.
+
+---
+
+# Turn 30 — Decision Engine (layer additive) + A/B Comparison
+
+Prinsip: PRESERVE → MEASURE → IMPROVE → VALIDATE → COMPARE.
+
+## Dipertahankan (LEGACY, tidak diubah)
+`indicators.py`, `factors.score_frame/confluence_frame`, `signals` (entry/SL/TP lama),
+`backtest` skor, semua endpoint & UI lama. Ditambah regression test golden.
+
+## Ditambahkan (layer baru di atas legacy)
+- `structure.py` — market structure HH/HL/LH/LL, BOS, CHoCH.
+- `decision.py` — Decision Engine: regime kaya, komponen signed (trend/structure/
+  momentum/volume/htf/entry), signal_score, confidence, filter NO-TRADE, entry zone,
+  SL struktural/ATR, TP1-3, RR, reasons, invalidation. + `signal_series` vektor (anti-overtrade).
+- `backtest.py` — `backtest_decision`, `compare_backtest`, `compare_universe`.
+- `config.enable_decision`; `signals.Analysis.decision`; payload `decision`; UI "Market Decision".
+- Endpoint `/api/compare-backtest`, `/api/compare-universe`; UI tab Backtest A/B.
+
+## Baseline vs New — agregat IDX30, 1y, biaya realistis
+| Metrik | Legacy | Decision |
+|---|---:|---:|
+| Trades | 135 | 94 |
+| Win rate | 28.9% | 37.2% |
+| Profit factor | 0.57 | 0.77 |
+| Expectancy | -1.65% | -0.75% |
+| Avg return | -7.8% | -3.2% |
+| Max DD | -15.3% | -10.3% |
+| TP / SL hit | 5.9% / 58.5% | 8.5% / 55.3% |
+
+OOS (40% terakhir): Legacy PF 0.59 / DD -5.9%; Decision PF 0.84 / DD -5.4% (keduanya masih rugi).
+
+## Verdict (jujur)
+- Decision **konsisten lebih selektif & lebih kecil DD / lebih baik PF** (in-sample & OOS).
+- **TAPI** pada sampel 1y bearish ini **keduanya belum profitable**; expectancy OOS justru
+  sedikit lebih buruk. → **NO STATISTICALLY ROBUST IMPROVEMENT CONFIRMED** (belum).
+- Tidak ada klaim berlebihan; angka TP-hit rendah (5-8%) menunjukkan target RR 3.0 terlalu jauh
+  untuk horizon 20 bar di timeframe harian.
+
+## Rekomendasi tahap berikutnya
+1. Uji pada periode lebih panjang & lintas regime (bull/bear) untuk OOS yang valid.
+2. Sesuaikan tp_rr/max_hold per horizon (TP1 lebih dekat, trailing), ukur ulang A/B.
+3. Kalibrasi **confidence → actual win-rate** per bucket sebelum menyebut "probabilitas".
+4. Filter likuiditas/turnover di backtest decision.
+
+## Verifikasi
+- Tests: **26/26 OK** (regression golden legacy + structure/decision/AB).
+- `node --check` JS OK; endpoint A/B teruji.
