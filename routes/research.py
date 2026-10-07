@@ -12,8 +12,11 @@ import musyawarah as musyawarah_mod
 import news
 import screener
 import store
+import ttlcache
 
 bp = Blueprint("research", __name__)
+
+TTL_MARKET = 300.0  # 5 menit; data harian, mengubah hasil hanya bila data baru
 
 
 @bp.route("/api/news")
@@ -49,9 +52,17 @@ def api_fundamental():
 @bp.route("/api/market")
 def api_market():
     name = (request.args.get("list") or "lq45").strip()
+    refresh = request.args.get("refresh") in ("1", "true", "yes")
+    key = f"market:{name}"
+    if not refresh:
+        hit = ttlcache.get(key)
+        if hit is not None:
+            return jsonify(hit)
     try:
         tickers = screener.resolve_watchlist(name)
-        return jsonify(market.overview(tickers))
+        payload = market.overview(tickers)
+        ttlcache.set(key, payload, TTL_MARKET)
+        return jsonify(payload)
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 

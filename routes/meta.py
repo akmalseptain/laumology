@@ -1,4 +1,4 @@
-"""Endpoint meta: UI root, health, versi, metrik, skema, disclaimer."""
+﻿"""Endpoint meta: UI root, health, versi, metrik, skema, disclaimer."""
 from __future__ import annotations
 
 import sys
@@ -54,20 +54,20 @@ def api_schema():
         {"method": "GET", "path": "/api/screen", "params": ["list", "top", "min_score", "min_conf", "sector", "min_value", "only_bullish"]},
         {"method": "GET", "path": "/api/backtest", "params": ["ticker", "interval", "min_score", "tp_rr", "sl_mult", "max_hold"]},
         {"method": "GET", "path": "/api/compare-backtest", "params": ["ticker", "interval", "tp_rr", "sl_mult", "max_hold"]},
-        {"method": "GET", "path": "/api/compare-universe", "params": ["list", "tp_rr", "sl_mult", "max_hold"]},
+        {"method": "GET", "path": "/api/compare-universe", "params": ["list", "tp_rr", "sl_mult", "max_hold", "refresh"]},
         {"method": "GET", "path": "/api/walkforward", "params": ["ticker", "folds"]},
         {"method": "GET", "path": "/api/optimize", "params": ["ticker"]},
         {"method": "GET", "path": "/api/optimize-weights", "params": ["list"]},
         {"method": "GET", "path": "/api/accuracy", "params": ["ticker", "horizon"]},
-        {"method": "GET", "path": "/api/calibrate", "params": ["list", "horizon", "min_edge"]},
-        {"method": "GET", "path": "/api/regime-edge", "params": ["list", "horizon"]},
+        {"method": "GET", "path": "/api/calibrate", "params": ["list", "horizon", "min_edge", "refresh"]},
+        {"method": "GET", "path": "/api/regime-edge", "params": ["list", "horizon", "refresh"]},
         {"method": "GET", "path": "/api/train", "params": ["list", "horizon", "folds"]},
         {"method": "GET", "path": "/api/model", "params": []},
         {"method": "GET", "path": "/api/ml", "params": ["ticker", "horizon", "candidates"]},
         {"method": "GET", "path": "/api/news", "params": ["ticker"]},
         {"method": "GET", "path": "/api/news/market", "params": []},
         {"method": "GET", "path": "/api/fundamental", "params": ["ticker"]},
-        {"method": "GET", "path": "/api/market", "params": ["list"]},
+        {"method": "GET", "path": "/api/market", "params": ["list", "refresh"]},
         {"method": "GET", "path": "/api/sector-strength", "params": ["list"]},
         {"method": "GET", "path": "/api/correlation", "params": ["tickers"]},
         {"method": "POST", "path": "/api/portfolio-risk", "params": ["positions", "capital"]},
@@ -80,3 +80,4 @@ def api_schema():
         {"method": "GET", "path": "/health", "params": []},
         {"method": "GET", "path": "/api/metrics", "params": []},
     ])
+

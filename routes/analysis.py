@@ -6,11 +6,14 @@ from flask import Blueprint, jsonify, request
 import data
 import ml
 import state
+import ttlcache
 import validation
 from payloads import INTERVAL_PERIOD, analysis_payload, ohlc_payload
 from screener import resolve_watchlist
 
 import calibration
+
+TTL_CALIB = 1800.0  # 30 menit; studi statistik berubah hanya bila data/parameter berubah
 
 bp = Blueprint("analysis", __name__)
 
@@ -125,6 +128,7 @@ def api_accuracy():
 @bp.route("/api/calibrate")
 def api_calibrate():
     name = (request.args.get("list") or "lq45").strip()
+    refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
         horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
     except ValueError:
@@ -133,9 +137,16 @@ def api_calibrate():
         min_edge = float(request.args.get("min_edge", validation.MIN_EDGE))
     except ValueError:
         min_edge = validation.MIN_EDGE
+    key = f"calibrate:{name}:{horizon}:{min_edge}"
+    if not refresh:
+        hit = ttlcache.get(key)
+        if hit is not None:
+            return jsonify(hit)
     try:
         tickers = resolve_watchlist(name)
-        return jsonify(validation.calibrate(tickers, horizon=horizon, min_edge=min_edge))
+        payload = validation.calibrate(tickers, horizon=horizon, min_edge=min_edge)
+        ttlcache.set(key, payload, TTL_CALIB)
+        return jsonify(payload)
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 
@@ -148,13 +159,21 @@ def api_model():
 @bp.route("/api/regime-edge")
 def api_regime_edge():
     name = (request.args.get("list") or "lq45").strip()
+    refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
         horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
     except ValueError:
         horizon = 10
+    key = f"regime-edge:{name}:{horizon}"
+    if not refresh:
+        hit = ttlcache.get(key)
+        if hit is not None:
+            return jsonify(hit)
     try:
         tickers = resolve_watchlist(name)
-        return jsonify(validation.calibrate_regime(tickers, horizon=horizon))
+        payload = validation.calibrate_regime(tickers, horizon=horizon)
+        ttlcache.set(key, payload, TTL_CALIB)
+        return jsonify(payload)
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 

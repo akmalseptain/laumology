@@ -11,9 +11,12 @@ import consensus_backtest as consensus_mod
 import data
 import metrics
 import screener
+import ttlcache
 from payloads import INTERVAL_PERIOD
 
 bp = Blueprint("backtest", __name__)
+
+TTL_COMPARE = 900.0  # 15 menit; agregat backtest harian
 
 
 @bp.route("/api/backtest")
@@ -123,15 +126,23 @@ def api_compare_backtest():
 @bp.route("/api/compare-universe")
 def api_compare_universe():
     name = (request.args.get("list") or "idx30").strip()
+    refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
         max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
         tp_rr = float(request.args.get("tp_rr", 3.0))
         sl_mult = float(request.args.get("sl_mult", 2.0))
     except ValueError:
         max_hold, tp_rr, sl_mult = 20, 3.0, 2.0
+    key = f"cmpuni:{name}:{tp_rr}:{sl_mult}:{max_hold}"
+    if not refresh:
+        hit = ttlcache.get(key)
+        if hit is not None:
+            return jsonify(hit)
     try:
         tickers = screener.resolve_watchlist(name)
-        return jsonify(backtest_mod.compare_universe(tickers, max_hold=max_hold, tp_rr=tp_rr, sl_mult=sl_mult))
+        payload = backtest_mod.compare_universe(tickers, max_hold=max_hold, tp_rr=tp_rr, sl_mult=sl_mult)
+        ttlcache.set(key, payload, TTL_COMPARE)
+        return jsonify(payload)
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 
