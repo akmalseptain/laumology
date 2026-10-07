@@ -122,6 +122,7 @@ class Settings:
     regime_filter: bool = True         # tahan sinyal beli saat IHSG downtrend (akurasi)
     enable_decision: bool = True       # hitung Decision Engine (BUY/SELL/HOLD/NO TRADE)
     min_data_quality: float = 40.0     # < ambang ini -> NO TRADE (kualitas data)
+    screen_workers: int = 0            # 0 = auto (paralel proses screener)
 
     # --- Transaction costs & execution realism (IDX retail approx) ---
     fee_buy_pct: float = 0.15      # komisi beli

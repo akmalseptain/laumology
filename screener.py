@@ -1,21 +1,54 @@
 from __future__ import annotations
 
+import os
+import pickle
 import time
+from pathlib import Path
 
 import pandas as pd
 
 import data
-from config import WATCHLIST_PRESETS, sector_of
+from config import WATCHLIST_PRESETS, sector_of, settings
 from signals import analyze
 from universe import auto_universe, full_universe
 
 _AUTO_KEYS = {"auto", "top", "most-active", "paling aktif", "palingaktif", "likuid", "liquid-auto"}
 _ALL_KEYS = {"all", "allidx", "all-idx", "semua-emiten", "seluruh", "idx-all", "allidx2"}
 
-# Cache baris hasil analisis (key ticker+bar) agar scan ulang instan.
+# Cache baris hasil analisis (key ticker+bar) agar scan ulang instan (memori + disk).
 _ROW_CACHE: dict[str, tuple[float, dict]] = {}
 _ROW_TTL = 900.0
-_ROW_CACHE_MAX = 8000
+_ROW_CACHE_MAX = 20000
+
+
+def _cache_file() -> Path:
+    return Path(settings.cache_dir) / "screen_rows.pkl"
+
+
+def _load_cache() -> None:
+    try:
+        p = _cache_file()
+        if not p.exists():
+            return
+        with open(p, "rb") as f:
+            obj = pickle.load(f)
+        if isinstance(obj, dict):
+            _ROW_CACHE.update(obj)
+    except Exception:
+        pass
+
+
+def _save_cache() -> None:
+    try:
+        p = _cache_file()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "wb") as f:
+            pickle.dump(dict(_ROW_CACHE), f, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        pass
+
+
+_load_cache()
 
 
 def resolve_watchlist(name: str) -> list[str]:
@@ -40,6 +73,43 @@ def _rank(signal: str) -> int:
     }.get(signal, 0)
 
 
+def _row_from_df(t: str, df: pd.DataFrame) -> dict | None:
+    res = analyze(df, t, light=True)
+    row = res.as_row()
+    try:
+        turnover = (df["Close"] * df["Volume"]).tail(20).mean()
+        row["Value"] = float(turnover) if pd.notna(turnover) else 0.0
+    except Exception:
+        row["Value"] = 0.0
+    row["Sector"] = sector_of(t)
+    return row
+
+
+def _screen_one(payload: tuple) -> dict | None:
+    """Worker (top-level, picklable) untuk ProcessPoolExecutor."""
+    t, period, refresh = payload
+    try:
+        df = data.get_ohlcv(t, period=period, use_cache=not refresh)
+        if len(df) < 80:
+            return None
+        return _row_from_df(t, df)
+    except Exception:
+        return None
+
+
+def _plan_workers(n: int) -> int:
+    if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
+        return 1
+    if os.environ.get("RENDER") or os.environ.get("DYNO"):
+        return 1
+    configured = int(getattr(settings, "screen_workers", 0) or 0)
+    if configured > 0:
+        return max(1, min(configured, n))
+    if n < 24:
+        return 1
+    return max(1, min(4, (os.cpu_count() or 1)))
+
+
 def screen(
     tickers: list[str],
     period: str | None = None,
@@ -57,38 +127,69 @@ def screen(
             data.prefetch(tickers, period=period)
         except Exception:
             pass
-    rows = []
+
     now = time.time()
+    rows: list[dict] = []
+    todo: list[tuple] = []
     for t in tickers:
+        key_suffix = None
         try:
             df = data.get_ohlcv(t, period=period, use_cache=not refresh)
             if len(df) < 80:
                 continue
-            key = f"{t}:{str(df.index[-1])[:10]}"
-            cached = _ROW_CACHE.get(key)
-            if cached and not refresh and now - cached[0] < _ROW_TTL:
-                row = dict(cached[1])
-            else:
-                res = analyze(df, t, light=True)
-                row = res.as_row()
+            key_suffix = f"{t}:{str(df.index[-1])[:10]}"
+        except Exception:
+            continue
+        cached = _ROW_CACHE.get(key_suffix) if key_suffix else None
+        if cached and not refresh and now - cached[0] < _ROW_TTL:
+            rows.append(dict(cached[1]))
+        else:
+            todo.append((t, key_suffix))
+
+    # Analisis yang belum ada cache (paralel bila memungkinkan).
+    if todo:
+        workers = _plan_workers(len(todo))
+        computed: list[tuple] = []
+        if workers > 1:
+            try:
+                # pastikan benchmark ter-cache di disk agar anak tak unduh ulang
+                data.get_ohlcv(settings.benchmark, suffix=settings.benchmark_suffix,
+                               period=period, use_cache=not refresh)
+            except Exception:
+                pass
+            try:
+                from concurrent.futures import ProcessPoolExecutor
+                with ProcessPoolExecutor(max_workers=workers) as ex:
+                    results = list(ex.map(_screen_one, [(t, period, refresh) for t, _ in todo],
+                                          chunksize=2))
+                for (_t, key_suffix), row in zip(todo, results):
+                    if row:
+                        computed.append((key_suffix, row))
+            except Exception:
+                computed = []
+        if not computed:
+            for t, key_suffix in todo:
                 try:
-                    turnover = (df["Close"] * df["Volume"]).tail(20).mean()
-                    row["Value"] = float(turnover) if pd.notna(turnover) else 0.0
+                    df = data.get_ohlcv(t, period=period, use_cache=not refresh)
+                    if len(df) < 80:
+                        continue
+                    computed.append((key_suffix, _row_from_df(t, df)))
                 except Exception:
-                    row["Value"] = 0.0
-                if len(_ROW_CACHE) > _ROW_CACHE_MAX:
-                    _ROW_CACHE.clear()
-                _ROW_CACHE[key] = (now, dict(row))
-            row["_rank"] = _rank(row.get("Signal", ""))
-            row["Sector"] = sector_of(t)
+                    pass
+        if len(_ROW_CACHE) + len(computed) > _ROW_CACHE_MAX:
+            _ROW_CACHE.clear()
+        for key_suffix, row in computed:
+            if key_suffix:
+                _ROW_CACHE[key_suffix] = (now, dict(row))
             rows.append(row)
-        except Exception as exc:
-            print(f"  ! {t}: {exc}")
+        if computed:
+            _save_cache()
 
     if not rows:
         return pd.DataFrame()
 
     out = pd.DataFrame(rows)
+    out["_rank"] = out["Signal"].map(_rank)
     out = out[out["Score"] >= min_score]
     out = out[out["Conf"] >= min_confidence]
     if sector:
@@ -96,7 +197,7 @@ def screen(
     if min_value and min_value > 0:
         out = out[out["Value"] >= min_value]
     if only_bullish:
-        out = out[out["_rank"] >= 4]
+        out = out[out["_rank"] >= 4] if "_rank" in out.columns else out
     if decision == "buyable" and "Buyable" in out.columns:
         out = out[out["Buyable"] == True]  # noqa: E712
     elif decision == "buy" and "Decision" in out.columns:
