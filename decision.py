@@ -126,6 +126,9 @@ def evaluate(
     fib: dict | None = None,
     vp: dict | None = None,
     turnover: float | None = None,
+    data_status: str | None = None,
+    liquidity_status: str | None = None,
+    gap_pct: float = 0.0,
 ) -> dict:
     """Bangun keputusan lengkap dari bar terakhir `d` (sudah via add_indicators)."""
     close = _last(d, "Close")
@@ -181,6 +184,9 @@ def evaluate(
     # --- Filters / NO-TRADE ---
     no_trade = False
     reasons_no: list[str] = []
+    if data_status == "INSUFFICIENT":
+        no_trade = True
+        reasons_no.append("Data tidak cukup (INSUFFICIENT) - NO TRADE")
     if chop >= 61.8 and adx < 20:
         no_trade = True
         reasons_no.append("Pasar sideways (choppiness tinggi, ADX lemah)")
@@ -258,6 +264,10 @@ def evaluate(
         + 0.15 * vol_quality + 0.10 * rr_quality, 0.0, 1.0)))
     if no_trade:
         confidence = min(confidence, 40)
+    if liquidity_status == "LOW":
+        confidence = max(0, confidence - 15)
+    if abs(gap_pct) >= 7.0:
+        confidence = max(0, confidence - 10)
 
     # --- Reasons / invalidation ---
     why: list[str] = []
@@ -307,7 +317,8 @@ def evaluate(
     }
 
 
-def signal_series(d: pd.DataFrame, regime: pd.Series | None = None) -> pd.Series:
+def signal_series(d: pd.DataFrame, regime: pd.Series | None = None,
+                  min_turnover: float = 0.0) -> pd.Series:
     """Sinyal decision vektor (untuk backtest). +1 BUY, 0 HOLD/NO-TRADE, -1 SELL.
 
     Ketat & anti-overtrade: wajib uptrend (close>MA50 & MA20>MA50), net kuat,
@@ -330,6 +341,9 @@ def signal_series(d: pd.DataFrame, regime: pd.Series | None = None) -> pd.Series
     chop_ok = (d["chop"] < 61.8) | (d["adx"] >= 20)
     vol_ok = d["atr_pctl"] <= 90
     ok = (net >= 0.45) & uptrend & chop_ok & vol_ok
+    if min_turnover > 0:
+        val = (d["Close"] * d["Volume"]).rolling(20, min_periods=5).mean()
+        ok = ok & (val >= min_turnover)
     if regime is not None:
         rr = regime.reindex(d.index).ffill()
         ok = ok & (rr.fillna("ranging") != "downtrend")

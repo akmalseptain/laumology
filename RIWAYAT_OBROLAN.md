@@ -637,3 +637,39 @@ Lanjutan dari Turn 30. Prinsip: CORRECTNESS → ROBUSTNESS → VALIDATION.
 1. Timeframe/horizon lain (mis. entry pullback, hold lebih pendek) & trailing/partial TP diuji terpisah.
 2. Kalibrasi bucket confidence → actual outcome (jangan sebut probabilitas sebelum terkalibrasi).
 3. Perluas universe (LQ45/IDX80) & periode bull eksplisit untuk OOS sebenarnya.
+
+---
+
+# Turn 32 — Stock Intelligence Layer (equity-specific, additive)
+
+Core engine (indikator + decision) TIDAK diganti. Ditambah layer konteks saham.
+
+## Ditambahkan
+- `stock.py`: data_quality (bar/dup/stale/H<L), liquidity (avg nilai transaksi 20d + status),
+  gap (up/down/extreme), price_limit (ARB aproksimasi), session WIB, sector_context (dari cache),
+  `evaluate_stock` -> STOCK DECISION + dekomposisi skor (market/sector/technical/RS/liquidity/risk).
+- `market.sector_strength()` + endpoint `/api/sector-strength` (mengisi cache sektor).
+- `decision.evaluate`: param `data_status/liquidity_status/gap_pct` -> NO-TRADE bila data INSUFFICIENT,
+  penalty confidence bila likuiditas LOW / gap ekstrem. (Additive; backtest tak terpengaruh.)
+- `signals.analyze`: field `stock`; payload `stock`; UI kartu "Stock Intelligence" (hierarki M→S→S).
+- `signal_series`/`backtest_decision`: param `min_turnover` (default 0 = perilaku tak berubah).
+
+## Validasi incremental
+- **Fix span regime** membuat 5y lebih baik: 762->642 trade, PF 0.90->0.97, exp -0.54%->-0.29%, DD -37.7%->-32.2%.
+- **Gate likuiditas** (hard filter): liq1M identik; liq10M netral (PF sama, exp sedikit turun, DD sedikit baik).
+  -> **REJECT hard liquidity filter** (tanpa nilai inkremental robust); **KEEP** sebagai context/penalty.
+
+## A/B ringkas (IDX30)
+| Sistem | 2y PF/exp/avgR/DD | 5y PF/exp/avgR/DD |
+|---|---|---|
+| legacy | 0.75 / -1.06% / -0.21 / -24.3% | 0.82 / -0.74% / -0.13 / -39.0% |
+| decision | 0.90 / -0.79% / -0.13 / -21.0% | 0.97 / -0.29% / -0.04 / -32.2% |
+
+## Keputusan fitur
+- KEEP (context/penalty): data quality, gap, price-limit realism, likuiditas, sector (bila tersedia).
+- UNKNOWN (data tak tersedia): foreign/broker flow, fundamental look-ahead-safe, corporate-action timing.
+- REJECT: hard liquidity filter.
+
+## Verifikasi
+- Tests: **30/30 OK**; `node --check` OK; `/api/analyze` mengandung `stock`; `/api/sector-strength` OK.
+- Kebenaran: tetap belum profitable absolut (PF<1) -> tidak klaim akurasi.

@@ -42,6 +42,15 @@ def ihsg() -> dict:
         return {"error": str(exc)}
 
 
+def sector_strength(tickers: list[str]) -> dict:
+    """Peta kekuatan sektor (chg_20d, breadth) dari universum, untuk stock layer."""
+    out = overview(tickers)
+    m: dict = {}
+    for s in out.get("sectors", []):
+        m[s["sector"]] = {"chg_20d": s["chg_20d"], "breadth": s["breadth"], "n": s["n"]}
+    return m
+
+
 def overview(tickers: list[str]) -> dict:
     above50 = 0
     adv = 0

@@ -73,6 +73,7 @@ function render(d){
     </div>
 
     ${(d.decision && d.decision.direction) ? decisionCard(d.decision) : ''}
+    ${(d.stock && d.stock.scores) ? stockCard(d.stock, d.decision) : ''}
 
     <div class="card glass modish">
       <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Trade Plan</span></div>
@@ -425,5 +426,45 @@ function decisionCard(dec){
         ${compRow('Volume', c.volume||0)}${compRow('HTF', c.htf||0)}${compRow('Entry', c.entry||0)}
       </div>
       ${why?`<div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Why ${dir}</div><ul class="list">${why}</ul>`:''}
+    </div>`;
+}
+
+/* ---------- Stock Intelligence card (additive) ---------- */
+function stockCard(st, dec){
+  if(!st || !st.scores) return '';
+  const sc = st.scores;
+  const band = (v)=> v>=70?'v-up':(v<45?'v-red':'v-muted');
+  const metric = (k,v,cls)=>'<div class="metric"><div class="k">'+k+'</div><div class="v '+(cls||'v-muted')+'">'+v+'</div></div>';
+  const dq = st.data_quality||{}; const lq = st.liquidity||{}; const gp = st.gap||{}; const sec = st.sector||{};
+  const rp = (v)=> v==null?'-':(Number(v)/1e9).toFixed(2)+' M';
+  const dqCls = dq.status==='GOOD'?'v-up':(dq.status==='INSUFFICIENT'?'v-red':'v-muted');
+  const lqCls = lq.status==='GOOD'?'v-up':(lq.status==='LOW'?'v-red':'v-muted');
+  const rf = (st.risk_factors||[]).map(x=>'<li>'+x+'</li>').join('');
+  const mktCtx = (dec&&dec.market)||'unknown';
+  const secReg = sec.regime||'UNKNOWN';
+  const stockCtx = (dec&&dec.direction)||'-';
+  return `
+    <div class="card glass modish">
+      <div class="sec"><span class="num">STK</span><div class="line"></div><span class="badge">Stock Intelligence</span></div>
+      <div class="mono" style="color:#8a9a90;font-size:11px;margin-bottom:8px">Hierarki: MARKET <b>${mktCtx}</b> &rarr; SECTOR <b>${secReg}</b> &rarr; STOCK <b>${stockCtx}</b></div>
+      <div class="grid">
+        ${metric('Data Quality', dq.status||'-', dqCls)}
+        ${metric('Likuiditas', (lq.status||'-')+' ('+rp(lq.avg_value_20d)+')', lqCls)}
+        ${metric('Gap', (gp.gap_pct!=null?gp.gap_pct+'%':'-')+(gp.extreme?' !':''), gp.extreme?'v-red':'v-muted')}
+        ${metric('Sesi', st.session||'-')}
+        ${metric('Sektor', secReg + (sec.chg_20d!=null?' ('+sec.chg_20d+'%)':''), secReg==='Bullish'?'v-up':(secReg==='Bearish'?'v-red':'v-muted'))}
+        ${metric('Signal Strength', st.signal_strength||'-')}
+      </div>
+      <div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Dekomposisi skor</div>
+      <div class="grid">
+        ${metric('Market', sc.market, band(sc.market))}
+        ${metric('Sector', sc.sector, band(sc.sector))}
+        ${metric('Technical', sc.technical, band(sc.technical))}
+        ${metric('Rel. Strength', sc.relative_strength, band(sc.relative_strength))}
+        ${metric('Liquidity', sc.liquidity, band(sc.liquidity))}
+        ${metric('Risk (rendah=baik)', sc.risk, band(100-sc.risk))}
+      </div>
+      ${rf?`<div class="mono" style="color:#e5484d;font-size:11px;margin-top:12px;line-height:1.7">Risk: <ul class="list warn" style="margin-top:6px">${rf}</ul></div>`:''}
+      <div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Sektor/fundamental/flow = konteks; bukan trigger. Data tak tersedia ditandai UNKNOWN (tidak dikarang).</div>
     </div>`;
 }

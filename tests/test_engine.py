@@ -231,6 +231,32 @@ class TestABCompare(unittest.TestCase):
                 self.assertIn(f, res[side])
 
 
+class TestStockLayer(unittest.TestCase):
+    def test_liquidity_dq_gap(self):
+        import indicators
+        import stock
+        d = indicators.add_indicators(make_df())
+        self.assertIn(stock.liquidity(d)["status"], ("GOOD", "OK", "LOW"))
+        self.assertIn(stock.data_quality(d)["status"], ("GOOD", "WARNING", "INSUFFICIENT"))
+        self.assertIn(stock.gap(d)["type"], ("up", "down", "none"))
+
+    def test_price_limit(self):
+        import stock
+        self.assertEqual(stock.price_limit_pct(1000), 7.0)
+        self.assertEqual(stock.price_limit_pct(6000), 13.0)
+
+    def test_evaluate_stock(self):
+        import decision
+        import indicators
+        import stock
+        d = indicators.add_indicators(make_df())
+        dec = decision.evaluate(d, "TEST", market="ranging")
+        st = stock.evaluate_stock(d, "TEST", dec, sector_name="Perbankan")
+        for k in ("market", "sector", "technical", "relative_strength", "liquidity", "risk"):
+            self.assertIn(k, st["scores"])
+        self.assertIn("risk_factors", st)
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

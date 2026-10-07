@@ -56,6 +56,19 @@ def api_market():
         return jsonify(error=str(exc)), 502
 
 
+@bp.route("/api/sector-strength")
+def api_sector_strength():
+    name = (request.args.get("list") or "lq45").strip()
+    try:
+        import stock
+        tickers = screener.resolve_watchlist(name)
+        m = market.sector_strength(tickers)
+        stock.set_sector_map(m)
+        return jsonify(sectors=m)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
 @bp.route("/api/musyawarah")
 def api_musyawarah():
     ticker = (request.args.get("ticker") or "").strip().upper()

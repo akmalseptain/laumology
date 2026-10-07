@@ -318,6 +318,7 @@ def backtest_decision(
     fee_buy: float | None = None,
     fee_sell: float | None = None,
     slip: float | None = None,
+    min_turnover: float = 0.0,
 ) -> BacktestResult:
     """Backtest memakai Decision Engine (structure + regime + filter) vs legacy."""
     from decision import signal_series
@@ -339,7 +340,7 @@ def backtest_decision(
         regime = _benchmark_regime(period=_p).reindex(d.index).ffill()
     except Exception:
         regime = None
-    sig = signal_series(d, regime=regime).to_numpy(dtype=int)
+    sig = signal_series(d, regime=regime, min_turnover=min_turnover).to_numpy(dtype=int)
     open_ = d["Open"].to_numpy(dtype=float)
     high = d["High"].to_numpy(dtype=float)
     low = d["Low"].to_numpy(dtype=float)

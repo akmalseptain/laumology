@@ -68,6 +68,7 @@ def api_schema():
         {"method": "GET", "path": "/api/news/market", "params": []},
         {"method": "GET", "path": "/api/fundamental", "params": ["ticker"]},
         {"method": "GET", "path": "/api/market", "params": ["list"]},
+        {"method": "GET", "path": "/api/sector-strength", "params": ["list"]},
         {"method": "GET", "path": "/api/correlation", "params": ["tickers"]},
         {"method": "POST", "path": "/api/portfolio-risk", "params": ["positions", "capital"]},
         {"method": "GET", "path": "/api/musyawarah", "params": ["ticker", "llm"]},
