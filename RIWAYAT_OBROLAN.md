@@ -465,3 +465,45 @@ Refactor menyeluruh tanpa mengubah perilaku; dijalankan bertahap dengan test tet
 
 ## Status
 - Siap di-commit & push ke `main`.
+
+---
+
+# Turn 28 — Optimasi Skor (walk-forward) + Blend Probabilitas ML
+
+Menindaklanjuti permintaan: buat keluaran akurat & maksimal (#1 optimasi bobot komponen, #3 blend prob ML).
+
+## Yang dibangun
+- `calibration.py`:
+  - `feature_frame(d)` → 7 sub-skor komponen dinormalisasi [0,1].
+  - `train(tickers, horizon, folds, alpha)` → regresi logistik atas 7 komponen,
+    **walk-forward lintas emiten**, menyimpan model JSON (`<cache_dir>/score_model.json`).
+  - Evaluasi jujur: **AUC per fold** (rata-rata/min/maks), balanced accuracy, base rate.
+  - **Gating otomatis**: `edge_ok = AUC ≥ min_oos_auc (0.53)`; bila gagal →
+    `effective_alpha = 0` sehingga skor live **tetap heuristik** (tidak diperburuk).
+  - `prob_up(d, model)` (tanpa refit, cepat) & `prob_to_score(prob, base)` (monoton, base→50).
+  - `load/save/status` dengan cache berbasis mtime.
+- `signals.analyze`: menghitung `prob_up`, `score_opt`, dan **blend** `score = (1-α)·heuristic + α·score_opt`
+  (α = `effective_alpha`); field baru `score_heuristic`, `score_opt`, `prob_up`, `model_used`.
+- `config.py`: `use_optimized_score`, `ml_blend_alpha`, `min_oos_auc`, `score_model_path`.
+- Endpoint `/api/train` (latih+simpan), `/api/model` (status). Payload analisis + schema + UI
+  (tab Akurasi: kartu "Optimasi Skor (Walk-forward)" + status model; hero tab Analisis menandai SKOR OPT).
+
+## Hasil uji nyata (jujur)
+- LQ45, horizon 10, 5 folds: **AUC OOS 0.475** (fold: 0.42/0.51/0.54/0.43), balanced acc 0.493,
+  base 0.410 → **edge_ok = False**.
+- Horizon 20: AUC 0.502 → tetap di bawah ambang. 5y & target relatif (excess vs pasar): AUC 0.47–0.48.
+- **Kesimpulan:** pada data IDX harian ini, komposit 7 komponen **tidak punya edge ranking** (AUC ≤ 0.5);
+  akurasi 58% yang tampak tadi hanyalah artefak kelas tak seimbang. Karena itu blend **otomatis nonaktif**
+  dan skor heuristik dipertahankan — ini justru membuat keluaran lebih akurat (tidak overfit).
+
+## Cara memakai
+- Buka tab **Akurasi → Optimasi Skor** → pilih universe/horizon/folds/alpha → **Latih & Optimalkan**.
+- Jika model lolos (AUC ≥ 0.53) skor live otomatis pakai blend; jika tidak, status menunjukkan "TIDAK LULUS OOS".
+- Latih ulang dengan fitur/horizon/universe lain untuk mencari konfigurasi ber-edge.
+
+## Verifikasi
+- Tests: **19/19 OK** (baru: `TestCalibration` — prob_to_score, feature_frame, prob_up, analyze pakai model).
+- `node --check` 6/6 berkas JS OK; smoke test `/api/train`, `/api/model`, `/api/analyze` OK.
+
+## Status
+- Siap di-commit & push ke `main`.

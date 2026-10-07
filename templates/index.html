@@ -369,6 +369,27 @@
       </div>
       <div id="cbResult" class="result-block"><div class="empty">Tekan Kalibrasi untuk menguji bobot kandidat.</div></div>
     </div>
+    <div class="card">
+      <div class="sec"><span class="badge">Optimasi Skor (Walk-forward)</span>
+        <button class="btn ghost sm" id="mdStatusBtn">Status Model</button>
+      </div>
+      <p class="muted note">Latih bobot 7 komponen + probabilitas ML dari banyak emiten (out-of-sample), lalu dipakai otomatis untuk skor &amp; sinyal.</p>
+      <div class="toolbar">
+        <div class="field"><label>Universe</label>
+          <select id="trList">
+            <option value="lq45">LQ45</option>
+            <option value="idx30">IDX30</option>
+            <option value="idx80">IDX80</option>
+            <option value="bluechip">BLUECHIP</option>
+          </select>
+        </div>
+        <div class="field w-lg"><label>Horizon (bar)</label><input id="trHorizon" type="number" value="10"></div>
+        <div class="field w-md"><label>Folds</label><input id="trFolds" type="number" value="5"></div>
+        <div class="field w-sm"><label>Alpha ML</label><input id="trAlpha" type="number" step="0.1" value="0.5"></div>
+        <button class="btn" id="trRun">Latih &amp; Optimalkan</button>
+      </div>
+      <div id="trResult" class="result-block"><div class="empty">Belum ada model. Tekan Latih (butuh ~30-60 dtk).</div></div>
+    </div>
   </section>
 
   <section class="panel" id="panel-pasar">

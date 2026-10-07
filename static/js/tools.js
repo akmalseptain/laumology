@@ -7,6 +7,8 @@ function exportCsv(){
     ["Ticker", d.ticker], ["Interval", d.interval], ["Harga", d.price],
     ["Perubahan 1D (%)", d.change_1d], ["Sinyal", d.signal], ["Aksi", d.action],
     ["Skor", d.score], ["Confidence", d.confidence], ["Grade", d.grade],
+    ["Skor Heuristik", d.score_heuristic], ["Skor Optimal", d.score_opt],
+    ["Prob Up (ML)", d.prob_up], ["Model Terpakai", d.model_used ? "YA" : "TIDAK"],
     ["Tren", d.trend], ["Tren Mingguan", d.weekly_trend], ["Tren Bulanan", d.monthly_trend],
     ["Regime", d.regime], ["MTF", d.mtf],
     ["Entry", d.entry], ["Zona Beli", d.buy_zone_low + " - " + d.buy_zone_high],
@@ -188,4 +190,65 @@ async function loadMarketNews(){
     showStatus("Selesai");
   }catch(e){ el.innerHTML = '<div class="empty sm">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
 }
+
+/* ---------- Score optimization (walk-forward training) ---------- */
+function renderModel(m){
+  const el = $("#trResult"); if(!el || !m) return;
+  const pct = (v)=> v==null?"-":(Number(v)*100).toFixed(1)+"%";
+  const cw = m.component_weights || {};
+  const ccoef = m.component_coef || {};
+  const cwRows = Object.keys(cw).map(k=>{
+    const c = ccoef[k];
+    const cls = (c==null) ? "" : (c>=0 ? "v-up" : "v-red");
+    const sign = (c==null) ? "" : (c>=0 ? "+" : "");
+    return '<div class="check" style="justify-content:space-between"><span>'+k+'</span><span class="mono">'+Number(cw[k]).toFixed(1)+'% <span class="'+cls+'">('+sign+(c==null?"-":Number(c).toFixed(2))+')</span></span></div>';
+  }).join('');
+  const ok = m.edge_ok;
+  const status = ok
+    ? '<span class="v-up">AKTIF — skor live memakai blend ML</span>'
+    : '<span class="v-red">TIDAK LULUS OOS — skor tetap heuristik</span>';
+  const foldAuc = (m.folds_auc||[]).join(" / ");
+  el.innerHTML = '<div class="grid">'
+    + '<div class="metric hl"><div class="k">AUC OOS (rata-rata fold)</div><div class="v '+(ok?'v-up':'v-red')+'">'+(m.auc==null?'-':Number(m.auc).toFixed(3))+'</div></div>'
+    + '<div class="metric"><div class="k">Ambang AUC</div><div class="v v-muted">'+Number(m.min_oos_auc!=null?m.min_oos_auc:0.53).toFixed(2)+'</div></div>'
+    + '<div class="metric"><div class="k">Balanced Acc</div><div class="v v-muted">'+pct(m.balanced_accuracy)+'</div></div>'
+    + '<div class="metric"><div class="k">Akurasi / Base</div><div class="v v-muted">'+pct(m.oos_accuracy)+' / '+pct(m.base_rate)+'</div></div>'
+    + '<div class="metric"><div class="k">Sampel / Emiten</div><div class="v v-muted">'+m.n_samples+' / '+m.n_tickers+'</div></div>'
+    + '<div class="metric"><div class="k">Dilatih</div><div class="v v-muted" style="font-size:12px">'+m.trained_at+'</div></div>'
+    + '</div>'
+    + '<div class="mono" style="margin-top:12px;font-size:12px">Status: '+status+'</div>'
+    + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:4px">AUC per fold: '+foldAuc+'</div>'
+    + '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Bobot komponen (importance % &amp; koefisien arah)</div>'
+    + '<div class="checks" style="grid-template-columns:1fr 1fr">'+cwRows+'</div>'
+    + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:8px">Alpha ML '+m.alpha+' (efektif '+m.effective_alpha+') &middot; horizon '+m.horizon+' &middot; '+m.folds+' folds</div>';
+}
+async function loadModelStatus(){
+  const el = $("#trResult"); if(!el) return;
+  try{
+    const d = await (await fetch('/api/model')).json();
+    if(!d.available){ el.innerHTML = '<div class="empty">Belum ada model. Tekan Latih &amp; Optimalkan (butuh ~30-60 dtk).</div>'; return; }
+    renderModel(d.model);
+  }catch(e){ el.innerHTML = '<div class="empty">Gagal memuat status model.</div>'; }
+}
+const trRunEl = $("#trRun");
+if(trRunEl) trRunEl.onclick = runTrain;
+async function runTrain(){
+  const list = ($("#trList")||{}).value || "idx30";
+  const horizon = ($("#trHorizon")||{}).value || 10;
+  const folds = ($("#trFolds")||{}).value || 5;
+  const alpha = ($("#trAlpha")||{}).value || 0.5;
+  showStatus("Melatih model skor (walk-forward)... bisa 30-60 dtk", true);
+  if(trRunEl) trRunEl.disabled = true;
+  try{
+    const d = await (await fetch(`/api/train?list=${encodeURIComponent(list)}&horizon=${horizon}&folds=${folds}&alpha=${alpha}`)).json();
+    if(d.error) throw new Error(d.error);
+    renderModel(d.model);
+    showStatus("Model skor terlatih");
+    if(typeof analyze === "function") analyze(true);
+  }catch(e){ $("#trResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  finally{ if(trRunEl) trRunEl.disabled=false; }
+}
+const mdStatusBtnEl = $("#mdStatusBtn");
+if(mdStatusBtnEl) mdStatusBtnEl.onclick = loadModelStatus;
+loadModelStatus();
 

@@ -10,6 +10,8 @@ import validation
 from payloads import INTERVAL_PERIOD, analysis_payload, ohlc_payload
 from screener import resolve_watchlist
 
+import calibration
+
 bp = Blueprint("analysis", __name__)
 
 
@@ -134,6 +136,31 @@ def api_calibrate():
     try:
         tickers = resolve_watchlist(name)
         return jsonify(validation.calibrate(tickers, horizon=horizon, min_edge=min_edge))
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@bp.route("/api/model")
+def api_model():
+    return jsonify(calibration.status())
+
+
+@bp.route("/api/train")
+def api_train():
+    name = (request.args.get("list") or "idx30").strip()
+    try:
+        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+        folds = max(2, min(int(request.args.get("folds", 5)), 8))
+    except ValueError:
+        horizon, folds = 10, 5
+    try:
+        alpha = min(max(float(request.args.get("alpha", 0.5)), 0.0), 1.0)
+    except ValueError:
+        alpha = 0.5
+    try:
+        tickers = resolve_watchlist(name)
+        res = calibration.train(tickers, horizon=horizon, folds=folds, alpha=alpha)
+        return jsonify(ok=True, model=res["model"], universe=res["universe"], errors=res["errors"])
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 

@@ -114,6 +114,12 @@ class Settings:
     strong_buy_score: int = 80
     sell_score: int = 40
 
+    # --- Optimasi skor (walk-forward) & blend probabilitas ML ---
+    use_optimized_score: bool = True   # pakai model terlatih bila tersedia
+    ml_blend_alpha: float = 0.5        # 0 = murni heuristik, 1 = murni probabilitas ML
+    min_oos_auc: float = 0.53          # ambang AUC out-of-sample agar blend diaktifkan
+    score_model_path: str = ""         # kosong = <cache_dir>/score_model.json
+
     # --- Transaction costs & execution realism (IDX retail approx) ---
     fee_buy_pct: float = 0.15      # komisi beli
     fee_sell_pct: float = 0.25     # komisi jual + pajak penjualan

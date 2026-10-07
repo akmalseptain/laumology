@@ -77,6 +77,72 @@ class TestCandidates(unittest.TestCase):
         self.assertGreater(len(full["features"]), len(base["features"]))
 
 
+class TestCalibration(unittest.TestCase):
+    def _model(self, k):
+        return {
+            "horizon": 10, "features": list(k), "coef": [1.0] * len(k),
+            "intercept": 0.0, "mu": [0.0] * len(k), "sd": [1.0] * len(k),
+            "base_rate": 0.5, "alpha": 0.5,
+        }
+
+    def test_prob_to_score(self):
+        import calibration
+        self.assertAlmostEqual(calibration.prob_to_score(0.5, 0.5), 50.0, places=3)
+        self.assertAlmostEqual(calibration.prob_to_score(1.0, 0.5), 100.0, places=3)
+        self.assertAlmostEqual(calibration.prob_to_score(0.0, 0.5), 0.0, places=3)
+        self.assertLess(calibration.prob_to_score(0.4, 0.5), 50.0)
+        self.assertGreater(calibration.prob_to_score(0.6, 0.5), 50.0)
+
+    def test_feature_frame(self):
+        import calibration
+        import indicators
+        from factors import SCORE_COMPONENTS
+        d = indicators.add_indicators(make_df())
+        X = calibration.feature_frame(d)
+        self.assertEqual(list(X.columns), SCORE_COMPONENTS)
+        vals = X.to_numpy()
+        self.assertTrue((vals >= 0).all() and (vals <= 1).all())
+
+    def test_prob_up_with_model(self):
+        import calibration
+        import indicators
+        from factors import SCORE_COMPONENTS
+        d = indicators.add_indicators(make_df())
+        p = calibration.prob_up(d, self._model(SCORE_COMPONENTS))
+        self.assertIsNotNone(p)
+        self.assertTrue(0.0 <= p <= 1.0)
+
+    def test_analyze_uses_model(self):
+        import os
+        import tempfile
+
+        import calibration
+        import indicators
+        import signals
+        from config import settings
+        from factors import SCORE_COMPONENTS
+
+        d = make_df()
+        model = self._model(SCORE_COMPONENTS)
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        old = settings.score_model_path
+        try:
+            settings.score_model_path = path
+            calibration.save_model(model)
+            a = signals.analyze(d, "TEST")
+            self.assertTrue(a.model_used)
+            self.assertIsNotNone(a.prob_up)
+            self.assertIsNotNone(a.score_opt)
+        finally:
+            settings.score_model_path = old
+            calibration._MODEL_CACHE.update(mtime=None, model=None, path=None)
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

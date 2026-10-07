@@ -181,6 +181,11 @@ class Analysis:
     reasons: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
 
+    score_heuristic: int = 0
+    score_opt: float | None = None
+    prob_up: float | None = None
+    model_used: bool = False
+
     def as_row(self) -> dict:
         return {
             "Ticker": self.ticker,
@@ -358,8 +363,28 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
     extended = rsi_val > 68 or price >= float(last["bb_upper"]) * 0.995
     breakout = price >= float(last["high20"]) * 0.99
 
-    score = int(round(float(srow["score"])))
+    score_heuristic = int(round(float(srow["score"])))
     confidence = int(round(float(crow["confidence"])))
+    prob_up: float | None = None
+    score_opt: float | None = None
+    model_used = False
+    score = score_heuristic
+    if settings.use_optimized_score:
+        try:
+            import calibration
+            model = calibration.load_model()
+            if model:
+                prob_up = calibration.prob_up(d, model)
+                if prob_up is not None:
+                    score_opt = calibration.prob_to_score(prob_up, float(model.get("base_rate", 0.5)))
+                    alpha = float(model.get("effective_alpha", model.get("alpha", settings.ml_blend_alpha)))
+                    alpha = min(max(alpha, 0.0), 1.0)
+                    if alpha > 0.0:
+                        score = int(round((1.0 - alpha) * score_heuristic + alpha * score_opt))
+                        model_used = True
+        except Exception:
+            prob_up = None
+
     signal, action = _action(score, uptrend, extended, breakout)
     grade = _grade(score, confidence, uptrend)
 
@@ -504,6 +529,8 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
         reasons.append("Multi-timeframe D/W/M selaras bullish")
     if demand_below:
         reasons.append(f"Zona demand terdekat {demand_below[0]['bottom']:,.0f} - {demand_below[0]['top']:,.0f}")
+    if model_used and prob_up is not None:
+        reasons.append(f"Skor dioptimasi (walk-forward): probabilitas naik {prob_up*100:.0f}%")
 
     if rsi_val > 78:
         warnings.append(f"RSI overbought ({rsi_val:.0f}) - rawan koreksi")
@@ -590,6 +617,10 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
         },
         reasons=reasons,
         warnings=warnings,
+        score_heuristic=score_heuristic,
+        score_opt=score_opt,
+        prob_up=prob_up,
+        model_used=model_used,
         st_dir_up=bool(last["st_dir"] == 1),
         squeeze_on=bool(last["squeeze_on"]),
         squeeze_mom=float(last["sqz_mom"]) if np.isfinite(last["sqz_mom"]) else 0.0,
