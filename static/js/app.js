@@ -153,10 +153,14 @@ document.addEventListener("keydown",function(e){
   if(sc && mk){ Array.from(sc.options).forEach(o=>{ if(o.value && o.value!=="custom"){ const opt=document.createElement("option"); opt.value=o.value; opt.textContent=o.textContent; mk.appendChild(opt); } }); }
   renderJournal();
   enhanceTables();
-  loadSummary();
-  fetch("/api/llm/status").then(r=>r.json()).then(s=>{ const el=$("#myLlmStatus"); if(el) el.textContent = "Mode LLM: " + (s.configured ? ("siap (" + s.model + ")") : "belum dikonfigurasi (set OPENAI_API_KEY / LLM_API_KEY)") + " | prompt MD: " + (s.prompt ? "ditemukan" : "default"); }).catch(()=>{});
-  renderWatchlist(); renderPositions(); renderAlerts(); loadHistory(); pollPortfolio();
-  loadPaper(); loadDb();
-  setInterval(pollPortfolio, 20000);
+  // Defer beban non-kritikal agar first paint & interaksi awal lebih cepat.
+  const defer = (fn)=> (window.requestIdleCallback ? requestIdleCallback(fn) : setTimeout(fn, 400));
+  defer(()=>{
+    loadSummary();
+    fetch("/api/llm/status").then(r=>r.json()).then(s=>{ const el=$("#myLlmStatus"); if(el) el.textContent = "Mode LLM: " + (s.configured ? ("siap (" + s.model + ")") : "belum dikonfigurasi (set OPENAI_API_KEY / LLM_API_KEY)") + " | prompt MD: " + (s.prompt ? "ditemukan" : "default"); }).catch(()=>{});
+    renderWatchlist(); renderPositions(); renderAlerts(); loadHistory(); pollPortfolio();
+    loadPaper(); loadDb();
+    setInterval(pollPortfolio, 20000);
+  });
 })();
 analyze();

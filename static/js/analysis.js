@@ -252,7 +252,11 @@ function showScProgress(done, total, show){
 }
 function renderScanRows(dataRows, totalUniverse, scanned){
   if(!dataRows.length){ $("#scResult").innerHTML = '<div class="empty">Tidak ada hasil.</div>'; return; }
-  const rows = dataRows.map(x=>{
+  let cap = window.__scCap || 150;
+  window.__scRows = dataRows;
+  window.__scMeta = {total: totalUniverse, scanned: scanned};
+  const shown = dataRows.slice(0, cap);
+  const rows = shown.map(x=>{
     const sc = signalClass(x.Signal);
     const valM = x.Value ? (x.Value/1e9).toFixed(1)+" M" : "-";
     return `<tr onclick="pick('${x.Ticker}')">
@@ -275,11 +279,12 @@ function renderScanRows(dataRows, totalUniverse, scanned){
       <td>1:${fmt(x.RR,1)}</td><td>${fmt(x["ATR%"],2)}%</td>
     </tr>`;
   }).join("");
-  $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned}) &middot; klik baris untuk detail</div>
+  $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned})${dataRows.length>shown.length?' · menampilkan '+shown.length:''} &middot; klik baris untuk detail ${dataRows.length>shown.length?'<button class="btn ghost sm" onclick="scShowAll()" style="margin-left:8px">Tampilkan semua</button>':''}</div>
     <div style="overflow-x:auto"><table>
     <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Reko</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
+function scShowAll(){ window.__scCap = 100000; const m=window.__scMeta||{total:0,scanned:0}; renderScanRows(window.__scRows||[], m.total, m.scanned); }
 async function runScreen(){
   let list = $("#scList").value;
   if(list==="custom"){ list = $("#scCustom").value.trim(); if(!list){ showStatus("Isi daftar dulu"); return; } }

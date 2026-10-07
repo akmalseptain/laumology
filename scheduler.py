@@ -46,10 +46,15 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
 
 
 def warm(universe: str = "auto") -> int:
-    """Hangatkan cache (unduh data) tanpa analisis — agar scan manual berikutnya cepat."""
+    """Hangatkan cache (unduh data + hitung baris screener) agar scan manual berikutnya cepat."""
     try:
         tickers = screener.resolve_watchlist(universe)
-        return data.prefetch(tickers)
+        n = data.prefetch(tickers)
+        try:
+            screener.screen(tickers, top=0)  # isi cache baris persisten (tanpa ubah hasil)
+        except Exception:
+            pass
+        return n
     except Exception as exc:
         print(f"  ! warm {universe}: {exc}")
         return 0
