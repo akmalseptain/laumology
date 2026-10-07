@@ -352,6 +352,23 @@ class TestMusyawarahReconcile(unittest.TestCase):
         self.assertEqual(musyawarah.reconcile_vetoes("BUY", {"direction": "BUY", "no_trade": False}, "uptrend"), [])
 
 
+class TestLightAnalyze(unittest.TestCase):
+    def test_light_matches_full_row(self):
+        import signals
+        from config import settings
+        old = (settings.regime_filter, settings.enable_decision, settings.use_optimized_score)
+        settings.regime_filter = settings.enable_decision = settings.use_optimized_score = False
+        try:
+            df = make_df(400)
+            full = signals.analyze(df, "T", light=False)
+            light = signals.analyze(df, "T", light=True)
+            self.assertEqual(full.as_row(), light.as_row())
+            self.assertEqual(full.signal, light.signal)
+            self.assertEqual(full.score, light.score)
+        finally:
+            settings.regime_filter, settings.enable_decision, settings.use_optimized_score = old
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

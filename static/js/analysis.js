@@ -293,7 +293,7 @@ async function runScreen(){
     const tickers = (tinfo && tinfo.tickers) || [];
     if(!tickers.length){ $("#scResult").innerHTML='<div class="empty">Daftar saham kosong.</div>'; return; }
     showStatus("Memindai " + tickers.length + " saham... (batch 1 sedang diunduh)", true);
-    const chunkSize = 60, CONC = 3;
+    const chunkSize = 60, CONC = 5;
     const chunks = [];
     for(let i=0;i<tickers.length;i+=chunkSize) chunks.push(tickers.slice(i, i+chunkSize));
     let merged = [], scanned = 0;

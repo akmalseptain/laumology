@@ -311,7 +311,7 @@ class _Ranked:
         }.get(self.signal, 0)
 
 
-def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
+def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False) -> Analysis:
     d = add_indicators(df)
     d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
     if d.empty or len(d) < 2:
@@ -345,7 +345,7 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
 
     vp = volume_profile(d["High"], d["Low"], d["Close"], d["Volume"], bins=24,
                         lookback=min(120, len(d)))
-    zones = supply_demand_zones(d, lookback=min(120, len(d)), order=3)
+    zones = [] if light else supply_demand_zones(d, lookback=min(120, len(d)), order=3)
     avwap_val = float(last["avwap"]) if np.isfinite(last["avwap"]) else price
     chop_val = float(last["chop"]) if np.isfinite(last["chop"]) else 50.0
     adr_pct = float(last["adr_pct"]) if np.isfinite(last["adr_pct"]) else 0.0
@@ -479,14 +479,18 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
     position_value = lots * settings.lot_size * price
     max_loss = lots * per_lot_risk
 
-    rs_change, rs_strong = relative_strength(df)
-    rsi_bull, rsi_bear = divergence(d["Close"], d["rsi"])
-    macd_bull, macd_bear = divergence(d["Close"], d["macd_hist"])
-    obv_bull, obv_bear = divergence(d["Close"], d["obv"])
+    if light:
+        rs_change, rs_strong = None, None
+        rsi_bull = rsi_bear = macd_bull = macd_bear = obv_bull = obv_bear = False
+    else:
+        rs_change, rs_strong = relative_strength(df)
+        rsi_bull, rsi_bear = divergence(d["Close"], d["rsi"])
+        macd_bull, macd_bear = divergence(d["Close"], d["macd_hist"])
+        obv_bull, obv_bear = divergence(d["Close"], d["obv"])
 
     decision_data: dict = {}
     stock_data: dict = {}
-    if settings.enable_decision:
+    if settings.enable_decision and not light:
         try:
             import decision as decision_mod
             import stock as stock_mod

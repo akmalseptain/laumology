@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import pandas as pd
 
 import data
@@ -9,6 +11,11 @@ from universe import auto_universe, full_universe
 
 _AUTO_KEYS = {"auto", "top", "most-active", "paling aktif", "palingaktif", "likuid", "liquid-auto"}
 _ALL_KEYS = {"all", "allidx", "all-idx", "semua-emiten", "seluruh", "idx-all", "allidx2"}
+
+# Cache baris hasil analisis (key ticker+bar) agar scan ulang instan.
+_ROW_CACHE: dict[str, tuple[float, dict]] = {}
+_ROW_TTL = 900.0
+_ROW_CACHE_MAX = 8000
 
 
 def resolve_watchlist(name: str) -> list[str]:
@@ -50,20 +57,29 @@ def screen(
         except Exception:
             pass
     rows = []
+    now = time.time()
     for t in tickers:
         try:
             df = data.get_ohlcv(t, period=period, use_cache=not refresh)
             if len(df) < 80:
                 continue
-            res = analyze(df, t)
-            row = res.as_row()
-            row["_rank"] = _rank(res.signal)
+            key = f"{t}:{str(df.index[-1])[:10]}"
+            cached = _ROW_CACHE.get(key)
+            if cached and not refresh and now - cached[0] < _ROW_TTL:
+                row = dict(cached[1])
+            else:
+                res = analyze(df, t, light=True)
+                row = res.as_row()
+                try:
+                    turnover = (df["Close"] * df["Volume"]).tail(20).mean()
+                    row["Value"] = float(turnover) if pd.notna(turnover) else 0.0
+                except Exception:
+                    row["Value"] = 0.0
+                if len(_ROW_CACHE) > _ROW_CACHE_MAX:
+                    _ROW_CACHE.clear()
+                _ROW_CACHE[key] = (now, dict(row))
+            row["_rank"] = _rank(row.get("Signal", ""))
             row["Sector"] = sector_of(t)
-            try:
-                turnover = (df["Close"] * df["Volume"]).tail(20).mean()
-                row["Value"] = float(turnover) if pd.notna(turnover) else 0.0
-            except Exception:
-                row["Value"] = 0.0
             rows.append(row)
         except Exception as exc:
             print(f"  ! {t}: {exc}")
