@@ -7,6 +7,7 @@ import pandas as pd
 
 import data
 import indicators
+import ttlcache
 from signals import analyze
 
 INTERVAL_PERIOD = {
@@ -17,6 +18,32 @@ INTERVAL_PERIOD = {
     "15m": "20d",
     "5m": "10d",
 }
+
+_ENRICH_TTL = 120.0  # detik; key memuat bar terakhir, jadi bar/quote baru otomatis invalid
+
+
+def _enriched(ticker: str, period: str, interval: str, refresh: bool, df: pd.DataFrame) -> pd.DataFrame:
+    """Bagikan satu DataFrame indikator antar endpoint (analyze & ohlc) untuk df identik.
+
+    Key memuat ticker+periode+interval+len+bar terakhir (OHLCV) -> aman thd freshness.
+    Selalu kembalikan salinan agar tidak ada endpoint yang memutasi objek bersama.
+    """
+    if refresh:
+        return indicators.add_indicators(df)
+    try:
+        lr = df.iloc[-1]
+        key = "enr:%s:%s:%s:%d:%s:%s:%s:%s:%s:%s" % (
+            ticker, period, interval, len(df), df.index[-1],
+            lr.get("Open"), lr.get("High"), lr.get("Low"), lr.get("Close"), lr.get("Volume"),
+        )
+        hit = ttlcache.get(key)
+        if hit is not None:
+            return hit.copy()
+        d = indicators.add_indicators(df)
+        ttlcache.set(key, d, _ENRICH_TTL)
+        return d.copy()
+    except Exception:
+        return indicators.add_indicators(df)
 
 
 def num_or_none(v):
@@ -46,7 +73,7 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
     df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
     quote = data.get_quote(ticker)
     df, live = data.apply_live_quote(df, quote, interval)
-    a = analyze(df, ticker)
+    a = analyze(df, ticker, d=_enriched(ticker, period, interval, refresh, df))
     if live:
         a.price = live["price"]
         if live.get("prev_close"):
@@ -150,13 +177,14 @@ def ohlc_payload(ticker: str, interval: str, bars: int, refresh: bool = False) -
     df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
     quote = data.get_quote(ticker)
     df, live = data.apply_live_quote(df, quote, interval)
-    a = analyze(df, ticker)
+    d_all = _enriched(ticker, period, interval, refresh, df)
+    a = analyze(df, ticker, d=d_all)
     if live:
         a.price = live["price"]
         if live.get("prev_close"):
             a.change_1d = (live["price"] / live["prev_close"] - 1.0) * 100.0
 
-    d = indicators.add_indicators(df).tail(bars)
+    d = d_all.tail(bars)
     fmt_time = time_formatter(interval)
 
     candles: list[dict] = []

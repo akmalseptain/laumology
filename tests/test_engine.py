@@ -369,6 +369,30 @@ class TestLightAnalyze(unittest.TestCase):
             settings.regime_filter, settings.enable_decision, settings.use_optimized_score = old
 
 
+class TestSharedIndicators(unittest.TestCase):
+    def test_analyze_with_precomputed_d_identical(self):
+        import indicators
+        import signals
+        from config import settings
+        old = (settings.regime_filter, settings.enable_decision, settings.use_optimized_score)
+        settings.regime_filter = settings.enable_decision = settings.use_optimized_score = False
+        try:
+            df = make_df(400)
+            a1 = signals.analyze(df, "T")
+            d = indicators.add_indicators(df)
+            a2 = signals.analyze(df, "T", d=d)
+            self.assertEqual(a1.as_row(), a2.as_row())
+            self.assertEqual(a1.stop_loss, a2.stop_loss)
+            self.assertEqual(a1.tp1, a2.tp1)
+            self.assertEqual(a1.tp2, a2.tp2)
+            self.assertEqual(a1.reasons, a2.reasons)
+            self.assertEqual(a1.warnings, a2.warnings)
+            self.assertEqual(a1.components, a2.components)
+            self.assertEqual(a1.checklist, a2.checklist)
+        finally:
+            settings.regime_filter, settings.enable_decision, settings.use_optimized_score = old
+
+
 class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news

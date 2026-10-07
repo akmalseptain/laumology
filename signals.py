@@ -315,8 +315,12 @@ class _Ranked:
         }.get(self.signal, 0)
 
 
-def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False) -> Analysis:
-    d = add_indicators(df)
+def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
+            d: pd.DataFrame | None = None) -> Analysis:
+    if d is None:
+        d = add_indicators(df)
+    else:
+        d = d.copy()  # isolasi: jangan mutasi objek yang mungkin dibagi antar-endpoint
     d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
     if d.empty or len(d) < 2:
         raise ValueError(f"Data tidak cukup untuk {ticker}")
