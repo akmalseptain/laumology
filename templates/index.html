@@ -118,6 +118,13 @@
       <p>Sentimen berita terkini per emiten sebagai konteks tambahan analisa.</p>
     </div>
     <div class="card">
+      <div class="sec"><span class="badge">Berita Pasar / IHSG</span>
+        <button class="btn ghost sm" id="mkNewsRun">Muat</button>
+      </div>
+      <p class="muted note" style="margin-top:-4px">Agregat berita indeks + emiten besar (di-dedupe).</p>
+      <div id="mkNewsResult" class="result-block"><div class="empty sm">Tekan Muat untuk berita pasar.</div></div>
+    </div>
+    <div class="card">
       <div class="toolbar">
         <div class="field"><label>Kode saham</label><input id="beTicker" value="BBCA" style="width:150px" autocomplete="off" spellcheck="false"></div>
         <button class="btn" id="beRun">Muat</button>
@@ -344,6 +351,24 @@
       <p class="muted note">Uji statistik historis, bukan jaminan masa depan.</p>
       <div id="acResult" class="result-block"><div class="empty">Tekan Uji Akurasi untuk mulai.</div></div>
     </div>
+    <div class="card">
+      <div class="sec"><span class="badge">Kalibrasi Indikator Baru</span></div>
+      <p class="muted note">Uji edge (HMA, KAMA, Aroon, Vortex, AO, UO, RVOL) lintas emiten sebelum dipromosikan ke skor.</p>
+      <div class="toolbar">
+        <div class="field"><label>Universe</label>
+          <select id="cbList">
+            <option value="lq45">LQ45</option>
+            <option value="idx30">IDX30</option>
+            <option value="idx80">IDX80</option>
+            <option value="bluechip">BLUECHIP</option>
+          </select>
+        </div>
+        <div class="field w-lg"><label>Horizon (bar)</label><input id="cbHorizon" type="number" value="10"></div>
+        <div class="field w-md"><label>Min edge</label><input id="cbMinEdge" type="number" step="0.01" value="0.03"></div>
+        <button class="btn" id="cbRun">Kalibrasi</button>
+      </div>
+      <div id="cbResult" class="result-block"><div class="empty">Tekan Kalibrasi untuk menguji bobot kandidat.</div></div>
+    </div>
   </section>
 
   <section class="panel" id="panel-pasar">
@@ -462,6 +487,11 @@
   <div class="tab" data-tab="musyawarah">Musyawarah</div>
 </nav>
 
+<script src="/static/js/core.js"></script>
+<script src="/static/js/analysis.js"></script>
+<script src="/static/js/tools.js"></script>
+<script src="/static/js/portfolio.js"></script>
+<script src="/static/js/views.js"></script>
 <script src="/static/js/app.js"></script>
 </body>
 </html>

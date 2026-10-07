@@ -17,118 +17,14 @@ from indicators import (
     volume_profile,
 )
 
-
-def score_frame(d: pd.DataFrame) -> pd.DataFrame:
-    idx = d.index
-    close = d["Close"]
-
-    tren = pd.Series(0.0, index=idx)
-    tren += (close > d["ma20"]).astype(float) * 3.0
-    tren += (d["ma20"] > d["ma50"]).astype(float) * 3.0
-    tren += (d["ma50"] > d["ma200"]).astype(float) * 4.0
-    tren += (close > d["ma200"]).astype(float) * 3.0
-    tren += (d["st_dir"] == 1).astype(float) * 4.0
-    tren += ((close > d["senkou_a"]) & (close > d["senkou_b"])).astype(float) * 3.0
-    tren = tren.clip(0, 20)
-
-    mom = pd.Series(0.0, index=idx)
-    mom += ((d["rsi"] >= 50) & (d["rsi"] <= 70)).astype(float) * 4.0
-    mom += (d["rsi"] > 70).astype(float) * 1.0
-    mom += (d["rsi"] < 30).astype(float) * 2.0
-    mom += (d["macd"] > d["macd_signal"]).astype(float) * 4.0
-    mom += (d["macd_hist"] > 0).astype(float) * 4.0
-    mom += (d["macd_hist"] > d["macd_hist"].shift(1)).astype(float) * 3.0
-    mom += ((d["stoch_rsi_k"] > 0.5) & (d["stoch_rsi_k"] > d["stoch_rsi_d"])).astype(float) * 1.0
-    mom += (d["cci"] > 0).astype(float) * 1.0
-    mom = mom.clip(0, 20)
-
-    kekuatan = pd.Series(0.0, index=idx)
-    kekuatan += ((d["adx"] >= settings.adx_trend_threshold) & (d["plus_di"] > d["minus_di"])).astype(float) * 8.0
-    kekuatan += ((d["adx"] >= 20) & (d["adx"] < settings.adx_trend_threshold) & (d["plus_di"] > d["minus_di"])).astype(float) * 4.0
-    kekuatan += (d["adx"] > d["adx"].shift(3)).astype(float) * 3.0
-    kekuatan = kekuatan.clip(0, 15)
-
-    volume = pd.Series(0.0, index=idx)
-    volume += (d["Volume"] > 1.2 * d["vol_ma20"]).astype(float) * 5.0
-    volume += (d["obv"] > d["obv_ma20"]).astype(float) * 4.0
-    volume += (d["cmf"] > 0).astype(float) * 3.0
-    volume += (d["mfi"] > 50).astype(float) * 3.0
-    volume = volume.clip(0, 15)
-
-    setup = pd.Series(0.0, index=idx)
-    setup += (close >= d["high20"] * 0.99).astype(float) * 5.0
-    setup += d["cp_bullish"].astype(float) * 4.0
-    setup += ((close > d["ema21"]) & (close <= d["ema21"] * 1.02) & (d["st_dir"] == 1)).astype(float) * 3.0
-    setup += (close >= d["bb_upper"] * 0.995).astype(float) * 3.0
-    setup = setup.clip(0, 15)
-
-    risiko = pd.Series(0.0, index=idx)
-    risiko += (d["atr_pct"] < 3).astype(float) * 6.0
-    risiko += ((d["atr_pct"] >= 3) & (d["atr_pct"] < 5)).astype(float) * 3.0
-    risiko += (d["rsi"] < 78).astype(float) * 3.0
-    risiko += (close > d["ma50"]).astype(float) * 3.0
-    risiko = risiko.clip(0, 15)
-
-    konf = pd.Series(0.0, index=idx)
-    konf += (d["squeeze_off"] & (d["sqz_mom"] > 0) & (d["sqz_dir"] > 0)).astype(float) * 4.0
-    konf += (close > d["avwap"]).astype(float) * 3.0
-    konf += (d["chop"] < 50).astype(float) * 3.0
-    konf += ((d["adr_pct"] >= 1.5) & (d["adr_pct"] <= 8)).astype(float) * 3.0
-    konf += (d["atr_pctl"] <= 80).astype(float) * 2.0
-    konf = konf.clip(0, 15)
-
-    out = pd.DataFrame(
-        {
-            "tren": tren,
-            "momentum": mom,
-            "kekuatan": kekuatan,
-            "volume": volume,
-            "setup": setup,
-            "risiko": risiko,
-            "konfluensi": konf,
-        },
-        index=idx,
-    )
-    out["score"] = out[
-        ["tren", "momentum", "kekuatan", "volume", "setup", "risiko", "konfluensi"]
-    ].sum(axis=1).clip(0, 100)
-    return out
-
-
-FACTOR_KEYS = [
-    "harga>ma50", "ma50>ma200", "harga>ma200", "supertrend_up", "di_atas_cloud",
-    "macd_bull", "macd_hist>0", "rsi_50_78", "adx_di_bull", "volume_surge",
-    "obv_up", "cmf>0", "breakout_20", "candle_bull", "mfi>50",
-    "squeeze_release", "momentum_up", "above_avwap", "chop_trend", "adr_sehat",
-]
-
-
-def confluence_frame(d: pd.DataFrame) -> pd.DataFrame:
-    close = d["Close"]
-    idx = d.index
-    f = pd.DataFrame(index=idx)
-    f["harga>ma50"] = close > d["ma50"]
-    f["ma50>ma200"] = d["ma50"] > d["ma200"]
-    f["harga>ma200"] = close > d["ma200"]
-    f["supertrend_up"] = d["st_dir"] == 1
-    f["di_atas_cloud"] = (close > d["senkou_a"]) & (close > d["senkou_b"])
-    f["macd_bull"] = d["macd"] > d["macd_signal"]
-    f["macd_hist>0"] = d["macd_hist"] > 0
-    f["rsi_50_78"] = (d["rsi"] >= 50) & (d["rsi"] <= 78)
-    f["adx_di_bull"] = (d["adx"] >= 20) & (d["plus_di"] > d["minus_di"])
-    f["volume_surge"] = d["Volume"] > 1.2 * d["vol_ma20"]
-    f["obv_up"] = d["obv"] > d["obv_ma20"]
-    f["cmf>0"] = d["cmf"] > 0
-    f["breakout_20"] = close >= d["high20"] * 0.99
-    f["candle_bull"] = d["cp_bullish"]
-    f["mfi>50"] = d["mfi"] > 50
-    f["squeeze_release"] = d["squeeze_off"] & (d["sqz_mom"] > 0)
-    f["momentum_up"] = d["sqz_dir"] > 0
-    f["above_avwap"] = close > d["avwap"]
-    f["chop_trend"] = d["chop"] < 50
-    f["adr_sehat"] = (d["adr_pct"] >= 1.5) & (d["adr_pct"] <= 8)
-    f["confidence"] = f[FACTOR_KEYS].sum(axis=1) / len(FACTOR_KEYS) * 100.0
-    return f
+from factors import (
+    CANDIDATE_FACTORS,
+    CANDIDATE_LABELS,
+    FACTOR_KEYS,
+    candidate_frame,
+    confluence_frame,
+    score_frame,
+)
 
 
 def support_resistance(d: pd.DataFrame) -> tuple[float, float]:
@@ -261,6 +157,15 @@ class Analysis:
     vol_regime: str = "Normal"
     monthly_trend: str = "Netral"
     mtf: str = "Campuran"
+    hma20: float = 0.0
+    kama: float = 0.0
+    aroon_up: float = 0.0
+    aroon_down: float = 0.0
+    vortex_plus: float = 0.0
+    vortex_minus: float = 0.0
+    ao: float = 0.0
+    uo: float = 0.0
+    rvol: float = 0.0
     vp: dict = field(default_factory=dict)
     zones: list = field(default_factory=list)
 
@@ -552,6 +457,16 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
 
     vol_ratio = float(last["Volume"] / last["vol_ma20"]) if last["vol_ma20"] else 0.0
 
+    hma_val = float(last["hma20"]) if np.isfinite(last["hma20"]) else price
+    kama_val = float(last["kama"]) if np.isfinite(last["kama"]) else price
+    aroon_up_val = float(last["aroon_up"]) if np.isfinite(last["aroon_up"]) else 0.0
+    aroon_down_val = float(last["aroon_down"]) if np.isfinite(last["aroon_down"]) else 0.0
+    vortex_plus_val = float(last["vortex_plus"]) if np.isfinite(last["vortex_plus"]) else 0.0
+    vortex_minus_val = float(last["vortex_minus"]) if np.isfinite(last["vortex_minus"]) else 0.0
+    ao_val = float(last["ao"]) if np.isfinite(last["ao"]) else 0.0
+    uo_val = float(last["uo"]) if np.isfinite(last["uo"]) else 50.0
+    rvol_val = float(last["rvol"]) if np.isfinite(last["rvol"]) else 1.0
+
     checklist = [(k, bool(crow[k])) for k in FACTOR_KEYS]
 
     reasons: list[str] = []
@@ -685,6 +600,15 @@ def analyze(df: pd.DataFrame, ticker: str = "") -> Analysis:
         vol_regime=vol_regime,
         monthly_trend=m_trend,
         mtf=mtf,
+        hma20=hma_val,
+        kama=kama_val,
+        aroon_up=aroon_up_val,
+        aroon_down=aroon_down_val,
+        vortex_plus=vortex_plus_val,
+        vortex_minus=vortex_minus_val,
+        ao=ao_val,
+        uo=uo_val,
+        rvol=rvol_val,
         vp=vp,
         zones=zones,
     )

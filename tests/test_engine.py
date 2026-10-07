@@ -38,6 +38,67 @@ class TestSignals(unittest.TestCase):
         self.assertGreaterEqual(a.confidence, 0)
         self.assertLessEqual(a.confidence, 100)
 
+    def test_analysis_has_modern_indicators(self):
+        import signals
+        a = signals.analyze(make_df(), "TEST")
+        self.assertGreater(a.hma20, 0)
+        self.assertGreater(a.kama, 0)
+        self.assertGreaterEqual(a.aroon_up, 0)
+        self.assertGreaterEqual(a.vortex_plus, 0)
+        self.assertGreaterEqual(a.rvol, 0)
+
+
+class TestCandidates(unittest.TestCase):
+    def test_candidate_frame(self):
+        import indicators
+        import signals
+        d = indicators.add_indicators(make_df())
+        cf = signals.candidate_frame(d)
+        for k in signals.CANDIDATE_FACTORS:
+            self.assertIn(k, cf.columns, k)
+            self.assertEqual(len(cf[k]), len(d))
+        self.assertIn("confidence", cf.columns)
+
+    def test_accuracy_reports_candidates(self):
+        import validation
+        res = validation.analyze_accuracy(make_df(400), horizon=10)
+        self.assertIn("candidates", res)
+        self.assertIn("recommendations", res)
+        self.assertIn("min_edge", res)
+        for c in res["candidates"]:
+            self.assertIn(c["factor"], __import__("signals").CANDIDATE_FACTORS)
+
+    def test_ml_include_candidates(self):
+        import ml
+        base = ml.predict(make_df(400), "TEST", include_candidates=False)
+        full = ml.predict(make_df(400), "TEST", include_candidates=True)
+        self.assertEqual(len(base["features"]), len(__import__("signals").FACTOR_KEYS))
+        self.assertTrue(full["include_candidates"])
+        self.assertGreater(len(full["features"]), len(base["features"]))
+
+
+class TestNews(unittest.TestCase):
+    def test_market_news_shape(self):
+        import news
+        res = news.get_market_news()
+        for key in ("ticker", "count", "avg_sentiment", "label", "items"):
+            self.assertIn(key, res)
+
+
+class TestWiring(unittest.TestCase):
+    def test_factor_reexport(self):
+        import factors
+        import signals
+        self.assertEqual(signals.FACTOR_KEYS, factors.FACTOR_KEYS)
+        self.assertEqual(signals.CANDIDATE_FACTORS, factors.CANDIDATE_FACTORS)
+
+    def test_routes_registered(self):
+        import webapp
+        paths = {str(r) for r in webapp.app.url_map.iter_rules()}
+        for p in ["/", "/health", "/api/analyze", "/api/ohlc", "/api/screen",
+                  "/api/calibrate", "/api/news/market", "/api/scan/start", "/api/paper"]:
+            self.assertIn(p, paths)
+
 
 class TestBacktest(unittest.TestCase):
     def test_backtest_fields(self):

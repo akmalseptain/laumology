@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from factors import CANDIDATE_FACTORS, FACTOR_KEYS, candidate_frame, confluence_frame
 from indicators import add_indicators
-from signals import FACTOR_KEYS, confluence_frame
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
@@ -35,17 +35,23 @@ def _calibration(probs: np.ndarray, y: np.ndarray) -> list[dict]:
     return out
 
 
-def predict(df: pd.DataFrame, ticker: str = "", horizon: int = 10, test_frac: float = 0.3) -> dict:
+def predict(
+    df: pd.DataFrame, ticker: str = "", horizon: int = 10, test_frac: float = 0.3,
+    include_candidates: bool = False,
+) -> dict:
     d = add_indicators(df)
     d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
     if len(d) < 80:
         raise ValueError("Data tidak cukup untuk model (min 80 bar)")
 
     cf = confluence_frame(d)
+    if include_candidates:
+        cf = cf.join(candidate_frame(d)[CANDIDATE_FACTORS])
+    feature_keys = list(FACTOR_KEYS) + (list(CANDIDATE_FACTORS) if include_candidates else [])
     close = d["Close"]
     fwd = (close.shift(-horizon) / close - 1.0)
     y_all = (fwd > 0).astype(float).to_numpy()
-    X_all = cf[FACTOR_KEYS].astype(float).to_numpy()
+    X_all = cf[feature_keys].astype(float).to_numpy()
     valid = ~np.isnan(y_all)
     X = X_all[valid]
     y = y_all[valid]
@@ -68,7 +74,7 @@ def predict(df: pd.DataFrame, ticker: str = "", horizon: int = 10, test_frac: fl
 
     weights = [
         {"factor": k, "weight": round(float(wf) / sd[i], 4), "std_weight": round(float(wf), 4)}
-        for i, (k, wf) in enumerate(zip(FACTOR_KEYS, w))
+        for i, (k, wf) in enumerate(zip(feature_keys, w))
     ]
     weights.sort(key=lambda x: x["weight"], reverse=True)
 
@@ -80,6 +86,8 @@ def predict(df: pd.DataFrame, ticker: str = "", horizon: int = 10, test_frac: fl
         "ticker": ticker.upper(),
         "horizon": horizon,
         "samples": int(len(X)),
+        "features": feature_keys,
+        "include_candidates": bool(include_candidates),
         "train": split,
         "test": int(len(X) - split),
         "base_rate": base,

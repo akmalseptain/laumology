@@ -377,3 +377,91 @@ py -m unittest discover -s tests
 
 ## Status
 - Semua perubahan Turn 25 di-commit & di-push ke `main`.
+
+---
+
+# Turn 26 — Validasi Kandidat Indikator + Tampil di UI + Berita Pasar
+
+Menuntaskan TODO Turn 25 (poin 1, 2, 4).
+
+## A. Validasi & kalibrasi bobot indikator baru
+- `signals.py`: tambah `CANDIDATE_FACTORS` (10 faktor) + `candidate_frame()` +
+  `CANDIDATE_LABELS`. Kandidat = HMA, KAMA, Aroon, Vortex, Awesome Osc, Ultimate
+  Osc, RVOL — **di luar skor inti** (skor belum diubah).
+- `validation.py`:
+  - `analyze_accuracy` kini juga menguji kandidat → output `candidates`,
+    `recommendations` (edge ≥ `MIN_EDGE` 0.03), `min_edge`.
+  - Fungsi baru **`calibrate(tickers, horizon, min_edge)`**: uji edge lintas
+    emiten (dibobot sampel), agregasi, dan usul **bobot relatif** untuk kandidat
+    yang lolos. Tidak mengubah skor otomatis.
+- `ml.py`: `predict(..., include_candidates=True)` melatih regresi logistik atas
+  faktor inti + kandidat, mengembalikan `features` & bobot lengkap.
+- `webapp.py`: endpoint **`/api/calibrate?list=&horizon=&min_edge=`**; `/api/ml`
+  menerima `candidates=1`.
+- **Hasil uji nyata (IDX30, horizon 10):** base win-rate 43.8%. Kandidat terbaik
+  `rvol>1.2` (edge +2.0%, setara `volume_surge`), sisanya ≤ 0 → **belum ada yang
+  layak dipromosikan ke skor**. Keputusan: skor dibiarkan apa adanya.
+
+## B. Tampilkan indikator baru di tab Analisis
+- `signals.py` + `webapp.py`: `Analysis` kini membawa `hma20, kama, aroon_up/down,
+  vortex_plus/minus, ao, uo, rvol`; diteruskan ke payload `/api/analyze`.
+- `static/js/app.js`: kartu baru **"03C Indikator Mutakhir"** (Hull MA, KAMA,
+  Aroon, Vortex, AO, UO, RVOL) + masuk Export CSV.
+
+## C. Berita pasar/IHSG agregat
+- `news.py`: `get_market_news()` — agregat berita indeks (`^JKSE`) + emiten besar
+  (`MARKET_TICKERS`), **dedupe** per judul, urut waktu, sentimen; helper
+  `_parse_item`/`_raw_items`/`_summarize` (dipakai ulang `get_news`).
+- `webapp.py`: endpoint **`/api/news/market`**.
+- UI tab **Berita**: kartu "Berita Pasar / IHSG" (tombol Muat) menampilkan
+  sentimen + daftar berita (publisher, waktu, sumber emiten).
+
+## D. Lain-lain
+- `/api/schema` diperbarui (`/api/calibrate`, `/api/news/market`, param `candidates`).
+- Tests: `tests/test_engine.py` +5 (kandidat, akurasi kandidat, ML include
+  candidates, bentuk berita pasar) → **13/13 OK**.
+- Catatan lingkungan: endpoint berita yfinance mengembalikan 0 item di sandbox
+  (jaringan), fungsi tetap aman (fallback kosong).
+
+## Status
+- Siap di-commit & push ke `main`.
+
+---
+
+# Turn 27 — Refactor Bertahap (struktur proyek)
+
+Refactor menyeluruh tanpa mengubah perilaku; dijalankan bertahap dengan test tetap hijau.
+
+## Fase 1 — `factors.py` (mesin faktor)
+- Ekstrak dari `signals.py`: `score_frame`, `confluence_frame`, `candidate_frame`,
+  `FACTOR_KEYS`, `CANDIDATE_FACTORS`, `CANDIDATE_LABELS`, `SCORE_COMPONENTS`.
+- `signals.py` mengimpor & **re-export** dari `factors` (kompatibilitas dipertahankan).
+- `validation.py` & `ml.py` kini mengimpor dari `factors` (bukan `signals`).
+- `signals.py` menyusut (~150 baris lebih ramping); definisi faktor tidak lagi terduplikasi.
+
+## Fase 2 — Pecah `webapp.py` (1100+ baris → ±190 baris)
+- `state.py`: state runtime bersama (riwayat sinyal, metrik, rate-limit, job scan latar)
+  dengan API aman-thread (`record_history`, `metrics_snapshot`, `rate_limited`,
+  `create_scan_job`, `get_scan_job`, `cancel_scan_job`, `api_key`).
+- `payloads.py`: builder payload `analysis_payload`/`ohlc_payload`, `INTERVAL_PERIOD`.
+- `routes/` (paket Flask Blueprint): `analysis`, `screener`, `backtest`, `research`,
+  `portfolio`, `meta` + `routes/__init__.py::register(app)`.
+- `webapp.py` tinggal: app, `_load_dotenv`, hook rate-limit/metrik, error handler JSON,
+  registrasi blueprint, scheduler, `main`.
+- `api/index.py` (Vercel) tetap `from webapp import app` — tanpa perubahan.
+
+## Fase 3 — Pecah `static/js/app.js` (1578 baris → 6 berkas)
+`core.js` (util + ChartKit) · `analysis.js` (shell/analyze/render/screener) ·
+`tools.js` (export/backtest/akurasi/kalibrasi/berita pasar) ·
+`portfolio.js` · `views.js` · `app.js` (musyawarah/optimizer/boot).
+- Skrip klasik dimuat berurutan (berbagi scope global) → concatenation identik
+  (jumlah baris 237+383+191+282+323+162 = 1578, tak ada baris hilang/duplikat).
+- `templates/index.html` memuat keenam berkas berurutan; `sw.js` cache `v4`.
+
+## Verifikasi
+- `py -m compileall` bersih; `node --check` 6/6 berkas OK.
+- Tests: **15/15 OK** (tambah `TestWiring`: re-export faktor + registrasi route).
+- Smoke test Flask test-client: `/`, `/health`, `/api/analyze`, `/api/scan/*`, dll → 200 JSON.
+
+## Status
+- Siap di-commit & push ke `main`.
