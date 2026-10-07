@@ -10,6 +10,7 @@ from factors import (
     confluence_frame,
     score_frame,
 )
+from config import settings
 from indicators import add_indicators
 
 BUCKETS = [
@@ -182,10 +183,10 @@ def calibrate(tickers: list[str], horizon: int = 10, min_edge: float = MIN_EDGE,
 REGIMES = ("uptrend", "downtrend", "ranging")
 
 
-def _benchmark_regime() -> pd.Series:
+def _benchmark_regime(period: str | None = None) -> pd.Series:
     import data as datamod
 
-    b = add_indicators(datamod.get_ohlcv("^JKSE", suffix=""))
+    b = add_indicators(datamod.get_ohlcv("^JKSE", suffix="", period=period or settings.period))
     reg = pd.Series("ranging", index=b.index)
     reg[(b["Close"] > b["ma50"]) & (b["ma20"] > b["ma50"])] = "uptrend"
     reg[b["Close"] < b["ma50"]] = "downtrend"

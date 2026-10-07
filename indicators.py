@@ -643,9 +643,16 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["high20"] = high.rolling(window=w, min_periods=1).max()
     d["low20"] = low.rolling(window=w, min_periods=1).min()
 
-    piv = pivot_points(float(high.iloc[-1]), float(low.iloc[-1]), float(close.iloc[-1]))
-    for key, val in piv.items():
-        d[f"pivot_{key}"] = val
+    ph, pl, pc = high.shift(1), low.shift(1), close.shift(1)
+    pp = (ph + pl + pc) / 3.0
+    rng = ph - pl
+    d["pivot_pp"] = pp
+    d["pivot_r1"] = 2 * pp - pl
+    d["pivot_s1"] = 2 * pp - ph
+    d["pivot_r2"] = pp + rng
+    d["pivot_s2"] = pp - rng
+    d["pivot_r3"] = ph + 2 * (pp - pl)
+    d["pivot_s3"] = pl - 2 * (ph - pp)
 
     patterns = candle_patterns(d["Open"], high, low, close)
     for col in patterns.columns:

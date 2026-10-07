@@ -27,6 +27,13 @@ class TestIndicators(unittest.TestCase):
                     "dc_upper", "dc_lower", "efi", "gk_vol"]:
             self.assertIn(col, d.columns, col)
 
+    def test_pivot_no_lookahead(self):
+        import indicators
+        d = indicators.add_indicators(make_df())
+        i = 100
+        exp = (d["High"].iloc[i - 1] + d["Low"].iloc[i - 1] + d["Close"].iloc[i - 1]) / 3.0
+        self.assertAlmostEqual(float(d["pivot_pp"].iloc[i]), float(exp), places=6)
+
 
 class TestSignals(unittest.TestCase):
     def test_analyze(self):

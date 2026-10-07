@@ -118,6 +118,8 @@ def backtest(
                         "bars": i - position["i"],
                         "reason": reason,
                         "return_pct": round(ret * 100.0, 2),
+                        "risk_pct": round(position["risk"] / position["entry"] * 100.0, 2),
+                        "r_multiple": round((exit_eff - entry_eff) / position["risk"], 2) if position["risk"] else 0.0,
                     }
                 )
                 position = None
@@ -333,7 +335,8 @@ def backtest_decision(
     regime = None
     try:
         from validation import _benchmark_regime
-        regime = _benchmark_regime().reindex(d.index).ffill()
+        _p = "5y" if len(d) > 1000 else ("2y" if len(d) > 500 else "1y")
+        regime = _benchmark_regime(period=_p).reindex(d.index).ffill()
     except Exception:
         regime = None
     sig = signal_series(d, regime=regime).to_numpy(dtype=int)
@@ -373,7 +376,9 @@ def backtest_decision(
                 trades.append({"entry_date": dates[position["i"]], "exit_date": dates[i],
                                "entry": round(position["entry"], 2), "exit": round(exit_price, 2),
                                "bars": i - position["i"], "reason": reason,
-                               "return_pct": round(ret * 100.0, 2)})
+                               "return_pct": round(ret * 100.0, 2),
+                               "risk_pct": round(position["risk"] / position["entry"] * 100.0, 2),
+                               "r_multiple": round((exit_eff - entry_eff) / position["risk"], 2) if position["risk"] else 0.0})
                 position = None
         curve.append(equity)
 
@@ -441,9 +446,9 @@ def compare_universe(tickers: list[str], **kwargs) -> dict:
     import data as datamod
 
     acc = {"legacy": {"n": 0, "wins": 0, "gw": 0.0, "gl": 0.0, "exp": [], "ret": [], "dd": [],
-                      "tp": 0, "sl": 0, "to": 0, "bars": []},
+                      "tp": 0, "sl": 0, "to": 0, "bars": [], "r": [], "max_cl": 0, "max_cw": 0},
            "decision": {"n": 0, "wins": 0, "gw": 0.0, "gl": 0.0, "exp": [], "ret": [], "dd": [],
-                        "tp": 0, "sl": 0, "to": 0, "bars": []}}
+                        "tp": 0, "sl": 0, "to": 0, "bars": [], "r": [], "max_cl": 0, "max_cw": 0}}
     used = 0
     errors: list[dict] = []
     for t in tickers:
@@ -470,6 +475,19 @@ def compare_universe(tickers: list[str], **kwargs) -> dict:
                 a["ret"].append(res.total_return)
                 a["dd"].append(res.max_drawdown)
                 a["bars"].extend(tr["bars"].tolist())
+                if "r_multiple" in tr.columns:
+                    rvals = tr["r_multiple"].tolist()
+                    a["r"].extend(rvals)
+                    cl = cw = 0
+                    for rv in rvals:
+                        if rv <= 0:
+                            cl += 1
+                            cw = 0
+                        else:
+                            cw += 1
+                            cl = 0
+                        a["max_cl"] = max(a["max_cl"], cl)
+                        a["max_cw"] = max(a["max_cw"], cw)
                 rs = tr["reason"].tolist()
                 a["tp"] += rs.count("TP")
                 a["sl"] += rs.count("SL")
@@ -479,6 +497,7 @@ def compare_universe(tickers: list[str], **kwargs) -> dict:
 
     def summarize(a: dict) -> dict:
         pf = (a["gw"] / a["gl"]) if a["gl"] > 0 else None
+        import statistics
         return {
             "n_trades": a["n"],
             "win_rate": round(a["wins"] / a["n"], 4) if a["n"] else 0.0,
@@ -486,6 +505,12 @@ def compare_universe(tickers: list[str], **kwargs) -> dict:
             "expectancy_pct": round(float(np.mean(a["exp"])) * 100.0, 3) if a["exp"] else 0.0,
             "avg_return_pct": round(float(np.mean(a["ret"])) * 100.0, 2) if a["ret"] else 0.0,
             "avg_max_dd_pct": round(float(np.mean(a["dd"])) * 100.0, 2) if a["dd"] else 0.0,
+            "avg_r": round(float(np.mean(a["r"])), 3) if a["r"] else 0.0,
+            "median_r": round(float(statistics.median(a["r"])), 3) if a["r"] else 0.0,
+            "best_r": round(float(max(a["r"])), 2) if a["r"] else 0.0,
+            "worst_r": round(float(min(a["r"])), 2) if a["r"] else 0.0,
+            "max_consec_losses": int(a["max_cl"]),
+            "max_consec_wins": int(a["max_cw"]),
             "tp_rate": round(a["tp"] / a["n"], 3) if a["n"] else 0.0,
             "sl_rate": round(a["sl"] / a["n"], 3) if a["n"] else 0.0,
             "timeout_rate": round(a["to"] / a["n"], 3) if a["n"] else 0.0,

@@ -584,3 +584,56 @@ OOS (40% terakhir): Legacy PF 0.59 / DD -5.9%; Decision PF 0.84 / DD -5.4% (kedu
 ## Verifikasi
 - Tests: **26/26 OK** (regression golden legacy + structure/decision/AB).
 - `node --check` JS OK; endpoint A/B teruji.
+
+---
+
+# Turn 31 — Audit Look-ahead + Baseline Freeze + Robustness OOS
+
+Lanjutan dari Turn 30. Prinsip: CORRECTNESS → ROBUSTNESS → VALIDATION.
+
+## A. Audit (temuan)
+- **BUG look-ahead ditemukan**: kolom `pivot_*` di `indicators.py` dihitung dari bar TERAKHIR lalu
+  di-broadcast ke seluruh history → bar historis "tahu" masa depan. Tidak dipakai skor/sinyal/decision
+  (dampak live = 0), tapi tetap leak untuk studi historis.
+  - **Fix minimal**: pivot per-baris dari bar sebelumnya (konvensi standar), vectorized. + regression test
+    `test_pivot_no_lookahead`.
+- **BUG span regime**: `_benchmark_regime()` selalu 1y → filter regime di backtest 5y hanya aktif ~1 tahun
+  terakhir (bucket `unknown` besar). Fix minimal: param `period`; `backtest_decision` memilih 1y/2y/5y sesuai panjang data.
+- **Tidak ada bug** pada eksekusi: backtest entry = next-open (`score[i-1]`/`sig[i-1]` → open[i]), biaya+jatuh tempo realistis, `score_frame`/`signal_series` bebas lookahead.
+- Behavior lama tetap sama (regression golden `SELL/26/SL 476.26/TP1 602.84` lolos).
+
+## B. Baseline freeze (metrik diperkaya)
+`backtest` kini menyimpan `risk_pct` & `r_multiple` (additive); `compare_universe` menambah
+**avg R, median R, best/worst R, max consecutive losses/wins** + TP/SL/timeout rate.
+
+## C. Robustness lintas periode (IDX30, biaya realistis, tp 3.0 / sl 2.0 / hold 20)
+| Periode | Sistem | Trades | WR | PF | Expectancy | Avg R | Max DD |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 1y | Legacy | 135 | 28.9% | 0.57 | −1.65% | − | −15.3% |
+| 1y | Decision | 94 | 37.2% | 0.77 | −0.75% | − | −10.3% |
+| 2y | Legacy | 273 | 33.3% | 0.75 | −1.06% | −0.21 | −24.3% |
+| 2y | Decision | 234 | 35.5% | 0.90 | −0.79% | −0.13 | −21.0% |
+| 5y | Legacy | 798 | 36.5% | 0.82 | −0.74% | −0.13 | −39.0% |
+| 5y | Decision | 762 | 36.1% | 0.90 | −0.54% | −0.08 | −37.7% |
+
+## D. Per-regime (5y, IDX30) — setelah fix span
+- Legacy avg R: uptrend −0.09 / ranging −0.17 / downtrend −0.17.
+- Decision avg R: uptrend −0.03 / ranging −0.03 / downtrend −0.14; trade downtrend **261 → 56** (filter aktif).
+
+## E. Sensitivitas parameter TP (2y, robust region)
+- Decision ⊃ Legacy di SEMUA tp ∈ {1.5, 2.0, 2.5, 3.0}: PF 0.90–0.97 vs 0.69–0.75; avg R −0.09…−0.13 vs −0.20…−0.24.
+- Tidak ada knife-edge → **robust region**, bukan satu angka optimal.
+
+## Verdict
+- **KEEP** Decision Engine: perbaikan **relatif konsisten** (PF, expectancy, avg R, DD; lebih sedikit trade, berhenti trading saat IHSG downtrend) di 1y/2y/5y & lintas regime; tidak sensitif ke tp.
+- **Tetap belum profitable absolut** (PF < 1) di IDX30 harian periode ini → jangan klaim akurasi.
+- **NO STATISTICALLY ROBUST *ABSOLUTE* IMPROVEMENT CONFIRMED**; perbaikan *risk-adjusted* konsisten.
+
+## Verifikasi
+- Tests: **27/27 OK** (tambah pivot lookahead + decision/AB + golden legacy).
+- `node --check` JS OK; endpoint A/B teruji.
+
+## Rekomendasi berikutnya
+1. Timeframe/horizon lain (mis. entry pullback, hold lebih pendek) & trailing/partial TP diuji terpisah.
+2. Kalibrasi bucket confidence → actual outcome (jangan sebut probabilitas sebelum terkalibrasi).
+3. Perluas universe (LQ45/IDX80) & periode bull eksplisit untuk OOS sebenarnya.
