@@ -23,11 +23,13 @@ def _scan_worker(job_id: str, params: dict) -> None:
     total = len(tickers)
     state.update_scan_job(job_id, state="running", total=total)
     rows: list = []
-    chunk = 60
-    for i in range(0, total, chunk):
+    i = 0
+    first = True
+    while i < total:
         if state.scan_cancelled(job_id):
             state.update_scan_job(job_id, state="cancelled")
             return
+        chunk = 15 if first else 60  # chunk pertama kecil -> hasil awal cepat
         part = tickers[i:i + chunk]
         try:
             r = screener.screen(
@@ -44,7 +46,9 @@ def _scan_worker(job_id: str, params: dict) -> None:
             rows.extend(r.to_dict("records"))
         except Exception:
             pass
-        state.update_scan_job(job_id, scanned=min(i + chunk, total), rows=rows)
+        i += chunk
+        first = False
+        state.update_scan_job(job_id, scanned=min(i, total), rows=rows)
     state.update_scan_job(job_id, state="done", scanned=total, rows=rows)
 
 
