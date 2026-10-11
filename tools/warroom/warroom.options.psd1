@@ -21,7 +21,7 @@
     ReducedModeThresholdIDR   = 30000
     HardPauseThresholdIDR     = 35000
     PerCycleBudgetIDR         = 1000
-    MaxCyclesPerDay           = 8
+    MaxCyclesPerDay           = 12
     MaxDiscussionRounds       = 2
     MaxConcurrentModelTasks   = 2
     MaxRepairAttempts         = 2

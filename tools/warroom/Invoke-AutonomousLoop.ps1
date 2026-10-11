@@ -165,7 +165,8 @@ Setelah selesai jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas ya
         # RECORDING
         Set-WarRoomState -State 'RECORDING' -Note 'catat hasil' -Iteration $i | Out-Null
         $outcome = if ($tcode -eq 0) { 'ok' } else { 'test-failed' }
-        Add-CycleRecord -CycleId $cycleId -Outcome $outcome
+        # Hanya siklus eksekusi nyata yang dihitung terhadap batas harian.
+        if ($execute) { Add-CycleRecord -CycleId $cycleId -Outcome $outcome }
         Set-WarRoomState -State 'OBSERVING_AGAIN' -Note 'siap iterasi berikut' -Iteration $i -MarkSuccess:($tcode -eq 0) | Out-Null
 
         if ($Once) { $stopReason = 'once'; break }
