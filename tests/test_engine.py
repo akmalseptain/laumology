@@ -644,6 +644,29 @@ class TestPaperPnlSide(unittest.TestCase):
         self.assertEqual(captured["pnl"], 10000.0)
         self.assertEqual(resp.get_json()["pnl"], 10000.0)
 
+    def test_realized_close_non_positive_or_nonfinite_exit_rejected(self):
+        from unittest.mock import patch
+
+        row = {"id": 5, "ticker": "BBCA", "side": "SELL", "entry": 1000.0, "lots": 1, "status": "OPEN"}
+        for exit_price in (0, -5, "nan", "inf", float("inf")):
+            with patch("store.paper_rows", return_value=[row]), \
+                 patch("store.paper_close") as m:
+                resp = self.client.post("/api/paper/close",
+                                        json={"id": 5, "exit": exit_price})
+            self.assertEqual(resp.status_code, 400, msg=str(exit_price))
+            m.assert_not_called()
+
+    def test_realized_close_fallback_quote_zero_rejected(self):
+        from unittest.mock import patch
+
+        row = {"id": 5, "ticker": "BBCA", "side": "SELL", "entry": 1000.0, "lots": 1, "status": "OPEN"}
+        with patch("store.paper_rows", return_value=[row]), \
+             patch("data.get_quote", return_value={"last": 0.0}), \
+             patch("store.paper_close") as m:
+            resp = self.client.post("/api/paper/close", json={"id": 5})
+        self.assertEqual(resp.status_code, 400)
+        m.assert_not_called()
+
 
 class TestScreenerEfficiency(unittest.TestCase):
     """Screener tidak boleh membaca OHLCV dua kali per emiten di jalur serial."""
@@ -872,6 +895,161 @@ class TestCachePathConfinement(unittest.TestCase):
         self.assertNotIn("/", name)
         self.assertNotIn("\\", name)
         self.assertNotIn(":", name)
+
+
+class TestCacheReadGuard(unittest.TestCase):
+    """Cache OHLCV 0-byte/terpotong tidak boleh merusak ticker sampai TTL habis."""
+
+    def setUp(self):
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self._patch = None
+
+    def tearDown(self):
+        if self._patch is not None:
+            self._patch.stop()
+        self._tmp.cleanup()
+
+    def _use_tmp_cache(self):
+        from unittest.mock import patch
+
+        from config import settings
+
+        self._patch = patch.object(settings, "cache_dir", self._tmp.name)
+        self._patch.start()
+
+    def test_read_cache_corrupt_returns_none_and_removes_file(self):
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+        path.write_bytes(b"")
+        self.assertIsNone(data._read_cache(path))
+        self.assertFalse(path.exists())
+
+    def test_fresh_zero_byte_cache_downloads_and_repairs(self):
+        from unittest.mock import patch
+
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+        path.write_bytes(b"")
+
+        with patch.object(data.yf, "download", return_value=make_df(120)):
+            out = data.get_ohlcv("FAKE", period="1y", interval="1d")
+
+        self.assertFalse(out.empty)
+        self.assertEqual(len(out), 120)
+        self.assertGreater(path.stat().st_size, 0)
+        self.assertFalse(data._read_cache(path).empty)
+
+    def test_stale_valid_cache_still_returned_when_download_fails(self):
+        import os
+        import time
+        from unittest.mock import patch
+
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+        make_df(90).to_csv(path)
+        old = time.time() - 10 * 3600
+        os.utime(path, (old, old))
+
+        with patch.object(data.yf, "download", return_value=pd.DataFrame()):
+            out = data.get_ohlcv("FAKE", period="1y", interval="1d")
+
+        self.assertEqual(len(out), 90)
+
+    def test_corrupt_stale_cache_raises_instead_of_empty_data_error(self):
+        import os
+        import time
+        from unittest.mock import patch
+
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+        path.write_bytes(b"")
+        old = time.time() - 10 * 3600
+        os.utime(path, (old, old))
+
+        with patch.object(data.yf, "download", return_value=pd.DataFrame()):
+            with self.assertRaises(ValueError):
+                data.get_ohlcv("FAKE", period="1y", interval="1d")
+        self.assertFalse(path.exists())
+
+
+class TestAtomicCacheWrite(unittest.TestCase):
+    """Tulis cache OHLCV harus atomik: tak boleh ada berkas separuh saat gagal."""
+
+    def setUp(self):
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self._patch = None
+
+    def tearDown(self):
+        if self._patch is not None:
+            self._patch.stop()
+        self._tmp.cleanup()
+
+    def _use_tmp_cache(self):
+        from unittest.mock import patch
+
+        from config import settings
+
+        self._patch = patch.object(settings, "cache_dir", self._tmp.name)
+        self._patch.start()
+
+    def _tmp_leftovers(self):
+        return list(Path(self._tmp.name).glob("*.tmp"))
+
+    def test_success_writes_file_and_no_temp_left(self):
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+        data._write_cache(make_df(50), path)
+
+        self.assertTrue(path.exists())
+        self.assertEqual(len(pd.read_csv(path, index_col=0)), 50)
+        self.assertEqual(self._tmp_leftovers(), [])
+
+    def test_failed_first_write_leaves_no_partial_file(self):
+        from unittest.mock import patch
+
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+
+        with patch.object(data.os, "replace", side_effect=PermissionError("busy")):
+            with self.assertRaises(PermissionError):
+                data._write_cache(make_df(50), path)
+
+        self.assertFalse(path.exists())
+        self.assertEqual(self._tmp_leftovers(), [])
+
+    def test_failed_overwrite_keeps_old_cache_intact(self):
+        from unittest.mock import patch
+
+        import data
+
+        self._use_tmp_cache()
+        path = data._cache_path("FAKE_JK", "1y", "1d")
+        make_df(30).to_csv(path)
+        before = path.read_bytes()
+
+        with patch.object(data.os, "replace", side_effect=PermissionError("busy")):
+            with self.assertRaises(PermissionError):
+                data._write_cache(make_df(50), path)
+
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(len(pd.read_csv(path, index_col=0)), 30)
+        self.assertEqual(self._tmp_leftovers(), [])
 
 
 if __name__ == "__main__":

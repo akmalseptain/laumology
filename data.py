@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -57,6 +59,75 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _drop_corrupt(path: Path) -> None:
+    """Hapus berkas cache rusak secara best-effort.
+
+    Penghapusan bisa gagal karena race baca paralel (terutama di Windows).
+    Kegagalan itu diabaikan agar guard justru tidak menjadi sumber error baru.
+    """
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
+def _read_cache(path: Path) -> pd.DataFrame | None:
+    """Baca cache CSV dengan jaring pengaman untuk berkas rusak/terpotong.
+
+    Berkas cache bisa 0-byte atau terpotong bila proses di-kill saat menulis
+    (``to_csv`` di sini tak atomik). Tanpa guard, ``pd.read_csv`` melempar
+    ``EmptyDataError``/``ParserError`` dan ticker rusak sampai TTL habis.
+    Di sini hanya error *parse cache* yang ditangkap: berkas rusak dihapus,
+    lalu ``None`` dikembalikan agar pemanggil bisa mengunduh ulang. Jalur
+    cache valid tak berubah sama sekali.
+    """
+    try:
+        return pd.read_csv(path, index_col=0, parse_dates=True)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError, OSError):
+        _drop_corrupt(path)
+        return None
+
+
+def _write_cache(df: pd.DataFrame, path: Path) -> None:
+    """Tulis cache CSV secara atomik.
+
+    ``df.to_csv(path)`` langsung tidak atomik: bila proses di-kill di tengah
+    tulis, tersisa CSV separuh yang lolos sebagai "segar" di ``_is_fresh`` dan
+    diterima ``_read_cache`` (pendek-tapi-valid). Di sini tulis ke berkas
+    sementara unik di direktori yang sama, lalu ``os.replace`` (atomik pada
+    volume yang sama, termasuk Windows). Temp dibersihkan di ``finally`` agar
+    direktori cache tidak penuh sampah bila penulisan gagal.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    tmp = Path(tmp_name)
+    try:
+        # mkstemp mengembalikan fd terbuka; wajib ditutup sebelum to_csv agar
+        # berkas tidak terkunci (Windows) saat os.replace.
+        os.close(fd)
+        df.to_csv(tmp)
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError as exc:
+                # Windows: reader paralel (mis. screener) bisa sedang memegang
+                # path. Coba beberapa kali sebelum menyerah.
+                last_err = exc
+                time.sleep(0.05 * (attempt + 1))
+        if last_err is not None:
+            raise last_err
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+
+
 def get_ohlcv(
     ticker: str,
     period: str | None = None,
@@ -70,8 +141,8 @@ def get_ohlcv(
     path = _cache_path(yt, period, interval)
 
     if use_cache and _is_fresh(path, settings.cache_ttl_hours):
-        cached = pd.read_csv(path, index_col=0, parse_dates=True)
-        if not cached.empty:
+        cached = _read_cache(path)
+        if cached is not None and not cached.empty:
             return cached
 
     raw = None
@@ -95,14 +166,15 @@ def get_ohlcv(
 
     if raw is None or raw.empty:
         if path.exists():
-            return pd.read_csv(path, index_col=0, parse_dates=True)
+            cached = _read_cache(path)
+            if cached is not None and not cached.empty:
+                return cached
         if last_err is not None:
             raise last_err
         raise ValueError(f"Tidak ada data untuk {ticker} ({yt})")
 
     df = _normalize(raw)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path)
+    _write_cache(df, path)
     return df
 
 
@@ -168,8 +240,7 @@ def prefetch(
                 df = _normalize(sub)
                 if df is not None and not df.empty:
                     path = _cache_path(yt, period, interval)
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_csv(path)
+                    _write_cache(df, path)
                     done += 1
             except Exception:
                 continue

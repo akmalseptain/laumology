@@ -119,6 +119,11 @@ def api_paper_close():
         exit_price = float(exit_price)
     except (TypeError, ValueError):
         return jsonify(error="exit tidak valid"), 400
+    # Harga close eksekusi selalu > 0. Nilai 0/negatif/NaN/inf (mis. fallback
+    # quote yang mengembalikan 0.0) membuat P/L dihitung dari harga tak wajar.
+    # Tolak sebelum menyentuh DB, simetris dengan guard di api_paper_open.
+    if not math.isfinite(exit_price) or exit_price <= 0:
+        return jsonify(error="exit harus lebih dari 0"), 400
     note = b.get("note")
     if note is None:
         note = ""
