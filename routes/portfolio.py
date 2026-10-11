@@ -65,11 +65,13 @@ def api_paper_open():
     side = b.get("side") or "BUY"
     if side not in ("BUY", "SELL"):
         return jsonify(error="Side tidak valid"), 400
-    note = b.get("note") or ""
+    note = b.get("note")
+    if note is None:
+        note = ""
     if not isinstance(note, str):
         return jsonify(error="note tidak valid"), 400
     pid = store.paper_open(ticker, side, entry, lots,
-                           stop, tp, b.get("note", ""))
+                           stop, tp, note)
     return jsonify(ok=True, id=pid)
 
 
@@ -94,8 +96,13 @@ def api_paper_close():
         exit_price = float(exit_price)
     except (TypeError, ValueError):
         return jsonify(error="exit tidak valid"), 400
+    note = b.get("note")
+    if note is None:
+        note = ""
+    if not isinstance(note, str):
+        return jsonify(error="note tidak valid"), 400
     pnl = round((exit_price - row["entry"]) * int(row["lots"]) * 100, 0)
-    store.paper_close(pid, exit_price, pnl, b.get("note", ""))
+    store.paper_close(pid, exit_price, pnl, note)
     return jsonify(ok=True, exit=exit_price, pnl=pnl)
 
 

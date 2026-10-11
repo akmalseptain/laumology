@@ -11,6 +11,11 @@ import time
 _store: dict = {}
 _lock = threading.Lock()
 
+# Batas keras jumlah entri. Sebagian key dibentuk dari input pengguna
+# (mis. `?list=`/`?horizon=`), jadi tanpa batas ini cache bisa tumbuh tak
+# terbatas selama entri masih segar (belum kedaluwarsa).
+_MAX_ENTRIES = 400
+
 
 def get(key: str):
     now = time.time()
@@ -26,12 +31,21 @@ def get(key: str):
 
 
 def set(key: str, val, ttl: float) -> None:
+    now = time.time()
     with _lock:
-        _store[key] = (time.time(), val, ttl)
-        if len(_store) > 400:
-            now = time.time()
+        _store[key] = (now, val, ttl)
+        if len(_store) > _MAX_ENTRIES:
+            # 1) buang entri yang sudah kedaluwarsa.
             for k in [k for k, (ts, _v, tt) in list(_store.items()) if now - ts >= tt]:
                 _store.pop(k, None)
+            # 2) batas keras: bila masih melebihi, buang yang paling lama.
+            #    Eviksi hanya memicu hitung ulang (bukan hasil salah); nilai
+            #    yang tersimpan tetap deterministik dari key-nya.
+            excess = len(_store) - _MAX_ENTRIES
+            if excess > 0:
+                oldest = sorted(_store.items(), key=lambda kv: kv[1][0])[:excess]
+                for k, _ in oldest:
+                    _store.pop(k, None)
 
 
 def memo(key: str, ttl: float, fn):

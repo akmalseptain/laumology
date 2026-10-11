@@ -509,6 +509,22 @@ class TestPortfolioInputValidation(unittest.TestCase):
                              json={"ticker": "BBCA", "entry": 1, "lots": 1, "note": [1]})
         self.assertEqual(r.status_code, 400)
 
+    def test_paper_open_note_empty_list_not_500(self):
+        # `[] or ""` lolos validasi lalu nilai mentah dikirim ke SQLite -> 500.
+        r = self.client.post("/api/paper/open",
+                             json={"ticker": "BBCA", "entry": 1, "lots": 1, "note": []})
+        self.assertEqual(r.status_code, 400)
+
+    def test_paper_close_note_empty_list_not_500(self):
+        from unittest.mock import patch
+
+        fake_row = {"id": 999, "ticker": "BBCA", "entry": 100.0, "lots": 1}
+        # Tidak menyentuh DB: paper_rows dipalsukan; validasi note gagal -> 400.
+        with patch("store.paper_rows", return_value=[fake_row]):
+            r = self.client.post("/api/paper/close",
+                                 json={"id": 999, "exit": 100, "note": []})
+        self.assertEqual(r.status_code, 400)
+
 
 class TestScreenerEfficiency(unittest.TestCase):
     """Screener tidak boleh membaca OHLCV dua kali per emiten di jalur serial."""
@@ -533,6 +549,24 @@ class TestScreenerEfficiency(unittest.TestCase):
             screener._ROW_CACHE.clear()
         for t in ("AAA", "BBB", "CCC"):
             self.assertEqual(calls.get(t, 0), 1, f"{t} dibaca {calls.get(t, 0)} kali")
+
+
+class TestTtlCacheBound(unittest.TestCase):
+    """Cache TTL tidak boleh tumbuh tak terbatas saat entri masih segar."""
+
+    def test_cache_stays_bounded_with_fresh_entries(self):
+        import ttlcache
+
+        ttlcache.clear()
+        try:
+            for i in range(1200):
+                ttlcache.set(f"bound:{i}", {"i": i}, ttl=3600.0)
+            size = ttlcache.stats()["size"]
+            self.assertLessEqual(size, ttlcache._MAX_ENTRIES)
+            # Entri terbaru tetap tersedia (eviksi dari yang paling lama).
+            self.assertIsNotNone(ttlcache.get("bound:1199"))
+        finally:
+            ttlcache.clear()
 
 
 if __name__ == "__main__":
