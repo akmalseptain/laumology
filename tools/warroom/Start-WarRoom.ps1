@@ -354,7 +354,7 @@ function Invoke-WarRoomCommand {
 
 # --- Main ---
 Show-Banner
-if (Test-Path -LiteralPath (Join-Path (Get-WarRoomToolDir) 'mascot.txt')) { Show-Mascot }
+if ($env:WARROOM_SHOW_MASCOT -and (Test-Path -LiteralPath (Join-Path (Get-WarRoomToolDir) 'mascot.txt'))) { Show-Mascot }
 Show-Header
 
 if ($Command) {
