@@ -186,8 +186,8 @@ function Get-AgentPersona {
     $p = Get-AgentPersonaData
     if ($p -and $p.ContainsKey($Agent)) {
         $d = $p[$Agent]
-        return ("Kamu adalah {0} ({1} th), {2}. Lulusan {3}. {4}. Beragama {5}. Hobi: {6}. Sifat: {7}. Gaya bicara: {8}." -f `
-            $d.Nama, $d.Usia, $d.Peran, $d.Lulusan, $d.Keluarga, $d.Agama, $d.Hobi, $d.Sifat, $d.Gaya)
+        return ("Kamu adalah {0} ({1} th), {2}, asal {3}. Lulusan {4}. {5}. Beragama {6}. Hobi: {7}. Sifat: {8}. Gaya bicara: {9}. Diksi: {10}." -f `
+            $d.Nama, $d.Usia, $d.Peran, $d.Asal, $d.Lulusan, $d.Keluarga, $d.Agama, $d.Hobi, $d.Sifat, $d.Gaya, $d.Diksi)
     }
     return ''
 }

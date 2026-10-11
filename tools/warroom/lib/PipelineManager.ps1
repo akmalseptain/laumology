@@ -33,7 +33,7 @@ function Invoke-WarRoomPipeline {
         $rmScript = Join-Path (Get-WarRoomRoot) 'tools\repomap.py'
         if (Test-Path -LiteralPath $rmScript) { $repoMap = ((& py -3.14 $rmScript 2>$null) -join "`n") }
     } catch { $repoMap = '' }
-    $chaosStyle = "Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan, kadang melantur sedikit lalu balik fokus. WAJIB tetap akurat, sertakan bukti path:line, dan keputusan tegas. (Agama/keluarga hanya latar; JANGAN jadikan bahan lelucon sensitif.)"
+    $chaosStyle = "Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan, kadang melantur sedikit lalu balik fokus. Sesuaikan diksi dengan asal daerah (secukupnya; jangan berlebihan/menyinggung). WAJIB tetap akurat, sertakan bukti path:line, dan keputusan tegas. (Agama/keluarga hanya latar; JANGAN jadikan bahan lelucon sensitif.)"
     $planPrompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $lead)
 $chaosStyle

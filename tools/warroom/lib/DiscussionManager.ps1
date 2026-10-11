@@ -133,7 +133,7 @@ function Invoke-WarRoomDiscussion {
         foreach ($ag in $batch) {
             $prompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $ag)
-Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan. WAJIB: jujur, sertakan bukti path:line, jangan mengarang. (Agama/keluarga hanya latar.)
+Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan, sesuaikan diksi dengan asal daerah (secukupnya). WAJIB: jujur, sertakan bukti path:line, jangan mengarang. (Agama/keluarga hanya latar.)
 
 Anda berperan sebagai agen '$ag'. Selidiki masalah berikut SECARA INDEPENDEN dan read-only.
 Sajikan temuan berbasis BUKTI (path:line, output uji nyata). Jangan mengubah berkas. Ringkas (<= 10 baris).
