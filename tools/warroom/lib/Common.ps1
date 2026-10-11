@@ -262,30 +262,74 @@ function Get-QuickStatusLine {
     } catch { return '' }
 }
 
+function ConvertTo-WarRoomPlainText {
+    # Normalisasi teks agar enak dibaca & bebas karakter aneh/mojibake.
+    param([string]$Text)
+    if ([string]::IsNullOrEmpty($Text)) { return $Text }
+    $t = $Text
+    $map = @{}
+    $map[[string][char]0x2014] = '-'   # em dash
+    $map[[string][char]0x2013] = '-'   # en dash
+    $map[[string][char]0x2018] = "'"   # left single quote
+    $map[[string][char]0x2019] = "'"   # right single quote
+    $map[[string][char]0x201C] = '"'   # left double quote
+    $map[[string][char]0x201D] = '"'   # right double quote
+    $map[[string][char]0x2026] = '...' # ellipsis
+    $map[[string][char]0x2022] = '-'   # bullet
+    $map[[string][char]0x00A0] = ' '   # nbsp
+    $map[[string][char]0x200B] = ''    # zero-width space
+    $map[[string][char]0xFFFD] = ''    # replacement char
+    foreach ($k in $map.Keys) { $t = $t.Replace($k, $map[$k]) }
+    # buang karakter kontrol (kecuali tab/baris baru)
+    $t = [regex]::Replace($t, '[\x00-\x08\x0B\x0C\x0E-\x1F]', '')
+    return $t
+}
+
+function Get-WrappedLines {
+    # Word-wrap sederhana; mengembalikan array baris.
+    param([string]$Text, [int]$Width = 96)
+    $out = @()
+    foreach ($para in ($Text -split "`r?`n")) {
+        $words = @($para -split '\s+' | Where-Object { $_ -ne '' })
+        if ($words.Count -eq 0) { $out += ''; continue }
+        $line = ''
+        foreach ($w in $words) {
+            if ($line -eq '') { $line = $w }
+            elseif (($line.Length + 1 + $w.Length) -le $Width) { $line = $line + ' ' + $w }
+            else { $out += $line; $line = $w }
+        }
+        if ($line -ne '') { $out += $line }
+    }
+    return $out
+}
+
 function Write-AgentVoice {
-    # Cetak pesan agen bergaya chat kantor (nama + waktu + isi). -Plain untuk gaya blok.
+    # Cetak pesan agen bergaya chat kantor, dirapikan (wrap) & teks dinormalisasi.
     param(
         [Parameter(Mandatory)][string]$Agent,
         [string]$Phase = '',
         [string]$Text = '',
+        [int]$Width = 96,
         [switch]$Plain
     )
     if ([string]::IsNullOrWhiteSpace($Text)) { return }
     $color = Get-AgentColor -Agent $Agent
-    $lines = @($Text -split "`r?`n")
+    $plainText = ConvertTo-WarRoomPlainText -Text $Text
     if ($Plain) {
         $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
         Write-Host ("  +-- [ {0} ]" -f $label) -ForegroundColor $color
-        foreach ($ln in $lines) { Write-Host ("  | {0}" -f $ln) -ForegroundColor $color }
+        foreach ($ln in (Get-WrappedLines -Text $plainText -Width $Width)) { Write-Host ("  | {0}" -f $ln) -ForegroundColor $color }
         Write-Host ("  +--") -ForegroundColor $color
         return
     }
     $time = (Get-Date).ToString('HH:mm')
     Write-Host ""
-    Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $Agent, $time) -ForegroundColor $color
+    $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
+    Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $label, $time) -ForegroundColor $color
+    $lines = Get-WrappedLines -Text $plainText -Width $Width
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($i -eq 0) { Write-Host ("    > " + $lines[$i]) -ForegroundColor $color }
-        else { Write-Host ("      " + $lines[$i]) -ForegroundColor $color }
+        $pref = if ($i -eq 0) { '    > ' } else { '      ' }
+        Write-Host ($pref + $lines[$i]) -ForegroundColor $color
     }
 }
 

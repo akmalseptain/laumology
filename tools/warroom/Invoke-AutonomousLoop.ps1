@@ -24,6 +24,7 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libDir 'PipelineManager.ps1')
 
 Initialize-WarRoomState
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $cfg = Get-WarRoomConfig
 $cyclesPerRun = if ($cfg.ContainsKey('CyclesPerRun')) { [int]$cfg.CyclesPerRun } else { 4 }
 $maxRunMinutes = if ($cfg.ContainsKey('MaxRunMinutes')) { [int]$cfg.MaxRunMinutes } else { 180 }

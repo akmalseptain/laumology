@@ -58,7 +58,7 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
     $planText = if ($plan.allowed -and $plan.result) { $plan.result.text } else { '' }
     $summary.plan = ($plan.allowed -and $plan.result.exitCode -eq 0)
     Write-Host ("  [1/4] PLAN: {0}" -f $(if ($summary.plan) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.plan) { 'Green' } else { 'Yellow' })
-    if ($plan.allowed -and $plan.result -and -not $plan.result.streamed) { Write-AgentVoice -Agent $lead -Phase 'plan' -Text $planText }
+    if ($plan.allowed -and $plan.result) { Write-AgentVoice -Agent $lead -Phase 'plan' -Text $planText }
     if ($summary.plan) { Invoke-WarRoomBeep -Kind 'info' }
     if (-not $planText) {
         # Bila perencanaan tak menghasilkan apa pun, hentikan pipeline lebih awal.
@@ -138,7 +138,7 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil ny
     $impl = Invoke-OpenCodeAgentWithBudget -Agent $code -Prompt $implPrompt -CycleId $CycleId -Role 'code-implement' -TimeoutSec $TimeoutSec -Auto:$Auto -Stream
     $summary.implement = ($impl.allowed -and $impl.result -and $impl.result.exitCode -eq 0)
     Write-Host ("  [3/4] IMPLEMENT: {0}" -f $(if ($summary.implement) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.implement) { 'Green' } else { 'Yellow' })
-    if ($impl.allowed -and $impl.result -and -not $impl.result.streamed) { Write-AgentVoice -Agent $code -Phase 'implement' -Text $impl.result.text }
+    if ($impl.allowed -and $impl.result) { Write-AgentVoice -Agent $code -Phase 'implement' -Text $impl.result.text }
     Invoke-WarRoomBeep -Kind 'info'
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---

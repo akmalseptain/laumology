@@ -35,7 +35,7 @@ Balas sebagai '$ag' dalam BAHASA SEHARI-HARI, MAKSIMAL 2 kalimat. Tanggapi pesan
             $o = Invoke-OpenCodeAgentWithBudget -Agent $ag -Prompt $prompt -CycleId $cycleId -Role 'rapat' -TimeoutSec $TimeoutSec -Auto:$Auto -Stream
             if ($o.allowed -and $o.result -and $o.result.text) {
                 $txt = (($o.result.text -replace "\s+", ' ').Trim())
-                if (-not $o.result.streamed) { Write-AgentVoice -Agent $ag -Text $txt }
+                Write-AgentVoice -Agent $ag -Text $txt
                 $transcript += "`n${ag}: $txt"
             } elseif (-not $o.allowed) {
                 Write-Host ("  ({0} dilewati: {1})" -f $ag, $o.reason) -ForegroundColor DarkGray

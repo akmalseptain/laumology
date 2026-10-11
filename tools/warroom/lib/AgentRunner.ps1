@@ -104,62 +104,17 @@ function Invoke-OpenCodeAgent {
 
     $timedOut = $false
     $streamed = $false
-    $printedParts = @{}
-    $offset = 0
-    $buffer = ''
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    $agentColor = Get-AgentColor -Agent $Agent
     $agentName = Get-AgentName -Agent $Agent
-    $typingShown = $false
     $dots = @('.', '..', '...')
     $di = 0
+    $typingShown = $false
 
-    if ($Stream) {
-        Write-Host ""
-        Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), $agentName, $Agent, (Get-Date).ToString('HH:mm')) -ForegroundColor $agentColor
-    }
-
+    # Indikator "sedang mengetik" (animasi) selama menunggu; isi pesan dicetak
+    # ter-wrap oleh pemanggil via Write-AgentVoice (lebih enak dibaca).
     while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) {
-        Start-Sleep -Milliseconds 250
-        if ($Stream -and (Test-Path -LiteralPath $streamFile)) {
-            try {
-                $fs = [System.IO.File]::Open($streamFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
-                $fs.Seek($offset, [System.IO.SeekOrigin]::Begin) | Out-Null
-                $sr = New-Object System.IO.StreamReader($fs)
-                $chunk = $sr.ReadToEnd()
-                $offset = $fs.Position
-                $sr.Dispose(); $fs.Dispose()
-                if ($chunk) {
-                    $buffer += $chunk
-                    $segs = $buffer -split "`n"
-                    if ($segs.Count -gt 1) {
-                        for ($z = 0; $z -lt $segs.Count - 1; $z++) {
-                            $t = $segs[$z].TrimEnd("`r").Trim()
-                            if (-not $t.StartsWith('{')) { continue }
-                            try {
-                                $ev = $t | ConvertFrom-Json
-                                if ($ev.type -eq 'text' -and $ev.part -and $ev.part.text) {
-                                    $partId = [string]$ev.part.id
-                                    $prev = if ($printedParts.ContainsKey($partId)) { [int]$printedParts[$partId] } else { 0 }
-                                    $full = [string]$ev.part.text
-                                    if ($full.Length -gt $prev) {
-                                        if (-not $streamed) {
-                                            if ($typingShown) { Write-Host ("`r" + (' ' * 70) + "`r") -NoNewline }
-                                            Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
-                                        }
-                                        Write-Host $full.Substring($prev) -NoNewline -ForegroundColor $agentColor
-                                        $printedParts[$partId] = $full.Length
-                                        $streamed = $true
-                                    }
-                                }
-                            } catch { }
-                        }
-                        $buffer = $segs[$segs.Count - 1]
-                    }
-                }
-            } catch { }
-        }
-        if ($Stream -and -not $streamed) {
+        Start-Sleep -Milliseconds 200
+        if ($Stream) {
             Write-Host ("`r    {0} sedang mengetik{1}   " -f $agentName, $dots[$di % 3]) -NoNewline -ForegroundColor DarkGray
             $typingShown = $true
             $di++
@@ -167,40 +122,7 @@ function Invoke-OpenCodeAgent {
     }
     if ($job.State -eq 'Running') { $timedOut = $true; Stop-Job -Job $job }
     Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-
-    # Flush akhir: cetak sisa teks yang belum tampil agar tidak hilang.
-    if ($Stream -and (Test-Path -LiteralPath $streamFile)) {
-        try {
-            $fs = [System.IO.File]::Open($streamFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
-            $fs.Seek($offset, [System.IO.SeekOrigin]::Begin) | Out-Null
-            $sr = New-Object System.IO.StreamReader($fs)
-            $tail = $sr.ReadToEnd()
-            $sr.Dispose(); $fs.Dispose()
-            if ($tail) { $buffer += $tail }
-            foreach ($seg in ($buffer -split "`n")) {
-                $t = $seg.TrimEnd("`r").Trim()
-                if (-not $t.StartsWith('{')) { continue }
-                try {
-                    $ev = $t | ConvertFrom-Json
-                    if ($ev.type -eq 'text' -and $ev.part -and $ev.part.text) {
-                        $partId = [string]$ev.part.id
-                        $prev = if ($printedParts.ContainsKey($partId)) { [int]$printedParts[$partId] } else { 0 }
-                        $full = [string]$ev.part.text
-                        if ($full.Length -gt $prev) {
-                            if (-not $streamed) {
-                                if ($typingShown) { Write-Host ("`r" + (' ' * 70) + "`r") -NoNewline }
-                                Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
-                            }
-                            Write-Host $full.Substring($prev) -NoNewline -ForegroundColor $agentColor
-                            $printedParts[$partId] = $full.Length
-                            $streamed = $true
-                        }
-                    }
-                } catch { }
-            }
-        } catch { }
-    }
-    if ($Stream) { Write-Host "" }
+    if ($typingShown) { Write-Host ("`r" + (' ' * 70) + "`r") -NoNewline }
 
     $raw = @()
     if (Test-Path -LiteralPath $streamFile) {
