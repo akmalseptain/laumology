@@ -27,9 +27,13 @@ def to_rgb(img: np.ndarray) -> np.ndarray:
     return np.dstack([img, img, img])
 
 
-def render(src: Path, width: int) -> str:
+def render(src: Path, width: int, crop: tuple[float, float, float, float] | None = None) -> str:
     img = to_rgb(imread(str(src)))
     h, w = img.shape[:2]
+    if crop is not None:
+        x0, y0, x1, y1 = crop
+        img = img[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)]
+        h, w = img.shape[:2]
     px_rows = max(2, int(round(width * h / w)))  # tinggi piksel (2x baris karakter)
     if px_rows % 2 == 1:
         px_rows += 1
@@ -53,12 +57,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Gambar -> half-block truecolor (mascot).")
     parser.add_argument("source")
     parser.add_argument("-Width", type=int, default=70)
+    parser.add_argument("-Crop", default="", help="x0,y0,x1,y1 (fraksi 0..1), mis. 0.2,0.05,0.75,0.7")
     parser.add_argument("-Out", default=str(Path(__file__).resolve().parent / "mascot.txt"))
     args = parser.parse_args(argv)
 
-    art = render(Path(args.source), args.Width)
+    crop = None
+    if args.Crop:
+        crop = tuple(float(v) for v in args.Crop.split(","))
+        if len(crop) != 4:
+            print("Crop harus 4 angka: x0,y0,x1,y1")
+            return 1
+
+    art = render(Path(args.source), args.Width, crop)
     Path(args.Out).write_text(art, encoding="utf-8")
-    print(f"OK -> {args.Out} ({len(art.splitlines())} baris, lebar {args.Width})")
+    print(f"OK -> {args.Out} ({len(art.splitlines())} baris, lebar {args.Width}, crop={args.Crop or '-'})")
     return 0
 
 
