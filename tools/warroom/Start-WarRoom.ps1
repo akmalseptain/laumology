@@ -173,6 +173,19 @@ function Show-Demo {
     Write-Host ""
 }
 
+function Show-Mascot {
+    # ASCII art kustom (niche!) dari tools\warroom\mascot.txt. Ditampilkan saat start & via 'mascot'.
+    $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
+    if (-not (Test-Path -LiteralPath $p)) {
+        Write-Host "  (Belum ada mascot.txt - simpan ASCII art Anda ke tools\warroom\mascot.txt)" -ForegroundColor DarkGray
+        return
+    }
+    try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return }
+    Write-Host ""
+    foreach ($ln in ($txt -split "`r?`n")) { Write-Host $ln -ForegroundColor Cyan }
+    Write-Host ""
+}
+
 function Show-Logs {
     param([int]$Tail = 20)
     Write-Host "  --- EVENT LOG (tail $Tail) ---" -ForegroundColor Cyan
@@ -238,6 +251,7 @@ function Show-Help {
         'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
         'rapat <topik>    obrolan tim bergantian (interaktif, ala chat)',
         'demo             pratinjau tampilan (tanpa biaya API)',
+        'mascot           tampilkan ASCII art (tools\warroom\mascot.txt)',
         'replay           tampilkan notulen/debat terakhir',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
@@ -312,6 +326,7 @@ function Invoke-WarRoomCommand {
         'prompt'  { Invoke-WarRoomAsk -Text $arg }
         'replay'  { Show-Replay }
         'demo'    { Show-Demo }
+        'mascot'  { Show-Mascot }
         'rapat'   {
             if (-not $arg) { Write-Host "  Gunakan: rapat <topik>" -ForegroundColor Yellow }
             else { Invoke-WarRoomChat -Topic $arg | Out-Null }
@@ -328,6 +343,7 @@ function Invoke-WarRoomCommand {
 
 # --- Main ---
 Show-Banner
+if (Test-Path -LiteralPath (Join-Path (Get-WarRoomToolDir) 'mascot.txt')) { Show-Mascot }
 Show-Header
 
 if ($Command) {
