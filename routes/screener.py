@@ -11,6 +11,7 @@ import state
 import universe
 import validate
 from config import SECTORS, WATCHLIST_PRESETS
+from routes._util import json_object
 
 bp = Blueprint("screener", __name__)
 
@@ -173,7 +174,7 @@ def api_data_quality():
 
 @bp.route("/api/scan/start", methods=["POST"])
 def api_scan_start():
-    b = request.get_json(silent=True) or {}
+    b = json_object() or {}
     jid = state.create_scan_job(b)
     threading.Thread(target=_scan_worker, args=(jid, b), daemon=True, name="scan-" + jid).start()
     return jsonify(job=jid)
@@ -200,7 +201,7 @@ def api_scan_status():
 
 @bp.route("/api/scan/cancel", methods=["POST"])
 def api_scan_cancel():
-    b = request.get_json(silent=True) or {}
+    b = json_object() or {}
     jid = str(b.get("id") or "")
     if state.cancel_scan_job(jid):
         return jsonify(ok=True)

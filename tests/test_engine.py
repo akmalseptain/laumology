@@ -458,5 +458,57 @@ class TestRisk(unittest.TestCase):
         self.assertIn("kelly", m)
 
 
+class TestPortfolioInputValidation(unittest.TestCase):
+    """Endpoint portofolio harus membalas 400 (bukan 500) untuk input tidak valid."""
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_portfolio_risk_bad_capital(self):
+        r = self.client.post("/api/portfolio-risk", json={"capital": "abc", "positions": []})
+        self.assertEqual(r.status_code, 400)
+
+    def test_portfolio_risk_positions_not_list(self):
+        r = self.client.post("/api/portfolio-risk", json={"positions": "bukan-list"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_portfolio_risk_position_not_dict(self):
+        r = self.client.post("/api/portfolio-risk", json={"positions": ["x"]})
+        self.assertEqual(r.status_code, 400)
+
+    def test_portfolio_risk_unhashable_ticker(self):
+        r = self.client.post("/api/portfolio-risk",
+                             json={"positions": [{"ticker": ["BBCA"], "lots": 1, "entry": 100}]})
+        self.assertNotEqual(r.status_code, 500)
+
+    def test_portfolio_risk_body_not_object(self):
+        r = self.client.post("/api/portfolio-risk", json=[1, 2, 3])
+        self.assertEqual(r.status_code, 400)
+
+    def test_paper_open_body_not_object(self):
+        r = self.client.post("/api/paper/open", json=[1, 2, 3])
+        self.assertEqual(r.status_code, 400)
+
+    def test_paper_open_bad_stop(self):
+        r = self.client.post("/api/paper/open",
+                             json={"ticker": "BBCA", "entry": 100, "lots": 1, "stop": "abc"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_paper_open_ticker_not_string(self):
+        r = self.client.post("/api/paper/open", json={"ticker": 123, "entry": 1, "lots": 1})
+        self.assertEqual(r.status_code, 400)
+
+    def test_paper_open_bad_side(self):
+        r = self.client.post("/api/paper/open",
+                             json={"ticker": "BBCA", "entry": 1, "lots": 1, "side": "HOLD"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_paper_open_note_not_string(self):
+        r = self.client.post("/api/paper/open",
+                             json={"ticker": "BBCA", "entry": 1, "lots": 1, "note": [1]})
+        self.assertEqual(r.status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()

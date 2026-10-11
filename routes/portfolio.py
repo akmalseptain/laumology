@@ -7,6 +7,7 @@ import data
 import notify
 import risk
 import store
+from routes._util import json_object
 
 bp = Blueprint("portfolio", __name__)
 
@@ -42,10 +43,13 @@ def api_paper():
 
 @bp.route("/api/paper/open", methods=["POST"])
 def api_paper_open():
-    b = request.get_json(silent=True) or {}
-    ticker = (b.get("ticker") or "").strip().upper()
-    if not ticker:
+    b = json_object()
+    if b is None:
+        return jsonify(error="Body harus berupa objek JSON"), 400
+    raw_ticker = b.get("ticker")
+    if not isinstance(raw_ticker, str) or not raw_ticker.strip():
         return jsonify(error="Kode saham kosong"), 400
+    ticker = raw_ticker.strip().upper()
     try:
         entry = float(b.get("entry") or 0)
         lots = int(b.get("lots") or 0)
@@ -53,14 +57,27 @@ def api_paper_open():
         return jsonify(error="Entry/lot tidak valid"), 400
     if not entry and not lots:
         return jsonify(error="Entry/lot kosong"), 400
-    pid = store.paper_open(ticker, b.get("side", "BUY"), entry, lots,
-                           float(b.get("stop") or 0), float(b.get("tp") or 0), b.get("note", ""))
+    try:
+        stop = float(b.get("stop") or 0)
+        tp = float(b.get("tp") or 0)
+    except (TypeError, ValueError):
+        return jsonify(error="Stop/TP tidak valid"), 400
+    side = b.get("side") or "BUY"
+    if side not in ("BUY", "SELL"):
+        return jsonify(error="Side tidak valid"), 400
+    note = b.get("note") or ""
+    if not isinstance(note, str):
+        return jsonify(error="note tidak valid"), 400
+    pid = store.paper_open(ticker, side, entry, lots,
+                           stop, tp, b.get("note", ""))
     return jsonify(ok=True, id=pid)
 
 
 @bp.route("/api/paper/close", methods=["POST"])
 def api_paper_close():
-    b = request.get_json(silent=True) or {}
+    b = json_object()
+    if b is None:
+        return jsonify(error="Body harus berupa objek JSON"), 400
     try:
         pid = int(b.get("id"))
     except (TypeError, ValueError):
@@ -73,7 +90,10 @@ def api_paper_close():
     if exit_price in (None, ""):
         q = data.get_quote(row["ticker"])
         exit_price = q["last"] if q and q.get("last") is not None else row["entry"]
-    exit_price = float(exit_price)
+    try:
+        exit_price = float(exit_price)
+    except (TypeError, ValueError):
+        return jsonify(error="exit tidak valid"), 400
     pnl = round((exit_price - row["entry"]) * int(row["lots"]) * 100, 0)
     store.paper_close(pid, exit_price, pnl, b.get("note", ""))
     return jsonify(ok=True, exit=exit_price, pnl=pnl)
@@ -92,21 +112,34 @@ def api_correlation():
 
 @bp.route("/api/portfolio-risk", methods=["POST"])
 def api_portfolio_risk():
-    body = request.get_json(silent=True) or {}
+    body = json_object()
+    if body is None:
+        return jsonify(error="Body harus berupa objek JSON"), 400
     positions = body.get("positions") or []
-    capital = float(body.get("capital") or 100000000)
-    tickers = [p.get("ticker") for p in positions if p.get("ticker")]
+    if not isinstance(positions, list) or not all(isinstance(p, dict) for p in positions):
+        return jsonify(error="positions harus berupa list objek"), 400
+    try:
+        capital = float(body.get("capital") or 100000000)
+    except (TypeError, ValueError):
+        return jsonify(error="capital tidak valid"), 400
+    tickers = [p["ticker"] for p in positions if isinstance(p.get("ticker"), str) and p["ticker"]]
     quotes = {}
     for t in set(tickers):
         q = data.get_quote(t)
         if q and q.get("last") is not None:
             quotes[t] = q["last"]
-    return jsonify(risk.portfolio_risk(positions, quotes, capital))
+    try:
+        result = risk.portfolio_risk(positions, quotes, capital)
+    except (TypeError, ValueError, AttributeError):
+        return jsonify(error="Input posisi tidak valid"), 400
+    return jsonify(result)
 
 
 @bp.route("/api/notify", methods=["POST"])
 def api_notify():
-    body = request.get_json(silent=True) or {}
+    body = json_object()
+    if body is None:
+        return jsonify(error="Body harus berupa objek JSON"), 400
     text = str(body.get("text") or "").strip()
     if not text:
         return jsonify(error="Teks kosong"), 400
