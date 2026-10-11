@@ -18,12 +18,40 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 
 Initialize-WarRoomState
 
+# --- UTF-8 untuk logo Unicode (fallback plain bila tak didukung) ---
+$script:UnicodeOK = $true
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch { $script:UnicodeOK = $false }
+if ($env:WARROOM_NO_UNICODE) { $script:UnicodeOK = $false }
+
+$script:LogoUnicode = @()
+$script:_logoPath = Join-Path (Get-WarRoomToolDir) 'logo.txt'
+if (Test-Path -LiteralPath $script:_logoPath) {
+    try {
+        $script:LogoUnicode = ([System.IO.File]::ReadAllText($script:_logoPath, [System.Text.Encoding]::UTF8)) -split "`r?`n"
+    } catch { $script:LogoUnicode = @() }
+}
+$script:LogoAscii = @(
+    '  ============================================================',
+    '                L A U M O L O G Y   W A R   R O O M',
+    '  ============================================================'
+)
+
 function Show-Banner {
     Write-Host ""
-    Write-Host "  ============================================================" -ForegroundColor Cyan
-    Write-Host "                L A U M O L O G Y   W A R   R O O M" -ForegroundColor Cyan
-    Write-Host "  ============================================================" -ForegroundColor Cyan
-    Write-Host "  Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
+    if ($script:UnicodeOK) {
+        $colors = @('Cyan', 'Blue', 'Cyan', 'Blue', 'Cyan', 'DarkCyan')
+        for ($k = 0; $k -lt $script:LogoUnicode.Count; $k++) {
+            Write-Host (' ' + $script:LogoUnicode[$k]) -ForegroundColor $colors[$k % $colors.Count]
+        }
+    } else {
+        foreach ($l in $script:LogoAscii) { Write-Host $l -ForegroundColor Cyan }
+    }
+    Write-Host ""
+    Write-Host "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -ForegroundColor White
+    Write-Host "        Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
     Write-Host ""
 }
 
