@@ -8,6 +8,7 @@ import ml
 import state
 import ttlcache
 import validation
+from config import settings
 from payloads import INTERVAL_PERIOD, analysis_payload, ohlc_payload
 from screener import resolve_watchlist
 
@@ -91,9 +92,9 @@ def api_ml():
     if not ticker:
         return jsonify(error="Kode saham kosong"), 400
     try:
-        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+        horizon = max(1, min(int(request.args.get("horizon", settings.swing_horizon_days)), 60))
     except ValueError:
-        horizon = 10
+        horizon = settings.swing_horizon_days
     include_candidates = request.args.get("candidates") in ("1", "true", "yes")
     try:
         return jsonify(ml.predict(data.get_ohlcv(ticker), ticker, horizon=horizon,
@@ -113,9 +114,9 @@ def api_accuracy():
     period = INTERVAL_PERIOD.get(interval, "1y")
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
-        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+        horizon = max(1, min(int(request.args.get("horizon", settings.swing_horizon_days)), 60))
     except ValueError:
-        horizon = 10
+        horizon = settings.swing_horizon_days
     try:
         df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
         result = validation.analyze_accuracy(df, horizon=horizon)
@@ -130,9 +131,9 @@ def api_calibrate():
     name = (request.args.get("list") or "lq45").strip()
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
-        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+        horizon = max(1, min(int(request.args.get("horizon", settings.swing_horizon_days)), 60))
     except ValueError:
-        horizon = 10
+        horizon = settings.swing_horizon_days
     try:
         min_edge = float(request.args.get("min_edge", validation.MIN_EDGE))
     except ValueError:
@@ -161,9 +162,9 @@ def api_regime_edge():
     name = (request.args.get("list") or "lq45").strip()
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
-        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+        horizon = max(1, min(int(request.args.get("horizon", settings.swing_horizon_days)), 60))
     except ValueError:
-        horizon = 10
+        horizon = settings.swing_horizon_days
     key = f"regime-edge:{name}:{horizon}"
     if not refresh:
         hit = ttlcache.get(key)
@@ -182,10 +183,10 @@ def api_regime_edge():
 def api_train():
     name = (request.args.get("list") or "idx30").strip()
     try:
-        horizon = max(1, min(int(request.args.get("horizon", 10)), 60))
+        horizon = max(1, min(int(request.args.get("horizon", settings.swing_horizon_days)), 60))
         folds = max(2, min(int(request.args.get("folds", 5)), 8))
     except ValueError:
-        horizon, folds = 10, 5
+        horizon, folds = settings.swing_horizon_days, 5
     try:
         alpha = min(max(float(request.args.get("alpha", 0.5)), 0.0), 1.0)
     except ValueError:

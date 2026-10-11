@@ -23,6 +23,26 @@ BUCKETS = [
 # Ambang edge (win-rate di atas baseline) agar kandidat layak dipromosikan.
 MIN_EDGE = 0.03
 
+# Tingkat keyakinan 95% (z dua sisi) untuk batas bawah Wilson.
+WILSON_Z = 1.96
+
+
+def wilson_lower_bound(p: float, n: int, z: float = WILSON_Z) -> float:
+    """Batas bawah interval keyakinan Wilson untuk proporsi `p` dari `n` sampel.
+
+    Murni (tanpa state/dependensi baru). Mengembalikan 0.0 bila `n <= 0`.
+    Dipakai agar promosi faktor butuh keyakinan statistik, bukan sekadar edge
+    titik yang bisa lolos karena kebetulan.
+    """
+    if n <= 0:
+        return 0.0
+    p = float(p)
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = p + z2 / (2.0 * n)
+    margin = z * ((p * (1.0 - p) / n + z2 / (4.0 * n * n)) ** 0.5)
+    return max(0.0, (center - margin) / denom)
+
 
 def _factor_stats(cf: pd.DataFrame, keys: list[str], fwd: pd.Series, base_wr: float, min_n: int) -> list[dict]:
     out = []
@@ -36,6 +56,7 @@ def _factor_stats(cf: pd.DataFrame, keys: list[str], fwd: pd.Series, base_wr: fl
             "factor": k,
             "n": int(len(r)),
             "win_rate": wr,
+            "win_rate_lo": wilson_lower_bound(wr, len(r)),
             "avg_ret": float(r.mean()),
             "median_ret": float(r.median()),
             "edge": wr - base_wr,
@@ -43,12 +64,15 @@ def _factor_stats(cf: pd.DataFrame, keys: list[str], fwd: pd.Series, base_wr: fl
     return out
 
 
-def analyze_accuracy(df: pd.DataFrame, horizon: int = 10, min_n: int = 20, min_edge: float = MIN_EDGE) -> dict:
+def analyze_accuracy(df: pd.DataFrame, horizon: int | None = None, min_n: int = 20, min_edge: float = MIN_EDGE) -> dict:
     """Measure predictive edge of each factor and calibrate the composite score.
 
     Forward return = close[t+horizon] / close[t] - 1. This is a historical
     study: the last `horizon` bars are dropped (look-ahead free).
+
+    `horizon=None` mengambil `settings.swing_horizon_days` (satu sumber kebenaran).
     """
+    horizon = settings.swing_horizon_days if horizon is None else horizon
     d = add_indicators(df)
     d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
     if len(d) < 80:
@@ -82,7 +106,7 @@ def analyze_accuracy(df: pd.DataFrame, horizon: int = 10, min_n: int = 20, min_e
     candf = candidate_frame(d)
     candidates = _factor_stats(candf, CANDIDATE_FACTORS, fwd, base_wr, min_n)
     candidates.sort(key=lambda x: x["edge"], reverse=True)
-    recommendations = [c for c in candidates if c["edge"] >= min_edge]
+    recommendations = [c for c in candidates if c["edge"] >= min_edge and c["win_rate_lo"] > base_wr]
 
     # Synergy: how many factors agree, vs outcome
     n_true = cf[FACTOR_KEYS].sum(axis=1)
@@ -113,13 +137,16 @@ def analyze_accuracy(df: pd.DataFrame, horizon: int = 10, min_n: int = 20, min_e
     }
 
 
-def calibrate(tickers: list[str], horizon: int = 10, min_edge: float = MIN_EDGE, min_tickers: int = 5) -> dict:
+def calibrate(tickers: list[str], horizon: int | None = None, min_edge: float = MIN_EDGE, min_tickers: int = 5) -> dict:
     """Kalibrasi bobot indikator kandidat lintas emiten.
 
     Menjalankan uji edge per faktor pada banyak saham, lalu merata-ratakan edge
     (dibobot jumlah sampel). Faktor kandidat yang lolos ambang edge diusulkan
     untuk dipromosikan ke skor, lengkap dengan bobot relatif ternormalisasi.
+
+    `horizon=None` mengambil `settings.swing_horizon_days` (satu sumber kebenaran).
     """
+    horizon = settings.swing_horizon_days if horizon is None else horizon
     import data
 
     per_factor: dict[str, dict] = {k: {"sum_w": 0.0, "sum_edge": 0.0, "sum_wr": 0.0, "n": 0} for k in (FACTOR_KEYS + CANDIDATE_FACTORS)}
@@ -158,12 +185,13 @@ def calibrate(tickers: list[str], horizon: int = 10, min_edge: float = MIN_EDGE,
             "factor": k,
             "n": acc["n"],
             "win_rate": acc["sum_wr"] / acc["sum_w"],
+            "win_rate_lo": wilson_lower_bound(acc["sum_wr"] / acc["n"], acc["n"]),
             "edge": acc["sum_edge"] / acc["sum_w"],
             "candidate": k in CANDIDATE_FACTORS,
         })
     rows.sort(key=lambda x: x["edge"], reverse=True)
 
-    promoted = [r for r in rows if r["candidate"] and r["edge"] >= min_edge]
+    promoted = [r for r in rows if r["candidate"] and r["edge"] >= min_edge and r["win_rate_lo"] > base_wr]
     pos_sum = sum(max(r["edge"], 0.0) for r in promoted) or 1.0
     for r in promoted:
         r["suggested_weight"] = round(max(r["edge"], 0.0) / pos_sum, 4)
@@ -193,8 +221,9 @@ def _benchmark_regime(period: str | None = None) -> pd.Series:
     return reg
 
 
-def calibrate_regime(tickers: list[str], horizon: int = 10, min_n: int = 50) -> dict:
+def calibrate_regime(tickers: list[str], horizon: int | None = None, min_n: int = 50) -> dict:
     """Edge tiap faktor dipisah menurut regime pasar (IHSG up/down/ranging)."""
+    horizon = settings.swing_horizon_days if horizon is None else horizon
     import data as datamod
 
     reg = _benchmark_regime()

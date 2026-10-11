@@ -77,6 +77,102 @@ class TestCandidates(unittest.TestCase):
         for c in res["candidates"]:
             self.assertIn(c["factor"], __import__("signals").CANDIDATE_FACTORS)
 
+    def test_orphan_indicators_are_measured_on_swing_horizon(self):
+        """W-0012: indikator orphan (williams_r/stoch_k/cci/efi/gk_vol) wajib
+        punya boolean kandidat non-NaN, terlabel, dan terukur edge+n pada horizon
+        swing yang sama — tanpa mengubah skor inti."""
+        import indicators
+        import validation
+        from config import settings
+        from factors import CANDIDATE_FACTORS, CANDIDATE_LABELS, candidate_frame
+
+        orphans = ["williams_r_bull", "stoch_k_cross", "cci_bull", "efi_bull", "gk_vol_rendah"]
+        for k in orphans:
+            self.assertIn(k, CANDIDATE_FACTORS, k)
+            self.assertIn(k, CANDIDATE_LABELS, k)
+
+        d = indicators.add_indicators(make_df(400))
+        cf = candidate_frame(d)
+        for k in orphans:
+            self.assertIn(k, cf.columns, k)
+            self.assertFalse(bool(cf[k].isna().any()), k)
+            self.assertEqual(str(cf[k].dtype), "bool", k)
+        self.assertTrue(bool(((cf["confidence"] >= 0) & (cf["confidence"] <= 100)).all()))
+
+        res = validation.analyze_accuracy(make_df(400))
+        self.assertEqual(res["horizon"], settings.swing_horizon_days)
+        measured = {c["factor"]: c["n"] for c in res["candidates"]}
+        for k in orphans:
+            self.assertIn(k, measured, k)
+            self.assertGreaterEqual(measured[k], 20, k)
+
+    def test_wilson_lower_bound_fixed_numbers(self):
+        """W-0012: rumus Wilson lower-bound dikunci pakai angka tetap."""
+        import validation
+        self.assertAlmostEqual(validation.wilson_lower_bound(0.6, 30), 0.4232, places=4)
+        self.assertAlmostEqual(validation.wilson_lower_bound(0.6, 20), 0.3866, places=4)
+        self.assertEqual(validation.wilson_lower_bound(0.0, 30), 0.0)
+        self.assertEqual(validation.wilson_lower_bound(0.5, 0), 0.0)
+
+    def test_borderline_candidate_measured_but_not_promoted(self):
+        """W-0012: kandidat dengan edge >= min_edge tapi keyakinan statistik
+        belum menang (win_rate_lo <= base) tetap terukur di `candidates`,
+        tapi TIDAK masuk `recommendations`; promosi tak pernah menambah."""
+        import validation
+        res = validation.analyze_accuracy(make_df(400), min_edge=0.0)
+        base_wr = res["base_win_rate"]
+
+        for c in res["candidates"]:
+            self.assertIn("win_rate_lo", c, c["factor"])
+
+        reco = {c["factor"] for c in res["recommendations"]}
+        old_rule = {c["factor"] for c in res["candidates"] if c["edge"] >= 0.0}
+        self.assertTrue(reco.issubset(old_rule))
+        for c in res["recommendations"]:
+            self.assertGreater(c["win_rate_lo"], base_wr, c["factor"])
+
+        borderline = {
+            c["factor"] for c in res["candidates"]
+            if c["edge"] >= 0.0 and c["win_rate_lo"] <= base_wr
+        }
+        self.assertTrue(borderline)
+        self.assertTrue(reco.isdisjoint(borderline))
+        # Kandidat borderline harus tetap terukur (punya n dan win_rate).
+        for c in res["candidates"]:
+            if c["factor"] in borderline:
+                self.assertGreaterEqual(c["n"], 20)
+                self.assertIn("win_rate", c)
+
+    def test_calibrate_gate_uses_win_rate_lo(self):
+        """W-0012: jalur `calibrate` ikut memakai `win_rate_lo` (bukan cuma
+        `analyze_accuracy`) sehingga `promoted` tak bolong/KeyError."""
+        from unittest import mock
+        import data
+        import validation
+
+        def fake_analyze(df, horizon=None, min_edge=0.03):
+            return {
+                "base_win_rate": 0.5,
+                "samples": 100,
+                "factors": [],
+                "candidates": [
+                    {"factor": "aroon_bull", "n": 100, "win_rate": 0.60, "edge": 0.10},
+                    {"factor": "cci_bull", "n": 100, "win_rate": 0.52, "edge": 0.02},
+                ],
+            }
+
+        with mock.patch.object(validation, "analyze_accuracy", side_effect=fake_analyze), \
+                mock.patch.object(data, "get_ohlcv", return_value=None):
+            out = validation.calibrate(["A", "B", "C", "D", "E"], min_edge=0.0)
+
+        for r in out["factors"]:
+            self.assertIn("win_rate_lo", r, r["factor"])
+        promoted = {r["factor"] for r in out["promoted"]}
+        self.assertIn("aroon_bull", promoted)
+        self.assertNotIn("cci_bull", promoted)
+        for r in out["promoted"]:
+            self.assertGreater(r["win_rate_lo"], out["base_win_rate"])
+
     def test_ml_include_candidates(self):
         import ml
         base = ml.predict(make_df(400), "TEST", include_candidates=False)
@@ -1005,6 +1101,116 @@ class TestValidate(unittest.TestCase):
         df = make_df(250)
         df.iloc[5, df.columns.get_loc("High")] = df["Low"].iloc[5] - 1.0
         self.assertFalse(validate.check_df(df)["ok"])
+
+    def test_check_df_tz_aware_stale(self):
+        """Index tz-aware tidak boleh jatuh ke except -> stale_days bohong 0."""
+        import validate
+        df = make_df(250)
+        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=30)
+        df.index = pd.date_range(end=end, periods=len(df), freq="D").tz_localize("Asia/Jakarta")
+        r = validate.check_df(df)
+        self.assertGreaterEqual(r["stale_days"], 25)
+
+
+class TestSwingHorizonFreshness(unittest.TestCase):
+    """W-0012: horizon swing satu sumber + kesegaran data transparan (delta skor = 0)."""
+
+    def _freeze(self):
+        from config import settings
+        old = (settings.regime_filter, settings.enable_decision, settings.use_optimized_score)
+        settings.regime_filter = False
+        settings.enable_decision = False
+        settings.use_optimized_score = False
+        return old
+
+    def _restore(self, old):
+        from config import settings
+        settings.regime_filter, settings.enable_decision, settings.use_optimized_score = old
+
+    def test_api_analyze_has_horizon_and_freshness(self):
+        import data
+        import indicators
+        import signals
+        import webapp
+        from config import settings
+
+        df = make_df()
+        old_ohlcv, old_quote = data.get_ohlcv, data.get_quote
+        data.get_ohlcv = lambda *a, **k: df
+        data.get_quote = lambda *a, **k: None
+        old = self._freeze()
+        try:
+            r = webapp.app.test_client().get("/api/analyze?ticker=TEST")
+            base = signals.analyze(df, "TEST", d=indicators.add_indicators(df))
+        finally:
+            data.get_ohlcv, data.get_quote = old_ohlcv, old_quote
+            self._restore(old)
+        self.assertEqual(r.status_code, 200)
+        body = r.get_json()
+        self.assertEqual(body["horizon"], settings.swing_horizon_days)
+        self.assertEqual(body["horizon"], 10)
+        self.assertIn("data_freshness", body)
+        self.assertEqual(body["data_freshness"]["stale_days"], 0)
+        self.assertTrue(body["data_freshness"]["fresh"])
+        self.assertIn("last_bar", body["data_freshness"])
+        # Field baru murni informatif: skor tidak boleh bergeser.
+        self.assertEqual(body["score"], base.score)
+
+    def test_stale_history_with_live_quote_is_not_fresh(self):
+        """Riwayat basi + quote live: fresh jujur dari histori, skor tetap identik."""
+        import data
+        import indicators
+        import signals
+        import webapp
+
+        df = make_df()
+        df.index = df.index - pd.Timedelta(days=30)
+        last_close = float(df["Close"].iloc[-1])
+        quote = {
+            "last": last_close * 1.01,
+            "prev_close": last_close,
+            "open": last_close,
+            "day_high": last_close * 1.02,
+            "day_low": last_close * 0.99,
+            "volume": 2_000_000.0,
+            "time": "now",
+            "source": "test",
+        }
+        old_ohlcv, old_quote = data.get_ohlcv, data.get_quote
+        data.get_ohlcv = lambda *a, **k: df
+        data.get_quote = lambda *a, **k: quote
+        old = self._freeze()
+        try:
+            r = webapp.app.test_client().get("/api/analyze?ticker=TEST")
+            df_live, live = data.apply_live_quote(df, quote, "1d")
+            base = signals.analyze(df_live, "TEST", d=indicators.add_indicators(df_live))
+        finally:
+            data.get_ohlcv, data.get_quote = old_ohlcv, old_quote
+            self._restore(old)
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNotNone(live)
+        body = r.get_json()
+        f = body["data_freshness"]
+        self.assertGreater(f["stale_days"], 0)
+        self.assertFalse(f["fresh"])
+        self.assertTrue(f["live_bar"])
+        self.assertIn("history_last_bar", f)
+        self.assertEqual(body["score"], base.score)
+
+    def test_default_horizon_single_source(self):
+        import ml
+        import validation
+        from config import settings
+
+        old = settings.swing_horizon_days
+        try:
+            settings.swing_horizon_days = 7
+            df = make_df(320)
+            self.assertEqual(validation.analyze_accuracy(df)["horizon"], 7)
+            self.assertEqual(ml.predict(df, "TEST")["horizon"], 7)
+        finally:
+            settings.swing_horizon_days = old
+
 
 
 class TestRisk(unittest.TestCase):

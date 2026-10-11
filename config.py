@@ -123,6 +123,7 @@ class Settings:
     use_optimized_score: bool = True   # pakai model terlatih bila tersedia
     ml_blend_alpha: float = 0.5        # 0 = murni heuristik, 1 = murni probabilitas ML
     min_oos_auc: float = 0.53          # ambang AUC out-of-sample agar blend diaktifkan
+    swing_horizon_days: int = 10       # horizon swing tunggal (label/validasi/ML); default 10 = perilaku lama
     score_model_path: str = ""         # kosong = <cache_dir>/score_model.json
     regime_filter: bool = True         # tahan sinyal beli saat IHSG downtrend (akurasi)
     enable_decision: bool = True       # hitung Decision Engine (BUY/SELL/HOLD/NO TRADE)
@@ -181,6 +182,7 @@ _ENV_FLOAT_OVERRIDES = {
 }
 _ENV_INT_OVERRIDES = {
     "LAUM_SCREEN_WORKERS": "screen_workers",
+    "LAUM_SWING_HORIZON_DAYS": "swing_horizon_days",
 }
 
 

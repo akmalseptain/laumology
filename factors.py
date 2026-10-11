@@ -27,9 +27,13 @@ FACTOR_KEYS = [
 # Indikator mutakhir (HMA/KAMA/Aroon/Vortex/AO/UO/RVOL) sebagai KANDIDAT.
 # Belum masuk skor; diuji dulu lewat validation.calibrate / ml.predict
 # sebelum dipromosikan (lihat catatan Turn 25 D).
+# W-0012: indikator yang sebelumnya "orphan" (dihitung tapi tak punya boolean
+# terukur) kini dijadikan kandidat agar edge swing-nya bisa diuji pada horizon
+# yang sama tanpa menyentuh `score_frame`/rumus.
 CANDIDATE_FACTORS = [
     "harga>hma20", "hma20_naik", "harga>kama", "kama_naik",
     "aroon_bull", "vortex_bull", "ao>0", "ao_naik", "uo_bull", "rvol>1.2",
+    "williams_r_bull", "stoch_k_cross", "cci_bull", "efi_bull", "gk_vol_rendah",
 ]
 
 CANDIDATE_LABELS = {
@@ -43,7 +47,20 @@ CANDIDATE_LABELS = {
     "ao_naik": "Awesome Oscillator naik",
     "uo_bull": "Ultimate Osc bullish (50-70)",
     "rvol>1.2": "RVOL > 1.2x",
+    "williams_r_bull": "Williams %R > -50 (separuh atas)",
+    "stoch_k_cross": "Stochastic %K ≥ %D (bullish)",
+    "cci_bull": "CCI > 100 (tren kuat)",
+    "efi_bull": "Elder Force Index > signal",
+    "gk_vol_rendah": "Volatilitas GK < median 60-bar",
 }
+
+# Ambang boolean kandidat baru — didokumentasikan (bukan angka sihir):
+# - Williams %R ∈ [-100, 0]; > -50 berarti close di separuh atas rentang 14-bar.
+# - CCI > 100 = tren naik kuat (klasik), beda dari `cci > 0` yang sudah di skor inti.
+# - gk_vol dibanding median 60-bar dirinya sendiri (adaptif, tanpa ambang absolut).
+WILLIAMS_R_BULL = -50.0
+CCI_BULL = 100.0
+GK_VOL_WINDOW = 60
 
 
 def score_frame(d: pd.DataFrame) -> pd.DataFrame:
@@ -164,5 +181,12 @@ def candidate_frame(d: pd.DataFrame) -> pd.DataFrame:
     f["ao_naik"] = d["ao"] > d["ao"].shift(1)
     f["uo_bull"] = (d["uo"] >= 50) & (d["uo"] <= 70)
     f["rvol>1.2"] = d["rvol"] > 1.2
+    f["williams_r_bull"] = d["williams_r"] > WILLIAMS_R_BULL
+    f["stoch_k_cross"] = d["stoch_k"] >= d["stoch_d"]
+    f["cci_bull"] = d["cci"] > CCI_BULL
+    f["efi_bull"] = d["efi"] > d["efi_signal"]
+    f["gk_vol_rendah"] = d["gk_vol"] < d["gk_vol"].rolling(
+        GK_VOL_WINDOW, min_periods=GK_VOL_WINDOW // 3
+    ).median()
     f["confidence"] = f[CANDIDATE_FACTORS].sum(axis=1) / len(CANDIDATE_FACTORS) * 100.0
     return f

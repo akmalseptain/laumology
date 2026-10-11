@@ -10,6 +10,7 @@ import llm
 import market
 import ml
 import news
+from config import settings
 from indicators import add_indicators
 from signals import analyze
 
@@ -193,7 +194,7 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     # --- ML probability (quant input) ---
     ml_prob = None
     try:
-        ml_prob = float(ml.predict(df, ticker, horizon=10)["current_prob_up"])
+        ml_prob = float(ml.predict(df, ticker, horizon=settings.swing_horizon_days)["current_prob_up"])
     except Exception:
         ml_prob = None
 

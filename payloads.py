@@ -8,7 +8,9 @@ import pandas as pd
 import data
 import indicators
 import ttlcache
+from config import settings
 from signals import analyze
+from validate import MAX_STALE_DAYS, check_df
 
 INTERVAL_PERIOD = {
     "1d": "1y",
@@ -71,6 +73,7 @@ def time_formatter(interval: str):
 def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> dict:
     period = INTERVAL_PERIOD.get(interval, "1y")
     df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
+    fresh_hist = check_df(df)
     quote = data.get_quote(ticker)
     df, live = data.apply_live_quote(df, quote, interval)
     a = analyze(df, ticker, d=_enriched(ticker, period, interval, refresh, df))
@@ -78,11 +81,23 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
         a.price = live["price"]
         if live.get("prev_close"):
             a.change_1d = (live["price"] / live["prev_close"] - 1.0) * 100.0
+    fresh = check_df(df)
+    stale_days = int(fresh_hist.get("stale_days") or 0)
     return {
         "ticker": a.ticker,
         "last_date": df.index[-1].strftime("%d %b %Y %H:%M"),
         "bars": len(df),
         "interval": interval,
+        "horizon": settings.swing_horizon_days,
+        "data_freshness": {
+            "last_bar": fresh.get("last"),
+            "history_last_bar": fresh_hist.get("last"),
+            "live_bar": bool(live),
+            "stale_days": stale_days,
+            "max_stale_days": MAX_STALE_DAYS,
+            "fresh": stale_days <= MAX_STALE_DAYS,
+            "warnings": fresh.get("warnings", []),
+        },
         "tv_symbol": "IDX:" + a.ticker,
         "price": a.price,
         "change_1d": a.change_1d,

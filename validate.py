@@ -5,8 +5,11 @@ import pandas as pd
 
 import data
 
+# Satu sumber ambang kesegaran data (dipakai check_df, quality_score, dan payload).
+MAX_STALE_DAYS = 7
 
-def check_df(df: pd.DataFrame, max_stale_days: int = 7) -> dict:
+
+def check_df(df: pd.DataFrame, max_stale_days: int = MAX_STALE_DAYS) -> dict:
     hard: list[str] = []
     soft: list[str] = []
     if df is None or df.empty:
@@ -38,7 +41,12 @@ def check_df(df: pd.DataFrame, max_stale_days: int = 7) -> dict:
 
     stale = 0
     try:
-        stale = int((pd.Timestamp.now().normalize() - pd.Timestamp(df.index[-1]).normalize()).days)
+        last = pd.Timestamp(df.index[-1])
+        if last.tzinfo is not None:
+            now = pd.Timestamp.now(tz=last.tzinfo)
+        else:
+            now = pd.Timestamp.now()
+        stale = int((now.normalize() - last.normalize()).days)
     except Exception:
         stale = 0
     if stale > max_stale_days:
@@ -52,7 +60,7 @@ def check_df(df: pd.DataFrame, max_stale_days: int = 7) -> dict:
             "stale_days": stale, "issues": hard + soft, "errors": hard, "warnings": soft}
 
 
-def quality_score(df: pd.DataFrame, max_stale_days: int = 7) -> dict:
+def quality_score(df: pd.DataFrame, max_stale_days: int = MAX_STALE_DAYS) -> dict:
     """Skor kualitas data 0-100 + status, dari check_df (additive, tidak mengubah legacy)."""
     r = check_df(df, max_stale_days=max_stale_days)
     score = 100.0

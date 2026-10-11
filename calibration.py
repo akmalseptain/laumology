@@ -104,8 +104,9 @@ def _collect(tickers: list[str], horizon: int, min_bars: int):
     return frames, used, errors
 
 
-def train(tickers: list[str], horizon: int = 10, folds: int = 5, min_bars: int = MIN_BARS,
+def train(tickers: list[str], horizon: int | None = None, folds: int = 5, min_bars: int = MIN_BARS,
           save: bool = True, alpha: float | None = None) -> dict:
+    horizon = settings.swing_horizon_days if horizon is None else horizon
     frames, used, errors = _collect(tickers, horizon, min_bars)
     if not frames:
         raise ValueError("Tidak ada data valid untuk melatih model")

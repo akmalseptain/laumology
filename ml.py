@@ -5,6 +5,7 @@ import pandas as pd
 
 from factors import CANDIDATE_FACTORS, FACTOR_KEYS, candidate_frame, confluence_frame
 from indicators import add_indicators
+from config import settings
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
@@ -36,9 +37,10 @@ def _calibration(probs: np.ndarray, y: np.ndarray) -> list[dict]:
 
 
 def predict(
-    df: pd.DataFrame, ticker: str = "", horizon: int = 10, test_frac: float = 0.3,
+    df: pd.DataFrame, ticker: str = "", horizon: int | None = None, test_frac: float = 0.3,
     include_candidates: bool = False,
 ) -> dict:
+    horizon = settings.swing_horizon_days if horizon is None else horizon
     d = add_indicators(df)
     d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
     if len(d) < 80:
