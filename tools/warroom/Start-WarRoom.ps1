@@ -181,12 +181,18 @@ function Show-Mascot {
         return
     }
     try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return }
+    $hasAnsi = $txt.Contains([char]27)
     $cw = 100
     try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
     Write-Host ""
     foreach ($ln in ($txt -split "`r?`n")) {
-        if ($ln.Length -gt $cw) { Write-Host $ln.Substring(0, $cw) -ForegroundColor Cyan }
-        else { Write-Host $ln -ForegroundColor Cyan }
+        if ($hasAnsi) {
+            Write-Host $ln   # biarkan kode warna ANSI asli tampil
+        } elseif ($ln.Length -gt $cw) {
+            Write-Host $ln.Substring(0, $cw) -ForegroundColor Cyan
+        } else {
+            Write-Host $ln -ForegroundColor Cyan
+        }
     }
     Write-Host ""
 }
