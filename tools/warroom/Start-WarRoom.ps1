@@ -52,72 +52,57 @@ function Write-Rgb {
     }
 }
 
-function Get-ScaledMascotLines {
-    # Baca mascot.txt (ASCII biasa), kecilkan (downsample) ke MaxLines baris.
-    param([int]$MaxLines = 14)
+function Get-MascotLines {
+    # Baca mascot.txt (ASCII), buang indent umum & spasi kanan; kembalikan array baris.
     $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
     if (-not (Test-Path -LiteralPath $p)) { return @() }
     try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return @() }
-    if ($txt.Contains([char]27)) { return @() }  # art ANSI: tidak diskalakan di sini
+    if ($txt.Contains([char]27)) { return @($txt -split "`r?`n") }
     $src = @($txt -split "`r?`n")
     $ne = @($src | Where-Object { $_.Trim().Length -gt 0 })
     if ($ne.Count -eq 0) { return @() }
     $mi = ($ne | ForEach-Object { $_.Length - $_.TrimStart().Length } | Measure-Object -Minimum).Minimum
-    $body = @($src | ForEach-Object {
-        if ($_.Length -ge $mi) { $_.Substring($mi) } else { $_.TrimStart() }
-    } | ForEach-Object { $_.TrimEnd() })
-    while ($body.Count -gt 0 -and $body[0].Length -eq 0) { $body = @($body[1..($body.Count - 1)]) }
-    while ($body.Count -gt 0 -and $body[-1].Length -eq 0) { $body = @($body[0..($body.Count - 2)]) }
-    if ($body.Count -eq 0) { return @() }
-    $H = $body.Count
-    $W = ($body | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-    $newH = [Math]::Min($MaxLines, $H)
-    $sH = $H / $newH
-    $newW = [Math]::Max(8, [int][Math]::Round($W / $sH))
-    $out = @()
-    for ($i = 0; $i -lt $newH; $i++) {
-        $sr = $body[[Math]::Min($H - 1, [int][Math]::Floor($i * $sH))]
-        $sb = New-Object System.Text.StringBuilder
-        for ($j = 0; $j -lt $newW; $j++) {
-            $sc = [int][Math]::Floor($j * $sH)
-            if ($sc -lt $sr.Length) { [void]$sb.Append($sr[$sc]) } else { [void]$sb.Append(' ') }
-        }
-        $out += $sb.ToString().TrimEnd()
-    }
-    return $out
+    return @($src | ForEach-Object {
+        $l = if ($_.Length -ge $mi) { $_.Substring($mi) } else { $_.TrimStart() }
+        $l.TrimEnd()
+    })
 }
 
 function Show-Banner {
-    $logo = if ($script:UnicodeOK -and $script:LogoUnicode.Count -gt 0) { @($script:LogoUnicode) } else { @($script:LogoAscii) }
-    $mascot = @(Get-ScaledMascotLines -MaxLines 14)
+    # Neofetch-style: potret (kiri) + info sistem (kanan).
+    $art = @(Get-MascotLines)
+    $cfg = Get-WarRoomConfig
+    $st = Get-WarRoomState
+    $snap = Get-GitSnapshot
+    $b = Get-BudgetStatus
+    $line = '  ' + ('-' * 44)
+    $info = @(
+        "",
+        "  L A U M O L O G Y",
+        "  A I   E N G I N E E R I N G   W A R   R O O M",
+        $line,
+        "  CWD      : " + (Get-WarRoomRoot),
+        "  Git      : " + $snap.branch + " @ " + $snap.head + "  (staged=" + $snap.staged.Count + " unstaged=" + $snap.unstaged.Count + " untracked=" + $snap.untracked.Count + ")",
+        "  Iterasi  : #" + $st.iteration + "  (" + $st.state + ")",
+        "  Model    : " + $cfg.Model,
+        "  Budget   : mode=" + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR),
+        $line,
+        "  Ketik 'help' untuk daftar perintah."
+    )
     Write-Host ""
-    if ($mascot.Count -eq 0) {
-        if ($script:UnicodeOK -and $script:LogoUnicode.Count -gt 0) {
-            $n = [Math]::Max($script:LogoUnicode.Count - 1, 1)
-            for ($k = 0; $k -lt $script:LogoUnicode.Count; $k++) {
-                $t = $k / $n
-                $r = [int](34 + ($t * 190)); $g = [int](211 - ($t * 120)); $b = [int](238 + ($t * 17))
-                $fb = if ($k % 2 -eq 0) { 'Cyan' } else { 'Blue' }
-                Write-Rgb -Text (' ' + $script:LogoUnicode[$k]) -R $r -G $g -B $b -Fallback $fb
-            }
-        } else {
-            foreach ($l in $logo) { Write-Host (' ' + $l) -ForegroundColor Cyan }
-        }
+    if ($art.Count -eq 0) {
+        foreach ($l in $info) { Write-Host $l -ForegroundColor Gray }
     } else {
-        # Komposit: logo kiri, mascot kecil di kanan.
-        $logoW = ($logo | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-        $rows = [Math]::Max($logo.Count, $mascot.Count)
+        $artW = ($art | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+        $rows = [Math]::Max($art.Count, $info.Count)
         for ($i = 0; $i -lt $rows; $i++) {
-            $left = if ($i -lt $logo.Count) { ' ' + $logo[$i] } else { '' }
-            $left = $left.PadRight($logoW + 3)
+            $left = if ($i -lt $art.Count) { ' ' + $art[$i] } else { ' ' }
+            $left = $left.PadRight($artW + 3)
             Write-Host $left -NoNewline -ForegroundColor Cyan
-            $right = if ($i -lt $mascot.Count) { $mascot[$i] } else { '' }
-            Write-Host $right -ForegroundColor DarkCyan
+            $right = if ($i -lt $info.Count) { $info[$i] } else { '' }
+            Write-Host $right -ForegroundColor Gray
         }
     }
-    Write-Host ""
-    Write-Rgb -Text "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -R 255 -G 255 -B 255 -Fallback White
-    Write-Host "        Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
     Write-Host ""
 }
 
@@ -410,7 +395,6 @@ function Invoke-WarRoomCommand {
 
 # --- Main ---
 Show-Banner
-Show-Header
 
 if ($Command) {
     Invoke-WarRoomCommand -Line $Command | Out-Null
