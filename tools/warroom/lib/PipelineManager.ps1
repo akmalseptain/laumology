@@ -68,20 +68,20 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
     # --- 2. INVESTIGATE (paralel, read-only) ---
     $investAgents = @($quant, $qa)
     if ($security) { $investAgents += $security }
-    $investPrompt = @"
-KARAKTER: {1}
+    Write-Section -Title ("[2/4] INVESTIGATE  -  " + ($investAgents -join ' | ')) -Color 'Magenta'
+    $runs = @()
+    foreach ($ag in $investAgents) {
+        $investPrompt = @"
+KARAKTER: $(Get-AgentPersona -Agent $ag)
 $chaosStyle
 
-Anda agen '{0}'. Investigasi READ-ONLY terkait rencana berikut. JANGAN mengubah berkas.
+Anda agen '$ag'. Investigasi READ-ONLY terkait rencana berikut. JANGAN mengubah berkas.
 WAJIB sertakan bukti path:line dan risiko nyata. Ringkas (<= 10 baris).
 
 RENCANA LEAD:
 $planText
 "@
-    Write-Section -Title ("[2/4] INVESTIGATE  -  " + ($investAgents -join ' | ')) -Color 'Magenta'
-    $runs = @()
-    foreach ($ag in $investAgents) {
-        $runs += Start-WarRoomAgentProcess -Agent $ag -Prompt ($investPrompt -f $ag, (Get-AgentPersona -Agent $ag)) -CycleId $CycleId -Role "$ag-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
+        $runs += Start-WarRoomAgentProcess -Agent $ag -Prompt $investPrompt -CycleId $CycleId -Role "$ag-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
     }
     $inv = Wait-WarRoomProcessesStreaming -Runs $runs -Phase 'investigate' -TimeoutSec ($TimeoutSec + 120)
     $findings = ($inv | ForEach-Object {
@@ -142,23 +142,23 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil ny
     Invoke-WarRoomBeep -Kind 'info'
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
-    $verifyPrompt = @"
-KARAKTER: {1}
+    $verifyAgents = @($quant, $reviewer)
+    if ($security) { $verifyAgents += $security }
+    Write-Section -Title ("[4/4] VERIFY  -  " + ($verifyAgents -join ' | ')) -Color 'Blue'
+    $vruns = @()
+    foreach ($ag in $verifyAgents) {
+        $verifyPrompt = @"
+KARAKTER: $(Get-AgentPersona -Agent $ag)
 $chaosStyle
 
-Anda agen '{0}'. Tinjau perubahan BELUM di-commit ('git --no-pager diff') terhadap rencana berikut. READ-ONLY.
+Anda agen '$ag'. Tinjau perubahan BELUM di-commit ('git --no-pager diff') terhadap rencana berikut. READ-ONLY.
 Cari regresi, masalah keamanan, klaim tanpa bukti, atau penyimpangan dari rencana. Ringkas (<= 10 baris).
 Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
 
 RENCANA:
 $planText
 "@
-    $verifyAgents = @($quant, $reviewer)
-    if ($security) { $verifyAgents += $security }
-    Write-Section -Title ("[4/4] VERIFY  -  " + ($verifyAgents -join ' | ')) -Color 'Blue'
-    $vruns = @()
-    foreach ($ag in $verifyAgents) {
-        $vruns += Start-WarRoomAgentProcess -Agent $ag -Prompt ($verifyPrompt -f $ag, (Get-AgentPersona -Agent $ag)) -CycleId $CycleId -Role "$ag-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
+        $vruns += Start-WarRoomAgentProcess -Agent $ag -Prompt $verifyPrompt -CycleId $CycleId -Role "$ag-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
     }
     $ver = Wait-WarRoomProcessesStreaming -Runs $vruns -Phase 'verify' -TimeoutSec ($TimeoutSec + 120)
     $summary.verify = @($ver | Where-Object { $_.result -and $_.result.ok }).Count
