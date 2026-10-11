@@ -123,6 +123,7 @@ function Get-AgentColor {
         '*review*'  { 'Blue' }
         '*uiux*'    { 'DarkYellow' }
         '*design*'  { 'DarkYellow' }
+        '*tech*'    { 'Red' }
         default     { 'White' }
     }
 }
@@ -158,6 +159,7 @@ function Get-AgentIcon {
         '*review*' { return '[R]' }
         '*uiux*'   { return '[D]' }
         '*design*' { return '[D]' }
+        '*tech*'   { return '[T]' }
         default    { return '[-]' }
         }
     }
@@ -169,6 +171,7 @@ function Get-AgentIcon {
         '*review*' { 0x1F6E1 }
         '*uiux*'   { 0x1F3A8 }
         '*design*' { 0x1F3A8 }
+        '*tech*'   { 0x1F4C8 }
         default    { 0x1F464 }
     }
     try { return [char]::ConvertFromUtf32($cp) } catch { return '[-]' }

@@ -19,6 +19,7 @@ function Invoke-WarRoomPipeline {
     $reviewer = $cfg.Agents.Reviewer
     $security = if ($cfg.Agents.ContainsKey('Security')) { $cfg.Agents.Security } else { '' }
     $uiux = if ($cfg.Agents.ContainsKey('UIUX')) { $cfg.Agents.UIUX } else { '' }
+    $tech = if ($cfg.Agents.ContainsKey('Tech')) { $cfg.Agents.Tech } else { '' }
     if ($MaxConcurrent -le 0) { $MaxConcurrent = [int]$cfg.MaxConcurrentModelTasks }
 
     if ($Item) {
@@ -52,6 +53,7 @@ PETA REPO (ringkas, untuk orientasi):
 $repoMap
 
 Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas yang akan diubah, (d) kriteria penerimaan, (e) risiko regresi.
+WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis PALING RELEVAN untuk tugas ini (pilihan: quant, qa, security, uiux, technical). Mereka akan menginvestigasi & memverifikasi.
 "@
     Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 0 -Color 'Cyan'
     Write-Section -Title ("[1/4] PLAN  -  " + $lead) -Color 'Cyan'
@@ -66,10 +68,25 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
         return [pscustomobject]$summary
     }
 
-    # --- 2. INVESTIGATE (paralel, read-only) ---
-    $investAgents = @($quant, $qa)
-    if ($security) { $investAgents += $security }
-    if ($uiux) { $investAgents += $uiux }
+    # --- 2. INVESTIGATE (paralel, read-only) - agen ditentukan LEAD ---
+    $specMap = @{}
+    foreach ($pair in @(
+            @('quant', $quant), @('keuangan', $quant), @('finance', $quant), @('rumus', $quant), @('ml', $quant), @('kalibrasi', $quant),
+            @('qa', $qa), @('api', $qa), @('kode', $qa), @('backend', $qa), @('test', $qa), @('uji', $qa),
+            @('security', $security), @('keamanan', $security), @('input', $security), @('auth', $security),
+            @('ui', $uiux), @('ux', $uiux), @('tampilan', $uiux), @('frontend', $uiux), @('desain', $uiux), @('aksesibilitas', $uiux),
+            @('technical', $tech), @('ta', $tech), @('teknikal', $tech), @('chart', $tech), @('indikator', $tech), @('price', $tech)
+        )) { $specMap[$pair[0]] = $pair[1] }
+    $picked = @()
+    if ($planText -match '(?im)^\s*PILIHAN_AGEN\s*:\s*(.+)$') {
+        foreach ($tok in ($Matches[1] -split '[,\s]+')) {
+            $k = $tok.Trim().ToLowerInvariant()
+            if ($k -and $specMap.ContainsKey($k) -and $specMap[$k] -and ($picked -notcontains $specMap[$k])) { $picked += $specMap[$k] }
+        }
+    }
+    if ($picked.Count -eq 0) { $picked = @($quant, $qa) }
+    $investAgents = @($picked)
+    Write-Host ("  Lead memilih agen: " + ($investAgents -join ', ')) -ForegroundColor DarkGray
     Write-Section -Title ("[2/4] INVESTIGATE  -  " + ($investAgents -join ' | ')) -Color 'Magenta'
     $runs = @()
     foreach ($ag in $investAgents) {
@@ -144,8 +161,8 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil ny
     Invoke-WarRoomBeep -Kind 'info'
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
-    $verifyAgents = @($quant, $reviewer)
-    if ($security) { $verifyAgents += $security }
+    $verifyAgents = @($reviewer)
+    foreach ($a in $picked) { if ($a -and ($verifyAgents -notcontains $a)) { $verifyAgents += $a } }
     Write-Section -Title ("[4/4] VERIFY  -  " + ($verifyAgents -join ' | ')) -Color 'Blue'
     $vruns = @()
     foreach ($ag in $verifyAgents) {

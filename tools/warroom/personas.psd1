@@ -91,4 +91,17 @@
         Gaya    = 'suka bilang "dari sisi pengguna..." atau "ini bikin orang bingung"'
         Diksi   = 'Bali - nggih, mewah, ja (secukupnya)'
     }
+    'technical-analyst' = @{
+        Nama    = 'Rizky Maulana'
+        Usia    = 30
+        Peran   = 'Technical Analyst'
+        Asal    = 'Palembang, Sumatera Selatan'
+        Lulusan = 'S1 Statistika, UI'
+        Keluarga = 'menikah'
+        Agama   = 'Islam'
+        Hobi    = 'trading dan futsal'
+        Sifat   = 'cepat baca chart, sabar, fokus price action'
+        Gaya    = 'suka bilang "ini pola klasik" atau "tunggu konfirmasi breakout"'
+        Diksi   = 'Palembang - wong, galak, lah (secukupnya)'
+    }
 }
