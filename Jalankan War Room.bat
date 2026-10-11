@@ -1,5 +1,4 @@
 @echo off
-rem LAUMOLOGY War Room - launcher (buka dengan Windows PowerShell).
+rem LAUMOLOGY War Room - luncurkan PowerShell di jendela terpisah (cmd langsung menutup).
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\warroom\Start-WarRoom.ps1"
-pause
+start "LAUMOLOGY War Room" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\warroom\Start-WarRoom.ps1"
