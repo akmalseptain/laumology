@@ -79,7 +79,7 @@ function Invoke-OpenCodeAgent {
         if (-not (Test-Path -LiteralPath $tmpDir)) { New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null }
         $pf = Join-Path $tmpDir ("prompt-{0}.md" -f [guid]::NewGuid().ToString('N').Substring(0, 8))
         Set-Content -LiteralPath $pf -Value $Prompt -Encoding UTF8
-        $effectivePrompt = "Baca berkas '$pf' dan jalankan SELURUH instruksi di dalamnya secara lengkap. Jangan meminta klarifikasi; kerjakan sekarang."
+        $effectivePrompt = "Instruksi lengkap ada di berkas '$pf'. Baca berkas itu lalu LANGSUNG kerjakan. JANGAN mengulang, menyalin, atau menyebut teks instruksinya; jangan minta klarifikasi. Keluarkan HANYA hasil akhirnya."
     }
 
     $startTs = Get-Date
@@ -109,15 +109,18 @@ function Invoke-OpenCodeAgent {
     $buffer = ''
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     $agentColor = Get-AgentColor -Agent $Agent
+    $agentName = Get-AgentName -Agent $Agent
+    $typingShown = $false
+    $dots = @('.', '..', '...')
+    $di = 0
 
     if ($Stream) {
         Write-Host ""
-        Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $Agent, (Get-Date).ToString('HH:mm')) -ForegroundColor $agentColor
-        Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
+        Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), $agentName, $Agent, (Get-Date).ToString('HH:mm')) -ForegroundColor $agentColor
     }
 
     while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) {
-        Start-Sleep -Milliseconds 300
+        Start-Sleep -Milliseconds 250
         if ($Stream -and (Test-Path -LiteralPath $streamFile)) {
             try {
                 $fs = [System.IO.File]::Open($streamFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
@@ -140,6 +143,10 @@ function Invoke-OpenCodeAgent {
                                     $prev = if ($printedParts.ContainsKey($partId)) { [int]$printedParts[$partId] } else { 0 }
                                     $full = [string]$ev.part.text
                                     if ($full.Length -gt $prev) {
+                                        if (-not $streamed) {
+                                            if ($typingShown) { Write-Host ("`r" + (' ' * 70) + "`r") -NoNewline }
+                                            Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
+                                        }
                                         Write-Host $full.Substring($prev) -NoNewline -ForegroundColor $agentColor
                                         $printedParts[$partId] = $full.Length
                                         $streamed = $true
@@ -152,9 +159,47 @@ function Invoke-OpenCodeAgent {
                 }
             } catch { }
         }
+        if ($Stream -and -not $streamed) {
+            Write-Host ("`r    {0} sedang mengetik{1}   " -f $agentName, $dots[$di % 3]) -NoNewline -ForegroundColor DarkGray
+            $typingShown = $true
+            $di++
+        }
     }
     if ($job.State -eq 'Running') { $timedOut = $true; Stop-Job -Job $job }
     Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+    # Flush akhir: cetak sisa teks yang belum tampil agar tidak hilang.
+    if ($Stream -and (Test-Path -LiteralPath $streamFile)) {
+        try {
+            $fs = [System.IO.File]::Open($streamFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+            $fs.Seek($offset, [System.IO.SeekOrigin]::Begin) | Out-Null
+            $sr = New-Object System.IO.StreamReader($fs)
+            $tail = $sr.ReadToEnd()
+            $sr.Dispose(); $fs.Dispose()
+            if ($tail) { $buffer += $tail }
+            foreach ($seg in ($buffer -split "`n")) {
+                $t = $seg.TrimEnd("`r").Trim()
+                if (-not $t.StartsWith('{')) { continue }
+                try {
+                    $ev = $t | ConvertFrom-Json
+                    if ($ev.type -eq 'text' -and $ev.part -and $ev.part.text) {
+                        $partId = [string]$ev.part.id
+                        $prev = if ($printedParts.ContainsKey($partId)) { [int]$printedParts[$partId] } else { 0 }
+                        $full = [string]$ev.part.text
+                        if ($full.Length -gt $prev) {
+                            if (-not $streamed) {
+                                if ($typingShown) { Write-Host ("`r" + (' ' * 70) + "`r") -NoNewline }
+                                Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
+                            }
+                            Write-Host $full.Substring($prev) -NoNewline -ForegroundColor $agentColor
+                            $printedParts[$partId] = $full.Length
+                            $streamed = $true
+                        }
+                    }
+                } catch { }
+            }
+        } catch { }
+    }
     if ($Stream) { Write-Host "" }
 
     $raw = @()

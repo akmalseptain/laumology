@@ -15,6 +15,7 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libDir 'BacklogManager.ps1')
 . (Join-Path $libDir 'AgentRunner.ps1')
 . (Join-Path $libDir 'DiscussionManager.ps1')
+. (Join-Path $libDir 'ChatManager.ps1')
 
 Initialize-WarRoomState
 
@@ -209,6 +210,7 @@ function Show-Help {
         'stop             minta berhenti anggun',
         'discuss <topik>  jalankan diskusi multi-agen (nyata, berbiaya)',
         'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
+        'rapat <topik>    obrolan tim bergantian (interaktif, ala chat)',
         'replay           tampilkan notulen/debat terakhir',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
@@ -282,6 +284,14 @@ function Invoke-WarRoomCommand {
         'ask'     { Invoke-WarRoomAsk -Text $arg }
         'prompt'  { Invoke-WarRoomAsk -Text $arg }
         'replay'  { Show-Replay }
+        'rapat'   {
+            if (-not $arg) { Write-Host "  Gunakan: rapat <topik>" -ForegroundColor Yellow }
+            else { Invoke-WarRoomChat -Topic $arg | Out-Null }
+        }
+        'chat'    {
+            if (-not $arg) { Write-Host "  Gunakan: rapat <topik>" -ForegroundColor Yellow }
+            else { Invoke-WarRoomChat -Topic $arg | Out-Null }
+        }
         'exit'    { return $false }
         default   { Write-Host ("  Perintah tidak dikenal: {0}. Ketik 'help'." -f $cmd) -ForegroundColor Yellow }
     }
