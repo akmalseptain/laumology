@@ -7,6 +7,7 @@ Semua endpoint ada di paket `routes/`.
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import threading
 import time
@@ -18,6 +19,8 @@ from flask import Flask, jsonify, request
 import state
 import store
 from routes import register as register_routes
+
+_log = logging.getLogger("laumology.webapp")
 
 app = Flask(__name__)
 store.init()
@@ -41,9 +44,19 @@ def _load_dotenv(path: str = ".env") -> None:
 
 _load_dotenv()
 
+_api_key_warned = False
+
 
 @app.before_request
 def _guard():
+    global _api_key_warned
+    if not _api_key_warned and not state.api_key():
+        _log.warning(
+            "API_KEY tidak diset: endpoint tulis %s TIDAK dilindungi. "
+            "Set API_KEY dan kirim header X-API-Key sebelum mengekspos layanan publik.",
+            sorted(state.PROTECTED),
+        )
+        _api_key_warned = True
     if request.path.startswith("/api"):
         ip = request.remote_addr or "?"
         if state.rate_limited(ip):
