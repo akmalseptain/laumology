@@ -75,19 +75,19 @@ function Show-Banner {
     $st = Get-WarRoomState
     $snap = Get-GitSnapshot
     $b = Get-BudgetStatus
-    $line = '  ' + ('-' * 44)
+    $line = '  ' + ('-' * 30)
     $info = @(
         "",
         "  L A U M O L O G Y",
-        "  A I   E N G I N E E R I N G   W A R   R O O M",
+        "  A I  E N G I N E E R I N G  W A R  R O O M",
         $line,
-        "  CWD      : " + (Get-WarRoomRoot),
-        "  Git      : " + $snap.branch + " @ " + $snap.head + "  (+" + $snap.staged.Count + " ~" + $snap.unstaged.Count + " ?" + $snap.untracked.Count + ")",
-        "  Iterasi  : #" + $st.iteration + "  (" + $st.state + ")",
-        "  Model    : " + $cfg.Model,
-        "  Budget   : mode=" + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR),
+        "  Repo    : " + (Split-Path -Leaf (Get-WarRoomRoot)),
+        "  Git     : " + $snap.branch + " @ " + $snap.head,
+        "  Iterasi : #" + $st.iteration + "  (" + $st.state + ")",
+        "  Model   : " + $cfg.Model,
+        "  Budget  : " + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR),
         $line,
-        "  Ketik 'help' untuk daftar perintah."
+        "  Ketik 'help' untuk perintah."
     )
     Write-Host ""
     if ($art.Count -eq 0) {
