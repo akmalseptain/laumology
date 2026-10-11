@@ -182,6 +182,22 @@ function Show-Logs {
     }
 }
 
+function Show-Mascot {
+    # Potret (ASCII) dari tools\warroom\mascot.txt, di-center, warna cyan.
+    $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
+    if (-not (Test-Path -LiteralPath $p)) { return }
+    try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return }
+    $lines = @($txt -split "`r?`n" | ForEach-Object { $_.TrimEnd() })
+    $cw = 100
+    try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
+    $wmax = ($lines | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+    $pad = if ($wmax -lt $cw) { [int](($cw - $wmax) / 2) } else { 0 }
+    $prefix = ' ' * $pad
+    Write-Host ""
+    foreach ($ln in $lines) { Write-Host ($prefix + $ln) -ForegroundColor Cyan }
+    Write-Host ""
+}
+
 function Show-Doctor {
     Write-Host "  --- DOCTOR ---" -ForegroundColor Cyan
     $checks = @()
@@ -328,6 +344,7 @@ function Invoke-WarRoomCommand {
 
 # --- Main ---
 Show-Banner
+if (Test-Path -LiteralPath (Join-Path (Get-WarRoomToolDir) 'mascot.txt')) { Show-Mascot }
 Show-Header
 
 if ($Command) {
