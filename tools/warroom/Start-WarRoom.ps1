@@ -130,9 +130,37 @@ function Show-Help {
         'resume           lanjutkan',
         'stop             minta berhenti anggun',
         'discuss <topik>  jalankan diskusi multi-agen (nyata, berbiaya)',
+        'ask <agen> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer)',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
     ) | ForEach-Object { Write-Host ("  {0}" -f $_) }
+}
+
+function Invoke-WarRoomAsk {
+    # Kirim prompt bebas ke satu agen (dengan kendali anggaran + log).
+    param([string]$Text)
+    if (-not $Text -or -not $Text.Trim()) {
+        Write-Host "  Gunakan: ask <agen> <instruksi>  (agen: lead|code|quant|qa|reviewer)" -ForegroundColor Yellow
+        return
+    }
+    $p = $Text.Trim() -split '\s+', 2
+    if ($p.Count -lt 2) {
+        Write-Host "  Butuh instruksi. Contoh: ask lead Perbaiki bug pada X" -ForegroundColor Yellow
+        return
+    }
+    $cfg = Get-WarRoomConfig
+    $alias = $p[0].ToLowerInvariant()
+    $name = switch ($alias) {
+        'lead'     { $cfg.Agents.Lead }
+        'code'     { $cfg.Agents.Code }
+        'quant'    { $cfg.Agents.Quant }
+        'qa'       { $cfg.Agents.QA }
+        'reviewer' { $cfg.Agents.Reviewer }
+        default    { $p[0] }
+    }
+    $task = Join-Path (Get-WarRoomToolDir) 'Invoke-WarRoomTask.ps1'
+    Write-Host ("  Menjalankan agen '{0}'..." -f $name) -ForegroundColor Cyan
+    & $task -Agent $name -Role $name -CycleId 'manual' -Prompt $p[1] -TimeoutSec 900
 }
 
 function Invoke-WarRoomCommand {
@@ -163,6 +191,8 @@ function Invoke-WarRoomCommand {
             $loop = Join-Path (Get-WarRoomToolDir) 'Invoke-AutonomousLoop.ps1'
             & $loop
         }
+        'ask'     { Invoke-WarRoomAsk -Text $arg }
+        'prompt'  { Invoke-WarRoomAsk -Text $arg }
         'exit'    { return $false }
         default   { Write-Host ("  Perintah tidak dikenal: {0}. Ketik 'help'." -f $cmd) -ForegroundColor Yellow }
     }

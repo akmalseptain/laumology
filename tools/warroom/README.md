@@ -33,7 +33,8 @@ Semua dijalankan dari root repo LAUMOLOGY.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1
 ```
-Perintah dalam terminal: `help, team, status, backlog, diff, test, logs, doctor, pause, resume, stop, discuss <topik>, loop, exit`.
+Perintah dalam terminal: `help, team, status, backlog, diff, test, logs, doctor, pause, resume, stop, discuss <topik>, ask <agen> <teks>, loop, exit`.
+`ask <agen> <teks>` mengirim prompt bebas ke satu agen (`lead|code|quant|qa|reviewer`) dengan kendali anggaran + log.
 
 ### Menjalankan supervisor otonom (mode batch manual)
 ```powershell
