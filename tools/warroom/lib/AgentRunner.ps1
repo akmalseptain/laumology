@@ -89,6 +89,7 @@ function Invoke-OpenCodeAgent {
 
     $job = Start-Job -ArgumentList $root, $Agent, $Model, $effectivePrompt, $SessionId, [bool]$Auto, $streamFile -ScriptBlock {
         param($Root, $Agent, $Model, $Prompt, $SessionId, $Auto, $StreamFile)
+        try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
         Set-Location -LiteralPath $Root
         $oCmd = (Get-Command opencode.cmd -ErrorAction SilentlyContinue).Source
         if (-not $oCmd) { $oCmd = (Get-Command opencode.ps1).Source }

@@ -267,6 +267,12 @@ function ConvertTo-WarRoomPlainText {
     param([string]$Text)
     if ([string]::IsNullOrEmpty($Text)) { return $Text }
     $t = $Text
+    # Mojibake umum (UTF-8 terbaca CP437/CP1252) -> ASCII.
+    $t = $t.Replace(("" + [char]0x0393 + [char]0x00C7 + [char]0x00F6), '-')  # ΓÇö (cp437 em dash)
+    $t = $t.Replace(("" + [char]0x00E2 + [char]0x20AC + [char]0x009D), '-')  # â€ (cp1252 em dash)
+    $t = $t.Replace(("" + [char]0x00E2 + [char]0x20AC + [char]0x0099), "'")  # â€™
+    $t = $t.Replace(("" + [char]0x00E2 + [char]0x20AC + [char]0x009C), '"')  # â€œ
+    $t = $t.Replace(("" + [char]0x00C2 + [char]0x00A0), ' ')                 # Â (nbsp)
     $map = @{}
     $map[[string][char]0x2014] = '-'   # em dash
     $map[[string][char]0x2013] = '-'   # en dash
