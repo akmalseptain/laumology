@@ -118,6 +118,8 @@ function Show-Team {
         @('QA Engineer', $cfg.Agents.QA, '(subagent, edit)'),
         @('Independent Reviewer', $cfg.Agents.Reviewer, '(subagent, read-only)')
     )
+    if ($cfg.Agents.ContainsKey('Security')) { $rows += , @('Security Engineer', $cfg.Agents.Security, '(subagent, read-only)') }
+    if ($cfg.Agents.ContainsKey('UIUX')) { $rows += , @('UI/UX Designer', $cfg.Agents.UIUX, '(subagent, read-only)') }
     foreach ($r in $rows) {
         Write-Host ("  {0,-20} -> " -f $r[0]) -NoNewline -ForegroundColor Gray
         Write-Host ("{0,-16}" -f $r[1]) -NoNewline -ForegroundColor (Get-AgentColor -Agent $r[1])

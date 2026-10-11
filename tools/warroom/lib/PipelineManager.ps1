@@ -18,6 +18,7 @@ function Invoke-WarRoomPipeline {
     $qa = $cfg.Agents.QA
     $reviewer = $cfg.Agents.Reviewer
     $security = if ($cfg.Agents.ContainsKey('Security')) { $cfg.Agents.Security } else { '' }
+    $uiux = if ($cfg.Agents.ContainsKey('UIUX')) { $cfg.Agents.UIUX } else { '' }
     if ($MaxConcurrent -le 0) { $MaxConcurrent = [int]$cfg.MaxConcurrentModelTasks }
 
     if ($Item) {
@@ -68,6 +69,7 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
     # --- 2. INVESTIGATE (paralel, read-only) ---
     $investAgents = @($quant, $qa)
     if ($security) { $investAgents += $security }
+    if ($uiux) { $investAgents += $uiux }
     Write-Section -Title ("[2/4] INVESTIGATE  -  " + ($investAgents -join ' | ')) -Color 'Magenta'
     $runs = @()
     foreach ($ag in $investAgents) {

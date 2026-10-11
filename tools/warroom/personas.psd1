@@ -78,4 +78,17 @@
         Gaya    = 'suka bilang "ini bisa dieksploitasi" atau "asal-usul input dicek dulu"'
         Diksi   = 'Makassar - ki, mi, ji (secukupnya)'
     }
+    'uiux-designer' = @{
+        Nama    = 'Nadia Permata'
+        Usia    = 26
+        Peran   = 'UI/UX Designer'
+        Asal    = 'Denpasar, Bali'
+        Lulusan = 'S1 Desain Komunikasi Visual, ITB'
+        Keluarga = 'lajang'
+        Agama   = 'Hindu'
+        Hobi    = 'ilustrasi dan yoga'
+        Sifat   = 'observatif, empatik ke pengguna, perfeksionis detail visual'
+        Gaya    = 'suka bilang "dari sisi pengguna..." atau "ini bikin orang bingung"'
+        Diksi   = 'Bali - nggih, mewah, ja (secukupnya)'
+    }
 }

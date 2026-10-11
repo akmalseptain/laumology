@@ -121,6 +121,8 @@ function Get-AgentColor {
         '*quant*'   { 'Yellow' }
         '*qa*'      { 'Magenta' }
         '*review*'  { 'Blue' }
+        '*uiux*'    { 'DarkYellow' }
+        '*design*'  { 'DarkYellow' }
         default     { 'White' }
     }
 }
@@ -152,9 +154,11 @@ function Get-AgentIcon {
             '*lead*'   { return '[*]' }
             '*code*'   { return '[#]' }
             '*quant*'  { return '[Q]' }
-            '*qa*'     { return '[?]' }
-            '*review*' { return '[R]' }
-            default    { return '[-]' }
+        '*qa*'     { return '[?]' }
+        '*review*' { return '[R]' }
+        '*uiux*'   { return '[D]' }
+        '*design*' { return '[D]' }
+        default    { return '[-]' }
         }
     }
     $cp = switch -Wildcard ($Agent) {
@@ -163,6 +167,8 @@ function Get-AgentIcon {
         '*quant*'  { 0x1F4CA }
         '*qa*'     { 0x1F50D }
         '*review*' { 0x1F6E1 }
+        '*uiux*'   { 0x1F3A8 }
+        '*design*' { 0x1F3A8 }
         default    { 0x1F464 }
     }
     try { return [char]::ConvertFromUtf32($cp) } catch { return '[-]' }
