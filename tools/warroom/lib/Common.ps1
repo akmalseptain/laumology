@@ -304,7 +304,7 @@ function Get-WrappedLines {
 }
 
 function Write-AgentVoice {
-    # Cetak pesan agen bergaya chat kantor, dirapikan (wrap) & teks dinormalisasi.
+    # Gaya aplikasi chat: avatar + nama (bold) + peran + waktu; isi ber-rail warna, ter-wrap.
     param(
         [Parameter(Mandatory)][string]$Agent,
         [string]$Phase = '',
@@ -315,6 +315,8 @@ function Write-AgentVoice {
     if ([string]::IsNullOrWhiteSpace($Text)) { return }
     $color = Get-AgentColor -Agent $Agent
     $plainText = ConvertTo-WarRoomPlainText -Text $Text
+    $name = Get-AgentName -Agent $Agent
+    $time = (Get-Date).ToString('HH:mm')
     if ($Plain) {
         $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
         Write-Host ("  +-- [ {0} ]" -f $label) -ForegroundColor $color
@@ -322,14 +324,16 @@ function Write-AgentVoice {
         Write-Host ("  +--") -ForegroundColor $color
         return
     }
-    $time = (Get-Date).ToString('HH:mm')
-    Write-Host ""
-    $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
-    Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $label, $time) -ForegroundColor $color
     $lines = @(Get-WrappedLines -Text $plainText -Width $Width)
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        $pref = if ($i -eq 0) { '    > ' } else { '      ' }
-        Write-Host ($pref + $lines[$i]) -ForegroundColor $color
+    $esc = [char]27
+    Write-Host ""
+    if ($script:TrueColor) {
+        Write-Host ("  " + (Get-AgentIcon -Agent $Agent) + " " + $esc + "[1m" + $name + $esc + "[0m" + "  (" + $Agent + ")  " + $time) -ForegroundColor $color
+    } else {
+        Write-Host ("  " + (Get-AgentIcon -Agent $Agent) + " " + $name + "  (" + $Agent + ")  " + $time) -ForegroundColor $color
+    }
+    foreach ($ln in $lines) {
+        Write-Host ("     | " + $ln) -ForegroundColor $color
     }
 }
 
