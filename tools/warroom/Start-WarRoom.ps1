@@ -153,6 +153,26 @@ function Show-Replay {
     }
 }
 
+function Show-Demo {
+    # Pratinjau tampilan (data CONTOH, bukan hasil nyata) - tanpa biaya API.
+    Write-Host "  --- DEMO TAMPILAN (data contoh, bukan hasil nyata) ---" -ForegroundColor Cyan
+    $samples = @(
+        @('lead-engineer', 'Oke tim, fokus ya. Bagas cek risiko input, Sari siapkan acceptance-nya.'),
+        @('quant-analyst', 'Tunggu, ada yang janggal di routes/portfolio.py:97 - input aneh bisa bikin 500.'),
+        @('qa-engineer', 'Eh tapi kalau capital-nya string gimana? Aku tambah tesnya ya.'),
+        @('security-engineer', 'Ini bisa dieksploitasi ki, validasi ticker dicek dulu sebelum nyentuh cache.'),
+        @('code-engineer', 'Udah gue beresin ya, pakai json_object + guard. Gate LULUS.'),
+        @('reviewer', 'Saya belum yakin di bagian non-finite, tapi buktinya jelas. REKOMENDASI: TERIMA.'),
+        @('lead-engineer', 'Contoh teks panjang untuk menguji wrapping: karena rapat tadi sempat melantur soal makan siang, saya ingatkan lagi supaya fokus ke satu peningkatan kecil yang aman, reversibel, dan berbukti path:line, lalu diuji lewat quality gate sebelum diterima.')
+    )
+    foreach ($s in $samples) { Write-AgentVoice -Agent $s[0] -Text $s[1] }
+    Write-Host ""
+    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 2
+    Write-ProgressBar -Current 3 -Total 4 -Label "SIKLUS 3/4  cyc-demo  (contoh)"
+    Write-Host "  (Ini hanya pratinjau. Jalankan 'rapat <topik>' atau 'loop' untuk yang nyata.)" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
 function Show-Logs {
     param([int]$Tail = 20)
     Write-Host "  --- EVENT LOG (tail $Tail) ---" -ForegroundColor Cyan
@@ -175,6 +195,12 @@ function Show-Doctor {
     $checks += [pscustomobject]@{ name = 'ledger anggaran'; ok = $b.ledgerHealthy; detail = ("mode=$($b.mode)") }
     $cfg = try { Get-WarRoomConfig; $true } catch { $false }
     $checks += [pscustomobject]@{ name = 'config psd1'; ok = [bool]$cfg; detail = 'warroom.options.psd1' }
+    # --- Tampilan (HD) ---
+    $cp = try { [Console]::OutputEncoding.CodePage } catch { 0 }
+    $checks += [pscustomobject]@{ name = 'encoding UTF-8'; ok = ($cp -eq 65001); detail = ("codepage=$cp") }
+    $tc = [bool]($env:WT_SESSION -or $env:TERM_PROGRAM -or ($env:COLORTERM -match 'truecolor|24bit'))
+    $checks += [pscustomobject]@{ name = 'truecolor (gradient)'; ok = $tc; detail = $(if ($tc) { 'aktif' } else { 'fallback 16-warna' }) }
+    $checks += [pscustomobject]@{ name = 'unicode/emoji'; ok = (-not $env:WARROOM_NO_UNICODE); detail = $(if ($env:WARROOM_NO_UNICODE) { 'dimatikan' } else { 'aktif' }) }
     foreach ($c in $checks) {
         $mark = if ($c.ok) { 'OK  ' } else { 'FAIL' }
         $color = if ($c.ok) { 'Green' } else { 'Red' }
@@ -211,6 +237,7 @@ function Show-Help {
         'discuss <topik>  jalankan diskusi multi-agen (nyata, berbiaya)',
         'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
         'rapat <topik>    obrolan tim bergantian (interaktif, ala chat)',
+        'demo             pratinjau tampilan (tanpa biaya API)',
         'replay           tampilkan notulen/debat terakhir',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
@@ -284,6 +311,7 @@ function Invoke-WarRoomCommand {
         'ask'     { Invoke-WarRoomAsk -Text $arg }
         'prompt'  { Invoke-WarRoomAsk -Text $arg }
         'replay'  { Show-Replay }
+        'demo'    { Show-Demo }
         'rapat'   {
             if (-not $arg) { Write-Host "  Gunakan: rapat <topik>" -ForegroundColor Yellow }
             else { Invoke-WarRoomChat -Topic $arg | Out-Null }

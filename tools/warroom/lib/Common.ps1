@@ -326,7 +326,7 @@ function Write-AgentVoice {
     Write-Host ""
     $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
     Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $label, $time) -ForegroundColor $color
-    $lines = Get-WrappedLines -Text $plainText -Width $Width
+    $lines = @(Get-WrappedLines -Text $plainText -Width $Width)
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $pref = if ($i -eq 0) { '    > ' } else { '      ' }
         Write-Host ($pref + $lines[$i]) -ForegroundColor $color

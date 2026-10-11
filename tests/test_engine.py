@@ -752,6 +752,68 @@ class TestQuoteCacheBound(unittest.TestCase):
             data._quote_cache.clear()
 
 
+class TestNewsCacheBound(unittest.TestCase):
+    """Cache berita tidak boleh tumbuh tak terbatas oleh ticker arbitrer dari klien."""
+
+    def test_news_cache_stays_bounded(self):
+        from unittest.mock import patch
+
+        import news
+
+        news._cache.clear()
+        total = news._CACHE_MAX + 300
+        try:
+            with patch("news._raw_items", return_value=[]):
+                for i in range(total):
+                    self.assertIsNotNone(news.get_news(f"T{i}"))
+                # Key `m:` juga harus kena batas yang sama.
+                self.assertIsNotNone(news.get_market_news(tickers=["BBCA"]))
+            self.assertLessEqual(len(news._cache), news._CACHE_MAX)
+            # Entri terbaru tetap tersedia (eviksi dari yang paling lama).
+            self.assertIn("t:" + news.to_yahoo(f"T{total - 1}"), news._cache)
+            self.assertIn("m:BBCA", news._cache)
+        finally:
+            news._cache.clear()
+
+
+class TestFundamentalsCacheBound(unittest.TestCase):
+    """Cache fundamental tidak boleh tumbuh tak terbatas oleh ticker arbitrer dari klien."""
+
+    def test_fundamentals_cache_stays_bounded(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fundamentals._cache.clear()
+        total = fundamentals._CACHE_MAX + 300
+        fake = {"longName": "PT Test", "sector": "Financials"}
+        try:
+            with patch("fundamentals.yf.Ticker") as mock_ticker:
+                mock_ticker.return_value.info = fake
+                for i in range(total):
+                    self.assertIsNotNone(fundamentals.get_fundamentals(f"T{i}"))
+            self.assertLessEqual(len(fundamentals._cache), fundamentals._CACHE_MAX)
+            # Entri terbaru tetap tersedia (eviksi dari yang paling lama).
+            self.assertIn(fundamentals.to_yahoo(f"T{total - 1}"), fundamentals._cache)
+        finally:
+            fundamentals._cache.clear()
+
+    def test_oversized_ticker_not_cached_nor_fetched(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fundamentals._cache.clear()
+        try:
+            with patch("fundamentals.yf.Ticker") as mock_ticker:
+                res = fundamentals.get_fundamentals("A" * 40)
+                mock_ticker.assert_not_called()
+            self.assertEqual(fundamentals._cache, {})
+            self.assertIn("error", res)
+        finally:
+            fundamentals._cache.clear()
+
+
 class TestRateLimitEnvRobustness(unittest.TestCase):
     """Env RATE_LIMIT_PER_MIN buruk tidak boleh melumpuhkan seluruh endpoint /api."""
 

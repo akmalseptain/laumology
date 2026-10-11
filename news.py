@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import threading
 import time
 
 import pandas as pd
@@ -9,7 +10,15 @@ import yfinance as yf
 from data import to_yahoo
 
 _cache: dict[str, tuple[float, dict]] = {}
+_cache_lock = threading.Lock()
 _TTL = 3600.0
+
+# Batas keras jumlah entri cache berita. Key dibentuk dari ticker yang bisa
+# datang dari klien (`GET /api/news?ticker=...`, endpoint tanpa auth), sehingga
+# tanpa batas ini cache tumbuh selamanya dan bisa menghabiskan memori pada
+# proses berjalan lama (memory-DoS). Eviksi hanya memicu ambil ulang berita,
+# bukan hasil yang salah. (Selaras dengan `data._QUOTE_CACHE_MAX`.)
+_CACHE_MAX = 512
 
 # Basket proxy untuk berita pasar/IHSG (indeks ^JKSE sering kosong di Yahoo).
 MARKET_TICKERS = ["^JKSE", "BBCA", "BBRI", "BMRI", "TLKM", "ASII", "ADRO", "GOTO"]
@@ -87,15 +96,37 @@ def _raw_items(yt: str, limit: int) -> list[dict]:
 def get_news(ticker: str, limit: int = 15) -> dict:
     yt = to_yahoo(ticker)
     now = time.time()
-    cached = _cache.get("t:" + yt)
-    if cached and now - cached[0] < _TTL:
-        return cached[1]
+    with _cache_lock:
+        cached = _cache.get("t:" + yt)
+        if cached and now - cached[0] < _TTL:
+            return cached[1]
 
     items = _raw_items(yt, limit)
     avg, label = _summarize(items)
     result = {"ticker": ticker.upper(), "count": len(items), "avg_sentiment": avg, "label": label, "items": items}
-    _cache["t:" + yt] = (now, result)
+    with _cache_lock:
+        _cache["t:" + yt] = (now, result)
+        _prune_cache_locked()
     return result
+
+
+def _prune_cache_locked() -> None:
+    """Buang entri berita kedaluwarsa lalu tertua bila melebihi batas.
+
+    Dipanggil saat ``_cache_lock`` sedang dipegang. Hanya membuang entri dari
+    cache; permintaan berikutnya akan mengambil ulang berita, bukan hasil salah.
+    """
+    assert _cache_lock.locked(), "harus dipanggil dengan _cache_lock dipegang"
+    fresh = time.time()
+    expired = [k for k, (ts, _v) in _cache.items() if fresh - ts >= _TTL]
+    for key in expired:
+        _cache.pop(key, None)
+    excess = len(_cache) - _CACHE_MAX
+    if excess <= 0:
+        return
+    oldest = sorted(_cache.items(), key=lambda kv: kv[1][0])[:excess]
+    for key, _entry in oldest:
+        _cache.pop(key, None)
 
 
 def _time_key(item: dict) -> float:
@@ -115,9 +146,10 @@ def get_market_news(limit: int = 24, tickers: list[str] | None = None) -> dict:
     now = time.time()
     universe = [t.upper() for t in (tickers or MARKET_TICKERS)]
     ckey = "m:" + ",".join(universe)
-    cached = _cache.get(ckey)
-    if cached and now - cached[0] < _TTL:
-        return cached[1]
+    with _cache_lock:
+        cached = _cache.get(ckey)
+        if cached and now - cached[0] < _TTL:
+            return cached[1]
 
     seen: set[str] = set()
     items: list[dict] = []
@@ -142,5 +174,7 @@ def get_market_news(limit: int = 24, tickers: list[str] | None = None) -> dict:
         "items": items,
         "universe": universe,
     }
-    _cache[ckey] = (now, result)
+    with _cache_lock:
+        _cache[ckey] = (now, result)
+        _prune_cache_locked()
     return result
