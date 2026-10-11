@@ -60,6 +60,17 @@ Sesuaikan `CyclesPerRun`, `MaxRunMinutes`, `InterCycleDelaySeconds`, `ExecuteByD
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1 -Command status
 ```
 
+### Auto-run tiap laptop (jalan sendiri saat logon)
+```powershell
+# Pasang: War Room otomatis menjalankan 4 siklus setiap kali logon
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Install-AutoRun.ps1
+# Alternatif tanpa admin: taruh .bat di folder Startup
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Install-AutoRun.ps1 -Method Startup
+# Lepas
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Install-AutoRun.ps1 -Remove
+```
+Sebelum push, loop menjalankan `git pull --ff-only`; bila remote berubah (bentrok antar-laptop), push **dilewati** dan commit lokal disimpan.
+
 ### Menjeda / melanjutkan / menghentikan
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1 -Command pause

@@ -58,6 +58,13 @@ function Publish-WarRoomChanges {
         Write-WarRoomEvent -Category 'orchestrator' -Message "auto-commit $CycleId ($($staged.Count) file)" | Out-Null
         if ($autoPush) {
             $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
+            # Tarik dulu (fast-forward saja) agar tidak bentrok antar-laptop.
+            $pullOut = & git pull --ff-only origin $branch 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  Auto-push DILEWATI: remote berubah (tidak bisa fast-forward). Commit lokal disimpan." -ForegroundColor Yellow
+                Write-WarRoomEvent -Category 'git' -Level 'warn' -Message "auto-push dilewati (ff-only gagal): $($pullOut -join ' ')" | Out-Null
+                return $false
+            }
             $pushOut = & git push origin $branch 2>&1
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "  Auto-push gagal: $($pushOut -join ' ')" -ForegroundColor Red
