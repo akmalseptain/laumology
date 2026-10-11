@@ -183,18 +183,36 @@ function Show-Logs {
 }
 
 function Show-Mascot {
-    # Potret (ASCII) dari tools\warroom\mascot.txt, di-center, warna cyan.
+    # Neofetch: potret kiri (hijau) + info sistem kanan.
     $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
     if (-not (Test-Path -LiteralPath $p)) { return }
     try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return }
     $lines = @($txt -split "`r?`n" | ForEach-Object { $_.TrimEnd() })
-    $cw = 100
-    try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
-    $wmax = ($lines | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-    $pad = if ($wmax -lt $cw) { [int](($cw - $wmax) / 2) } else { 0 }
-    $prefix = ' ' * $pad
+    while ($lines.Count -gt 0 -and $lines[0].Length -eq 0) { $lines = @($lines[1..($lines.Count - 1)]) }
+    while ($lines.Count -gt 0 -and $lines[-1].Length -eq 0) { $lines = @($lines[0..($lines.Count - 2)]) }
+    if ($lines.Count -eq 0) { return }
+    $cfg = Get-WarRoomConfig
+    $st = Get-WarRoomState
+    $snap = Get-GitSnapshot
+    $b = Get-BudgetStatus
+    $info = @(
+        "  Repo    : " + (Split-Path -Leaf (Get-WarRoomRoot)),
+        "  Git     : " + $snap.branch + " @ " + $snap.head,
+        "  Iterasi : #" + $st.iteration + "  (" + $st.state + ")",
+        "  Model   : " + $cfg.Model,
+        "  Budget  : " + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR)
+    )
+    $artW = ($lines | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+    $rows = [Math]::Max($lines.Count, $info.Count)
+    $margin = '  '
     Write-Host ""
-    foreach ($ln in $lines) { Write-Host ($prefix + $ln) -ForegroundColor Green }
+    for ($i = 0; $i -lt $rows; $i++) {
+        $left = if ($i -lt $lines.Count) { $lines[$i] } else { '' }
+        $left = ($margin + $left).PadRight($artW + $margin.Length + 2)
+        Write-Host $left -NoNewline -ForegroundColor Green
+        $right = if ($i -lt $info.Count) { $info[$i] } else { '' }
+        Write-Host $right -ForegroundColor Gray
+    }
     Write-Host ""
 }
 
@@ -345,7 +363,6 @@ function Invoke-WarRoomCommand {
 # --- Main ---
 Show-Banner
 if (Test-Path -LiteralPath (Join-Path (Get-WarRoomToolDir) 'mascot.txt')) { Show-Mascot }
-Show-Header
 
 if ($Command) {
     Invoke-WarRoomCommand -Line $Command | Out-Null
