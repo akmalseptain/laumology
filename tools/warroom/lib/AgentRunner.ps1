@@ -60,7 +60,8 @@ function Invoke-OpenCodeAgent {
         [string]$Model = '',
         [string]$SessionId = '',
         [int]$TimeoutSec = 600,
-        [switch]$Auto
+        [switch]$Auto,
+        [switch]$Stream
     )
     $cfg = Get-WarRoomConfig
     if (-not $Model) { $Model = $cfg.Model }
@@ -82,8 +83,12 @@ function Invoke-OpenCodeAgent {
     }
 
     $startTs = Get-Date
-    $job = Start-Job -ArgumentList $root, $Agent, $Model, $effectivePrompt, $SessionId, [bool]$Auto -ScriptBlock {
-        param($Root, $Agent, $Model, $Prompt, $SessionId, $Auto)
+    $tmpDir2 = Join-Path (Get-WarRoomStateDir) 'tmp'
+    if (-not (Test-Path -LiteralPath $tmpDir2)) { New-Item -ItemType Directory -Path $tmpDir2 -Force | Out-Null }
+    $streamFile = Join-Path $tmpDir2 ("stream-{0}.ndjson" -f [guid]::NewGuid().ToString('N').Substring(0, 8))
+
+    $job = Start-Job -ArgumentList $root, $Agent, $Model, $effectivePrompt, $SessionId, [bool]$Auto, $streamFile -ScriptBlock {
+        param($Root, $Agent, $Model, $Prompt, $SessionId, $Auto, $StreamFile)
         Set-Location -LiteralPath $Root
         $oCmd = (Get-Command opencode.cmd -ErrorAction SilentlyContinue).Source
         if (-not $oCmd) { $oCmd = (Get-Command opencode.ps1).Source }
@@ -92,19 +97,71 @@ function Invoke-OpenCodeAgent {
         if ($SessionId) { $a += @('--session', $SessionId) }
         if ($Auto) { $a += '--auto' }
         $a += $Prompt
-        $lines = & $oCmd @a 2>&1 | ForEach-Object { "$_" }
-        $code = $LASTEXITCODE
-        $lines | ForEach-Object { $_ }
-        "__WARROOM_EXIT__=$code"
+        $out = & $oCmd @a 2>&1
+        foreach ($ln in $out) { Add-Content -LiteralPath $StreamFile -Value "$ln" -Encoding UTF8 }
+        Add-Content -LiteralPath $StreamFile -Value ("__WARROOM_EXIT__=" + $LASTEXITCODE) -Encoding UTF8
     }
+
     $timedOut = $false
-    Wait-Job -Job $job -Timeout $TimeoutSec | Out-Null
-    if ($job.State -eq 'Running') {
-        $timedOut = $true
-        Stop-Job -Job $job
+    $streamed = $false
+    $printedParts = @{}
+    $offset = 0
+    $buffer = ''
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    $agentColor = Get-AgentColor -Agent $Agent
+
+    if ($Stream) {
+        Write-Host ""
+        Write-Host ("  {0} {1} ({2})" -f (Get-AgentIcon -Agent $Agent), $Agent, (Get-Date).ToString('HH:mm')) -ForegroundColor $agentColor
+        Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
     }
-    $raw = @(Receive-Job -Job $job -ErrorAction SilentlyContinue)
+
+    while ($job.State -eq 'Running' -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 300
+        if ($Stream -and (Test-Path -LiteralPath $streamFile)) {
+            try {
+                $fs = [System.IO.File]::Open($streamFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+                $fs.Seek($offset, [System.IO.SeekOrigin]::Begin) | Out-Null
+                $sr = New-Object System.IO.StreamReader($fs)
+                $chunk = $sr.ReadToEnd()
+                $offset = $fs.Position
+                $sr.Dispose(); $fs.Dispose()
+                if ($chunk) {
+                    $buffer += $chunk
+                    $segs = $buffer -split "`n"
+                    if ($segs.Count -gt 1) {
+                        for ($z = 0; $z -lt $segs.Count - 1; $z++) {
+                            $t = $segs[$z].TrimEnd("`r").Trim()
+                            if (-not $t.StartsWith('{')) { continue }
+                            try {
+                                $ev = $t | ConvertFrom-Json
+                                if ($ev.type -eq 'text' -and $ev.part -and $ev.part.text) {
+                                    $partId = [string]$ev.part.id
+                                    $prev = if ($printedParts.ContainsKey($partId)) { [int]$printedParts[$partId] } else { 0 }
+                                    $full = [string]$ev.part.text
+                                    if ($full.Length -gt $prev) {
+                                        Write-Host $full.Substring($prev) -NoNewline -ForegroundColor $agentColor
+                                        $printedParts[$partId] = $full.Length
+                                        $streamed = $true
+                                    }
+                                }
+                            } catch { }
+                        }
+                        $buffer = $segs[$segs.Count - 1]
+                    }
+                }
+            } catch { }
+        }
+    }
+    if ($job.State -eq 'Running') { $timedOut = $true; Stop-Job -Job $job }
     Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+    if ($Stream) { Write-Host "" }
+
+    $raw = @()
+    if (Test-Path -LiteralPath $streamFile) {
+        try { $raw = @(Get-Content -LiteralPath $streamFile -Encoding UTF8) } catch { $raw = @() }
+        Remove-Item -LiteralPath $streamFile -Force -ErrorAction SilentlyContinue
+    }
 
     $exitCode = -1
     $lines = @()
@@ -128,6 +185,7 @@ function Invoke-OpenCodeAgent {
         tokens     = $parsed.tokens
         costUSD    = $parsed.costUSD
         costSource = $source
+        streamed   = $streamed
         rawLines   = $lines
     }
 
@@ -156,7 +214,8 @@ function Invoke-OpenCodeAgentWithBudget {
         [string]$SessionId = '',
         [int]$TimeoutSec = 600,
         [int]$ExpectedInputTokens = 8000,
-        [switch]$Auto
+        [switch]$Auto,
+        [switch]$Stream
     )
     $cfg = Get-WarRoomConfig
     if (-not $Model) { $Model = $cfg.Model }
@@ -168,7 +227,7 @@ function Invoke-OpenCodeAgentWithBudget {
         return [pscustomobject]@{ allowed = $false; reason = $r.reason; result = $null; estimatedIDR = $est }
     }
     try {
-        $res = Invoke-OpenCodeAgent -Agent $Agent -Prompt $Prompt -Model $Model -SessionId $SessionId -TimeoutSec $TimeoutSec -Auto:$Auto
+        $res = Invoke-OpenCodeAgent -Agent $Agent -Prompt $Prompt -Model $Model -SessionId $SessionId -TimeoutSec $TimeoutSec -Auto:$Auto -Stream:$Stream
         $entry = Commit-Budget -ReservationId $resId -CycleId $CycleId -Role $Role -Agent $Agent -Model $Model `
             -Operation 'agent-call' -SessionId $res.sessionId -Tokens $res.tokens `
             -ReportedCostUSD $(if ($null -ne $res.costUSD) { [double]$res.costUSD } else { -1 }) `

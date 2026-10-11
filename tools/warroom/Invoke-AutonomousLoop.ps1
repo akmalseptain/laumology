@@ -174,6 +174,30 @@ try {
         Write-Host ("  Gate exit={0}: {1}" -f $tcode, $tSummary) -ForegroundColor $(if ($tcode -eq 0) { 'Green' } else { 'Red' })
         Write-WarRoomEvent -Category 'test' -Message "siklus $cycleId gate exit=$tcode" -Data @{ tail = $tSummary } | Out-Null
 
+        # AUTO-REPAIR: bila gate gagal, kirim error ke code-engineer lalu uji ulang (maks N).
+        if ($execute -and $tcode -ne 0) {
+            $maxRepair = if ($cfg.ContainsKey('MaxRepairAttempts')) { [int]$cfg.MaxRepairAttempts } else { 2 }
+            $attempt = 0
+            while ($tcode -ne 0 -and $attempt -lt $maxRepair) {
+                $attempt++
+                Write-Host ("  AUTO-REPAIR #{0}/{1}: mengirim error gate ke code-engineer..." -f $attempt, $maxRepair) -ForegroundColor Yellow
+                Invoke-WarRoomBeep -Kind 'warn'
+                $repPrompt = @"
+Gate 'py -3.14 tools/quality_gate.py' GAGAL. Perbaiki PENYEBABNYA (jangan melemahkan/menghapus tes).
+Ikuti AGENTS.md. Jangan commit/push. Jangan operasi Git destruktif.
+Ringkasan error gate:
+$tSummary
+"@
+                $ro = Invoke-OpenCodeAgentWithBudget -Agent $cfg.Agents.Code -Prompt $repPrompt -CycleId $cycleId -Role 'code-repair' -TimeoutSec $CycleTimeoutSec -Auto
+                if ($ro.allowed -and $ro.result) { Write-AgentVoice -Agent $cfg.Agents.Code -Phase ("repair#$attempt") -Text $ro.result.text }
+                Push-Location (Get-WarRoomRoot)
+                try { $tout = & py -3.14 tools/quality_gate.py 2>&1; $tcode = $LASTEXITCODE } finally { Pop-Location }
+                $tSummary = ($tout | Select-Object -Last 3) -join ' | '
+                Write-Host ("  Gate ulang exit={0}: {1}" -f $tcode, $tSummary) -ForegroundColor $(if ($tcode -eq 0) { 'Green' } else { 'Red' })
+                Write-WarRoomEvent -Category 'test' -Message "siklus $cycleId gate ulang #$attempt exit=$tcode" | Out-Null
+            }
+        }
+
         # REVIEWING
         Set-WarRoomState -State 'REVIEWING' -Note 'diff' -Iteration $i | Out-Null
         Write-Host ("  Diff: {0}" -f ((Get-GitDiffStat) -replace "`n", ' ; '))
