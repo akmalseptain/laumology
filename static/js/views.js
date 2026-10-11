@@ -84,6 +84,227 @@ async function loadMl(t){
   }catch(e){ el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">11</span><div class="line"></div><span class="badge">Model ML</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
 }
 
+/* ---------- Berita: renderer bersama + sheet detail (W-0010) ---------- */
+/* Ambang sentimen disatukan dengan label Python (news.py _summarize: ±0.15)
+   agar badge kartu konsisten dengan ringkasan backend (bukan ±0.2 terpisah). */
+const NEWS_THRESHOLD = 0.15;
+/* Batas penyimpanan data kartu berita. Wajib > jumlah kartu satu render agar
+   kartu yang sedang tampil tak ikut terbuang saat eviksi berbutir. Maksimum
+   satu render saat ini 24 (`news.py get_market_news`) dan 15 (`get_news`),
+   jadi 200 aman; `_newsEvict` juga menaikkan batas bila satu batch lebih besar. */
+const NEWS_STORE_CAP = 200;
+const _newsStore = new Map();
+let _newsSeq = 0;
+let _newsSheetOpen = false;
+let _newsLastFocus = null;
+let _newsZoomOpen = false;
+let _newsZoomTrigger = null;
+
+function newsVerdict(it){
+  const raw = Number(it && it.sentiment);
+  const score = isNaN(raw) ? 0 : raw;
+  const pos = Number((it && it.pos) || 0);
+  const neg = Number((it && it.neg) || 0);
+  if(score > NEWS_THRESHOLD) return {score:score,pos:pos,neg:neg,label:"Positif",cls:"v-up",arrow:"▲"};
+  if(score < -NEWS_THRESHOLD) return {score:score,pos:pos,neg:neg,label:"Negatif",cls:"v-red",arrow:"▼"};
+  return {score:score,pos:pos,neg:neg,label:"Netral",cls:"v-muted",arrow:"•"};
+}
+function newsThumbHtml(it){
+  const fallback = '<span class="news-thumb-fallback" aria-hidden="true">'
+    + '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M4 5h13v14H4z"/><path d="M17 8h3v11h-3"/><path d="M7 9h7M7 12h7M7 15h4"/></svg></span>';
+  const img = safeUrl(it && it.image);
+  if(!img) return '<span class="news-thumb">'+fallback+'</span>';
+  return '<span class="news-thumb">'+fallback
+    + '<img class="news-thumb-img" src="'+escapeHtml(img)+'" alt="" loading="lazy" referrerpolicy="no-referrer"></span>';
+}
+function newsCardHtml(it){
+  const id = "n" + (++_newsSeq);
+  _newsStore.set(id, it || {});
+  const v = newsVerdict(it);
+  const src = (it && it.source_ticker) ? escapeHtml(it.source_ticker) : "";
+  const meta = [escapeHtml((it && it.publisher) || ""), fmtNewsTime(it && it.time), src].filter(Boolean).join(" · ");
+  const title = escapeHtml((it && it.title) || "(Tanpa judul)");
+  return '<button type="button" class="news-item" data-news-id="'+id+'" aria-label="Baca detail: '+title+'">'
+    + newsThumbHtml(it)
+    + '<span class="news-item-body"><span class="news-item-title">'+title+'</span>'
+    + (meta ? '<span class="news-item-meta mono">'+meta+'</span>' : '')
+    + '</span><span class="ic '+v.cls+' news-item-badge" aria-hidden="true">'+v.arrow+'</span></button>';
+}
+function _newsEvict(batchSize){
+  /* Eviksi berbutir SETELAH insert penuh: buang entri tertua sampai ukuran
+     kembali ke batas. Batas = max(NEWS_STORE_CAP, ukuran batch) supaya kartu
+     yang baru dirender di batch yang sama tak ikut terbuang. */
+  const cap = Math.max(NEWS_STORE_CAP, Number(batchSize) || 0);
+  while(_newsStore.size > cap){
+    const oldest = _newsStore.keys().next().value;
+    if(oldest === undefined) break;
+    _newsStore.delete(oldest);
+  }
+}
+function newsCardsHtml(items){
+  const list = items || [];
+  const arr = list.map(function(it){ return newsCardHtml(it); }).join("");
+  _newsEvict(list.length);
+  return arr ? '<div class="news-list">'+arr+'</div>' : "";
+}
+function newsConclusionText(v){
+  let basis;
+  if(v.pos && v.neg) basis = "Judul memuat "+v.pos+" kata positif dan "+v.neg+" kata negatif.";
+  else if(v.pos) basis = "Judul memuat "+v.pos+" kata positif.";
+  else if(v.neg) basis = "Judul memuat "+v.neg+" kata negatif.";
+  else basis = "Tidak ditemukan kata sentimen pada judul.";
+  const verdict = v.label==="Positif" ? "Kecenderungan positif."
+    : (v.label==="Negatif" ? "Kecenderungan negatif." : "Netral / belum signifikan.");
+  return basis + " " + verdict;
+}
+function newsSheetHtml(it){
+  const v = newsVerdict(it);
+  const url = safeUrl(it && it.url);
+  const img = safeUrl(it && it.image);
+  const title = escapeHtml((it && it.title) || "(Tanpa judul)");
+  const src = (it && it.source_ticker) ? escapeHtml(it.source_ticker) : "";
+  const meta = [escapeHtml((it && it.publisher) || ""), fmtNewsTime(it && it.time), src].filter(Boolean).join(" · ");
+  const summary = String((it && it.summary) || "").trim();
+  const rawTitle = String((it && it.title) || "").trim();
+  const meaningful = summary.length >= 24 && summary.toLowerCase() !== rawTitle.toLowerCase();
+  const summaryHtml = meaningful
+    ? '<p class="news-sheet-para">'+escapeHtml(summary)+'</p>'
+    : '<p class="news-sheet-para muted">Ringkasan tidak tersedia dari sumber berita — buka berita untuk detail lengkap.</p>';
+  const imgHtml = img
+    ? '<button type="button" class="news-sheet-img-btn" data-src="'+escapeHtml(img)+'" aria-label="Perbesar gambar berita">'
+      + '<img class="news-sheet-img" src="'+escapeHtml(img)+'" alt="" loading="lazy" referrerpolicy="no-referrer">'
+      + '<span class="news-sheet-img-badge" aria-hidden="true">Klik untuk perbesar</span></button>'
+    : '';
+  const link = url
+    ? '<a class="btn news-sheet-link" href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" referrerpolicy="no-referrer">Lihat berita</a>'
+    : '<span class="btn ghost news-sheet-link disabled" aria-disabled="true">Tautan tidak tersedia</span>';
+  return '<h3 class="news-sheet-title">'+title+'</h3>'
+    + (meta ? '<div class="news-sheet-meta mono">'+meta+'</div>' : '')
+    + imgHtml
+    + '<div class="news-sheet-label mono">Kejelasan singkat</div>'
+    + summaryHtml
+    + '<div class="news-sheet-label mono">Kesimpulan sentimen</div>'
+    + '<div class="news-sheet-verdict '+v.cls+'">'+v.label+' · skor '+v.score.toFixed(2)+' (positif '+v.pos+' / negatif '+v.neg+')</div>'
+    + '<p class="news-sheet-para">'+escapeHtml(newsConclusionText(v))+'</p>'
+    + '<div class="news-sheet-actions">'+link+'</div>';
+}
+function newsSheetEl(){ return document.getElementById("newsSheet"); }
+function isNewsSheetOpen(){ return _newsSheetOpen; }
+function openNewsSheet(it){
+  const sheet = newsSheetEl(); if(!sheet || !it) return;
+  const body = document.getElementById("newsSheetBody");
+  if(body) body.innerHTML = newsSheetHtml(it);
+  _newsLastFocus = document.activeElement;
+  sheet.classList.add("show");
+  sheet.setAttribute("aria-hidden","false");
+  _newsSheetOpen = true;
+  document.body.classList.add("news-sheet-open");
+  const closeBtn = sheet.querySelector(".news-sheet-close");
+  if(closeBtn) closeBtn.focus();
+}
+function closeNewsSheet(){
+  const sheet = newsSheetEl(); if(!sheet) return;
+  sheet.classList.remove("show");
+  sheet.setAttribute("aria-hidden","true");
+  _newsSheetOpen = false;
+  document.body.classList.remove("news-sheet-open");
+  const back = _newsLastFocus;
+  _newsLastFocus = null;
+  if(back && back.focus){ try{ back.focus(); }catch(e){} }
+}
+function _newsFocusables(sheet){
+  return sheet.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+}
+function newsZoomEl(){ return document.querySelector(".news-zoom"); }
+function newsZoomHtml(src){
+  return '<button type="button" class="news-zoom-close" aria-label="Tutup gambar diperbesar">&times;</button>'
+    + '<img class="news-zoom-img" src="'+escapeHtml(src)+'" alt="" referrerpolicy="no-referrer">';
+}
+function openNewsZoom(rawSrc, trigger){
+  const src = safeUrl(rawSrc);
+  if(!src || newsZoomEl()) return;
+  const overlay = document.createElement("div");
+  overlay.className = "news-zoom";
+  overlay.setAttribute("role","dialog");
+  overlay.setAttribute("aria-modal","true");
+  overlay.setAttribute("aria-label","Gambar berita diperbesar");
+  overlay.innerHTML = newsZoomHtml(src);
+  _newsZoomTrigger = trigger || null;
+  _newsZoomOpen = true;
+  document.body.appendChild(overlay);
+  const closeBtn = overlay.querySelector(".news-zoom-close");
+  if(closeBtn) closeBtn.focus();
+}
+function closeNewsZoom(){
+  if(!_newsZoomOpen) return;
+  _newsZoomOpen = false;
+  const overlay = newsZoomEl();
+  if(overlay) overlay.remove();
+  const back = _newsZoomTrigger;
+  _newsZoomTrigger = null;
+  if(back && back.focus){ try{ back.focus(); }catch(e){} }
+}
+document.addEventListener("click", function(e){
+  const t = e.target;
+  if(!t || !t.closest) return;
+  if(t.closest(".news-zoom-close")){ e.preventDefault(); closeNewsZoom(); return; }
+  const zoom = newsZoomEl();
+  if(zoom && t === zoom){ closeNewsZoom(); return; }
+  const zoomBtn = t.closest(".news-sheet-img-btn");
+  if(zoomBtn){
+    e.preventDefault();
+    const img = zoomBtn.querySelector(".news-sheet-img");
+    openNewsZoom(zoomBtn.getAttribute("data-src") || (img && img.getAttribute("src")), zoomBtn);
+    return;
+  }
+  if(t.closest(".news-sheet-close")){ closeNewsSheet(); return; }
+  const card = t.closest(".news-item");
+  if(card){
+    e.preventDefault();
+    const it = _newsStore.get(card.getAttribute("data-news-id"));
+    if(it) openNewsSheet(it);
+    return;
+  }
+  const sheet = newsSheetEl();
+  if(sheet && t === sheet) closeNewsSheet();
+});
+document.addEventListener("keydown", function(e){
+  if(_newsZoomOpen){
+    const z = newsZoomEl();
+    if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); closeNewsZoom(); return; }
+    if(e.key === "Tab" && z){
+      const f = _newsFocusables(z);
+      if(!f.length){ e.preventDefault(); return; }
+      const first = f[0], last = f[f.length-1], active = document.activeElement;
+      if(!z.contains(active)){ e.preventDefault(); first.focus(); }
+      else if(e.shiftKey && active === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && active === last){ e.preventDefault(); first.focus(); }
+      return;
+    }
+  }
+  if(!_newsSheetOpen) return;
+  const sheet = newsSheetEl(); if(!sheet) return;
+  if(e.key === "Escape"){ e.preventDefault(); closeNewsSheet(); return; }
+  if(e.key === "Tab"){
+    const f = _newsFocusables(sheet);
+    if(!f.length) return;
+    const first = f[0], last = f[f.length-1], active = document.activeElement;
+    if(e.shiftKey && active === first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && active === last){ e.preventDefault(); first.focus(); }
+  }
+}, true);
+document.addEventListener("error", function(e){
+  const el = e.target;
+  if(!el || !el.classList) return;
+  if(el.classList.contains("news-zoom-img")){ closeNewsZoom(); return; }
+  if(el.classList.contains("news-thumb-img")){ el.style.display = "none"; return; }
+  if(el.classList.contains("news-sheet-img")){
+    const btn = el.closest && el.closest(".news-sheet-img-btn");
+    if(btn) btn.style.display = "none"; else el.style.display = "none";
+  }
+}, true);
+
 async function loadNews(t){
   const el = document.getElementById("newsCard"); if(!el) return;
   el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div><div class="empty">Memuat berita...</div></div>';
@@ -91,12 +312,7 @@ async function loadNews(t){
     const n = await (await fetch('/api/news?ticker=' + encodeURIComponent(t))).json();
     if(n.error) throw new Error(n.error);
     const cls = n.label==="Positif"?"v-up":(n.label==="Negatif"?"v-red":"v-muted");
-    const items = (n.items||[]).slice(0,8).map(it=>{
-      const s = it.sentiment>=0.2?"v-up":(it.sentiment<=-0.2?"v-red":"v-muted");
-      const url = safeUrl(it.url);
-      const link = url ? '<a href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+escapeHtml(it.title||"-")+'</a>' : escapeHtml(it.title||"-");
-      return '<div class="check" style="align-items:flex-start"><span class="ic '+s+'">'+(it.sentiment>0?'▲':(it.sentiment<0?'▼':'•'))+'</span><span style="flex:1">'+link+'<br><span class="mono" style="color:#8a9a90;font-size:10px">'+escapeHtml(it.publisher||"")+'</span></span></div>';
-    }).join("");
+    const items = newsCardsHtml((n.items||[]).slice(0,8));
     el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div>'
       + '<div class="grid"><div class="metric hl"><div class="k">Sentimen</div><div class="v '+cls+'">'+n.label+'</div></div>'
       + '<div class="metric"><div class="k">Skor rata-rata</div><div class="v v-muted">'+n.avg_sentiment+'</div></div>'
@@ -216,16 +432,7 @@ async function loadNewsTab(){
     const n=await (await fetch('/api/news?ticker='+encodeURIComponent(t))).json();
     if(n.error) throw new Error(n.error);
     const cls = n.label==="Positif"?"v-up":(n.label==="Negatif"?"v-red":"v-muted");
-    const items=(n.items||[]).map(it=>{
-      const s = it.sentiment>=0.2?"v-up":(it.sentiment<=-0.2?"v-red":"v-muted");
-      const arrow = it.sentiment>0?"▲":(it.sentiment<0?"▼":"•");
-      const url = safeUrl(it.url);
-      const title = url ? '<a href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+escapeHtml(it.title||"-")+'</a>' : escapeHtml(it.title||"-");
-      return '<div class="check" style="align-items:flex-start;gap:10px">'
-        + '<span class="ic '+s+'">'+arrow+'</span>'
-        + '<span style="flex:1;font-family:var(--ui-font);white-space:normal;line-height:1.55">'+title
-        + '<br><span class="mono" style="color:var(--muted);font-size:10px">'+[escapeHtml(it.publisher||""),fmtNewsTime(it.time)].filter(Boolean).join(" · ")+'</span></span></div>';
-    }).join("");
+    const items=newsCardsHtml(n.items||[]);
     el.innerHTML =
       '<div class="card">'
       + '<div class="grid">'
@@ -233,7 +440,7 @@ async function loadNewsTab(){
       + '<div class="metric"><div class="k">Skor rata-rata</div><div class="v v-muted">'+(n.avg_sentiment==null?"-":Number(n.avg_sentiment).toFixed(2))+'</div></div>'
       + '<div class="metric"><div class="k">Jumlah berita</div><div class="v v-white">'+n.count+'</div></div>'
       + '</div>'
-      + (items? '<div class="mono" style="color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.06em;margin:18px 0 6px">Daftar berita</div><div>'+items+'</div>'
+      + (items? '<div class="mono" style="color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.06em;margin:18px 0 6px">Daftar berita</div>'+items
                : (n.degraded ? '<div class="empty" style="padding:24px">Gagal memuat berita untuk '+escapeHtml(t)+' (sumber tidak tersedia).</div>'
                              : '<div class="empty" style="padding:24px">Tidak ada berita untuk '+escapeHtml(t)+'.</div>'))
       + '</div>';

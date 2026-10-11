@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import html
 import re
 import threading
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 
 import pandas as pd
 import yfinance as yf
@@ -63,6 +65,137 @@ _NEG = {
 }
 
 
+# Panjang maksimum ringkasan (summary) yang diteruskan ke UI. `<description>`
+# RSS atau `summary` Yahoo bisa sangat panjang dan cache dibatasi 512 entri,
+# jadi dipotong keras agar payload tidak membengkak (memory-DoS).
+_MAX_SUMMARY = 240
+
+# Panjang minimum sisa ringkasan agar dianggap bermakna. Google News RSS
+# menaruh `<description>` = "Judul Penerbit" (tanpa tanda hubung), padahal
+# keduanya sudah tampil di UI (judul + meta penerbit). Setelah awalan judul /
+# akhiran penerbit dibuang, sisa di bawah ambang ini berarti ringkasan memang
+# hanya mengulang — kembalikan `None` agar UI memakai fallback jujur.
+# Diselaraskan dengan gate `meaningful` di `static/js/views.js`.
+_MIN_SUMMARY = 24
+
+
+class _TextExtract(HTMLParser):
+    """Ambil teks murni dari HTML tanpa `defusedxml`/regex (anti-bypass)."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(data)
+
+    def get_text(self) -> str:
+        return " ".join(self._parts)
+
+
+def _title_basename(title: str, publisher) -> str:
+    """Buang akhiran " - Penerbit" dari judul Google News (mis. "X - Pub").
+
+    `re.escape` wajib: `title`/`publisher` berasal dari RSS pihak ketiga dan
+    tak boleh diperlakukan sebagai pola regex.
+    """
+    t = (title or "").strip()
+    pub = (publisher or "").strip()
+    if pub:
+        t = re.sub(
+            r"\s*[-–—|·]\s*" + re.escape(pub) + r"\s*$",
+            "", t, flags=re.IGNORECASE,
+        )
+    return t.strip()
+
+
+def _strip_redundant(plain: str, title: str, publisher) -> str:
+    """Buang awalan judul + akhiran penerbit yang sudah tampil di UI.
+
+    Dikerjakan pada teks polos SEBELUM pemotongan `_MAX_SUMMARY` agar akhiran
+    penerbit tak terpangkas lebih dulu (kalau tidak, sisa duplikat lolos).
+    Hanya awalan/akhiran persis yang dipotong (setelah normalisasi spasi),
+    bukan substring bebas, supaya ringkasan asli tak terpangkas sembarangan.
+    """
+    s = plain
+    # Judul lengkap ("X - Pub") dan judul bersih ("X").
+    for prefix in (_title_basename(title, publisher), (title or "").strip()):
+        p = prefix
+        if p:
+            s = re.sub(r"^\s*" + re.escape(p) + r"\s*", "", s, flags=re.IGNORECASE)
+    pub = (publisher or "").strip()
+    if pub:
+        s = re.sub(
+            r"\s*[-–—|·]?\s*" + re.escape(pub) + r"\s*$",
+            "", s, flags=re.IGNORECASE,
+        )
+    return s.strip()
+
+
+def _clean_summary(text, title=None, publisher=None) -> str | None:
+    """Bersihkan HTML `<description>`/`summary` jadi teks polos terbatas panjang.
+
+    Sengaja dipisah dari `_sentiment`: ringkasan TIDAK boleh ikut menghitung
+    sentimen (label tetap title-only), hanya untuk kejelasan singkat di UI.
+
+    Bila `title`/`publisher` diberikan (jalur RSS Google News), redundansi
+    "judul + penerbit" dibuang lebih dulu. Blob cluster `<ol>` (banyak headline
+    tergabung) langsung ditolak (`None`) karena tak bisa dipisah dengan aman.
+    """
+    if not isinstance(text, str):
+        return None
+    raw = text.strip()
+    if not raw:
+        return None
+    if title or publisher:
+        if re.search(r"<ol\b", raw, flags=re.IGNORECASE):
+            return None
+    try:
+        parser_obj = _TextExtract()
+        parser_obj.feed(raw)
+        parser_obj.close()
+        plain = parser_obj.get_text()
+    except Exception:  # noqa: BLE001 - parser gagal, fallback aman
+        plain = html.unescape(re.sub(r"<[^>]+>", " ", raw))
+    plain = re.sub(r"\s+", " ", plain).strip()
+    if not plain:
+        return None
+    if title or publisher:
+        plain = _strip_redundant(plain, title or "", publisher)
+        if len(plain) < _MIN_SUMMARY:
+            return None
+    if len(plain) > _MAX_SUMMARY:
+        plain = plain[:_MAX_SUMMARY].rstrip() + "…"
+    return plain
+
+
+def _safe_http_url(url) -> str | None:
+    """Validasi server-side: hanya terima http(s) ber-host; tolak skema lain."""
+    if not isinstance(url, str):
+        return None
+    u = url.strip()
+    if not u:
+        return None
+    parsed = urllib.parse.urlparse(u)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return u
+    return None
+
+
+def _thumb_url(thumb) -> str | None:
+    """Ambil URL gambar dari `thumbnail` Yahoo (dict dengan `resolutions`)."""
+    if isinstance(thumb, dict):
+        res = thumb.get("resolutions")
+        if isinstance(res, list):
+            for entry in res:
+                if isinstance(entry, dict):
+                    u = _safe_http_url(entry.get("url"))
+                    if u:
+                        return u
+        return _safe_http_url(thumb.get("url"))
+    return _safe_http_url(thumb)
+
+
 def _sentiment(text: str) -> tuple[int, int, float]:
     words = re.findall(r"[a-zA-Z]+", (text or "").lower())
     pos = sum(1 for w in words if w in _POS)
@@ -82,22 +215,28 @@ def _parse_item(n: dict) -> dict | None:
         publisher = (content.get("provider") or {}).get("displayName")
         link = ((content.get("canonicalUrl") or {}).get("url"))
         ts = content.get("pubDate")
+        summary = content.get("summary") or content.get("description")
+        image = _thumb_url(content.get("thumbnail"))
     else:
         title = n.get("title")
         publisher = n.get("publisher")
         link = n.get("link")
         ts = n.get("providerPublishTime")
+        summary = n.get("summary") or n.get("description")
+        image = _thumb_url(n.get("thumbnail"))
     if not title:
         return None
     pos, neg, score = _sentiment(title)
     return {
         "title": title,
         "publisher": publisher,
-        "url": link,
+        "url": _safe_http_url(link),
         "time": ts,
         "sentiment": score,
         "pos": pos,
         "neg": neg,
+        "summary": _clean_summary(summary),
+        "image": image,
     }
 
 
@@ -167,9 +306,11 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
         title = (node.findtext("title") or "").strip()
         if not title:
             continue
-        link = (node.findtext("link") or "").strip() or None
+        link = _safe_http_url((node.findtext("link") or "").strip() or None)
         publisher = (node.findtext("source") or "").strip() or None
         ts = (node.findtext("pubDate") or "").strip() or None
+        enclosure = node.find("enclosure")
+        image = _safe_http_url(enclosure.get("url") if enclosure is not None else None)
         pos, neg, score = _sentiment(title)
         out.append({
             "title": title,
@@ -179,6 +320,8 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
             "sentiment": score,
             "pos": pos,
             "neg": neg,
+            "summary": _clean_summary(node.findtext("description"), title, publisher),
+            "image": image,
         })
     return out
 

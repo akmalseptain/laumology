@@ -1,11 +1,13 @@
 """Gerbang kualitas lokal LAUMOLOGY (tanpa dependensi tambahan).
 
-Menjalankan dua pemeriksaan:
+Menjalankan tiga pemeriksaan:
 - ``--syntax``: memindai seluruh ``*.py`` di root repo dan meng-``compile()``-nya
   (tidak menulis berkas ``.pyc``).
+- ``--js``: menjalankan ``node --check`` atas berkas ``*.js`` aplikasi di
+  ``static/`` (vendor dilewati).
 - ``--tests``: menjalankan suite regresi ``tests.test_engine``.
 
-Bila dipanggil tanpa argumen, kedua pemeriksaan dijalankan. Kode keluar 0 bila
+Bila dipanggil tanpa argumen, ketiga pemeriksaan dijalankan. Kode keluar 0 bila
 semua lolos, 1 bila ada kegagalan.
 """
 
@@ -13,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -29,6 +33,12 @@ _SKIP_DIRS = {
     "node_modules",
     "Sciencebasedlifter",
     "state",
+}
+
+# Direktori JS pihak ketiga (minified) yang dilewati pemeriksaan node --check.
+_JS_SKIP_DIRS = {
+    "vendor",
+    "node_modules",
 }
 
 
@@ -68,6 +78,51 @@ def check_syntax() -> list[str]:
     return failures
 
 
+def _iter_js_files() -> list[pathlib.Path]:
+    """Kumpulkan berkas ``*.js`` aplikasi di ``static/`` (lewati vendor)."""
+    files: list[pathlib.Path] = []
+    static_dir = ROOT / "static"
+    if not static_dir.is_dir():
+        return files
+    for path in sorted(static_dir.rglob("*.js")):
+        rel = path.relative_to(static_dir)
+        if any(part in _JS_SKIP_DIRS for part in rel.parts):
+            continue
+        files.append(path)
+    return files
+
+
+def check_js_syntax() -> list[str]:
+    """Jalankan ``node --check`` atas tiap berkas JS aplikasi.
+
+    ``quality_gate`` semula hanya memeriksa ``*.py`` (``views.js`` nol
+    terperiksa). Langkah ini menutup celah itu. Kembalikan daftar pesan gagal.
+    """
+    files = _iter_js_files()
+    if not files:
+        return []
+    node = shutil.which("node")
+    if not node:
+        return ["node tidak ditemukan di PATH (wajib untuk memeriksa JS)"]
+    failures: list[str] = []
+    for path in files:
+        rel = path.relative_to(ROOT)
+        try:
+            proc = subprocess.run(
+                [node, "--check", str(path)],
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            failures.append(f"{rel}: gagal menjalankan node ({exc})")
+            continue
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+            msg = detail[0] if detail else "sintaks JS tidak valid"
+            failures.append(f"{rel}: {msg}")
+    return failures
+
+
 def run_tests(verbose: bool) -> bool:
     """Jalankan suite ``tests.test_engine``. True bila sukses."""
     # Skrip dijalankan sebagai ``py tools/quality_gate.py`` -> sisipkan root.
@@ -97,6 +152,11 @@ def main(argv: list[str] | None = None) -> int:
         help="hanya jalankan suite regresi tests.test_engine",
     )
     parser.add_argument(
+        "--js",
+        action="store_true",
+        help="hanya periksa sintaks JS aplikasi via node --check",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -104,10 +164,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Tanpa flag apa pun -> jalankan kedua pemeriksaan.
-    no_flags = not args.syntax and not args.tests
+    # Tanpa flag apa pun -> jalankan ketiga pemeriksaan.
+    no_flags = not args.syntax and not args.tests and not args.js
     do_syntax = args.syntax or no_flags
     do_tests = args.tests or no_flags
+    do_js = args.js or no_flags
 
     passed = True
 
@@ -121,6 +182,18 @@ def main(argv: list[str] | None = None) -> int:
         for message in failures:
             print(f"[quality-gate]   - {message}")
         if failures:
+            passed = False
+
+    if do_js:
+        js_files = _iter_js_files()
+        js_failures = check_js_syntax()
+        print(
+            f"[quality-gate] sintaks JS (node --check): {len(js_files)} berkas "
+            f"diperiksa, {len(js_failures)} gagal"
+        )
+        for message in js_failures:
+            print(f"[quality-gate]   - {message}")
+        if js_failures:
             passed = False
 
     if do_tests:

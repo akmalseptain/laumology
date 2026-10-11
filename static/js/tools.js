@@ -200,23 +200,13 @@ async function loadMarketNews(){
     const n = await (await fetch('/api/news/market')).json();
     if(n.error) throw new Error(n.error);
     const cls = n.label==="Positif"?"v-up":(n.label==="Negatif"?"v-red":"v-muted");
-    const items = (n.items||[]).map(it=>{
-      const s = it.sentiment>=0.2?"v-up":(it.sentiment<=-0.2?"v-red":"v-muted");
-      const arrow = it.sentiment>0?"▲":(it.sentiment<0?"▼":"•");
-      const url = safeUrl(it.url);
-      const title = url ? '<a href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+escapeHtml(it.title||"-")+'</a>' : escapeHtml(it.title||"-");
-      const src = it.source_ticker ? ' · '+escapeHtml(it.source_ticker) : '';
-      return '<div class="check" style="align-items:flex-start;gap:10px">'
-        + '<span class="ic '+s+'">'+arrow+'</span>'
-        + '<span style="flex:1;font-family:var(--ui-font);white-space:normal;line-height:1.55">'+title
-        + '<br><span class="mono" style="color:var(--muted);font-size:10px">'+[escapeHtml(it.publisher||""),fmtNewsTime(it.time)].filter(Boolean).join(" · ")+src+'</span></span></div>';
-    }).join("");
+    const items = newsCardsHtml(n.items||[]);
     el.innerHTML = '<div class="grid">'
       + '<div class="metric hl"><div class="k">Sentimen Pasar</div><div class="v '+cls+'">'+n.label+'</div></div>'
       + '<div class="metric"><div class="k">Skor rata-rata</div><div class="v v-muted">'+(n.avg_sentiment==null?"-":Number(n.avg_sentiment).toFixed(2))+'</div></div>'
       + '<div class="metric"><div class="k">Jumlah berita</div><div class="v v-white">'+n.count+'</div></div>'
       + '</div>'
-      + (items ? '<div>'+items+'</div>' : (n.degraded ? '<div class="empty sm">Gagal memuat berita pasar (sumber tidak tersedia).</div>' : '<div class="empty sm">Tidak ada berita pasar saat ini.</div>'));
+      + (items ? '<div style="margin-top:12px">'+items+'</div>' : (n.degraded ? '<div class="empty sm">Gagal memuat berita pasar (sumber tidak tersedia).</div>' : '<div class="empty sm">Tidak ada berita pasar saat ini.</div>'));
     showStatus("Selesai");
   }catch(e){ el.innerHTML = '<div class="empty sm">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
 }

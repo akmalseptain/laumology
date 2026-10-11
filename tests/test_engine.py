@@ -475,6 +475,90 @@ class TestNewsRssFallback(unittest.TestCase):
         self.assertEqual(it["publisher"], "TestMedia")
         self.assertEqual(it["url"], "https://example.test/1")
 
+    # Shape nyata Google News RSS: `<title>` = "Judul - Penerbit" sedangkan
+    # `<description>` = "Judul Penerbit" (HTML, tanpa tanda hubung).
+    RSS_DUP = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>IHSG Diprediksi Menguat - KabarBursa.com</title>'
+        b'<link>https://example.test/2</link>'
+        b'<pubDate>Wed, 07 Oct 2026 04:24:00 GMT</pubDate>'
+        b'<source url="https://example.test/kb">KabarBursa.com</source>'
+        b'<description><![CDATA[<a href="https://example.test/2">'
+        b'IHSG Diprediksi Menguat</a>&nbsp;<font color="#6f6f6f">'
+        b'KabarBursa.com</font>]]></description>'
+        b'</item>'
+        b'</channel></rss>'
+    )
+
+    RSS_CLUSTER = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>Topik Pasar - KabarBursa.com</title>'
+        b'<link>https://example.test/3</link>'
+        b'<source>KabarBursa.com</source>'
+        b'<description><![CDATA[<ol><li><a href="https://example.test/3a">'
+        b'Headline A</a>&nbsp;<font>Pub A</font></li>'
+        b'<li><a href="https://example.test/3b">Headline B</a>&nbsp;'
+        b'<font>Pub B</font></li></ol>]]></description>'
+        b'</item>'
+        b'</channel></rss>'
+    )
+
+    RSS_GENUINE = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>Prospek Bank - KabarBursa.com</title>'
+        b'<link>https://example.test/4</link>'
+        b'<source>KabarBursa.com</source>'
+        b'<description><![CDATA[Analis menilai prospek emiten perbankan '
+        b'masih solid sepanjang kuartal ini.]]></description>'
+        b'</item>'
+        b'</channel></rss>'
+    )
+
+    def test_parse_rss_drops_title_publisher_duplicate_summary(self):
+        import news
+        items = news._parse_rss(self.RSS_DUP)
+        self.assertEqual(len(items), 1)
+        self.assertIsNone(items[0]["summary"])
+
+    def test_parse_rss_drops_cluster_summary(self):
+        import news
+        items = news._parse_rss(self.RSS_CLUSTER)
+        self.assertEqual(len(items), 1)
+        self.assertIsNone(items[0]["summary"])
+
+    def test_parse_rss_keeps_genuine_summary(self):
+        import news
+        items = news._parse_rss(self.RSS_GENUINE)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(
+            items[0]["summary"],
+            "Analis menilai prospek emiten perbankan masih solid sepanjang kuartal ini.",
+        )
+
+    def test_clean_summary_regex_meta_safe(self):
+        """Penerbit/judul ber-karakter regex tak boleh jadi pola liar/ReDoS."""
+        import news
+        out = news._clean_summary(
+            "Headline A.B+C (Group) A.B+C (Group)",
+            title="Headline A.B+C (Group) - A.B+C (Group)",
+            publisher="A.B+C (Group)",
+        )
+        self.assertIsNone(out)
+
+    def test_clean_summary_short_genuine_preserved(self):
+        import news
+        s = "Emiten mencatat laba bersih naik."
+        self.assertEqual(news._clean_summary(s), s)
+
+    def test_clean_summary_rss_short_residual_dropped(self):
+        import news
+        self.assertIsNone(
+            news._clean_summary("Laba naik", title="X - Pub", publisher="Pub")
+        )
+
     def test_parse_rss_rejects_dtd(self):
         import news
         with self.assertRaises(ValueError):
@@ -1500,6 +1584,51 @@ class TestAtomicCacheWrite(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
         self.assertEqual(len(pd.read_csv(path, index_col=0)), 30)
         self.assertEqual(self._tmp_leftovers(), [])
+
+
+class TestNewsStoreEviction(unittest.TestCase):
+    """Invarian statik penyimpanan kartu berita (W-0010 iterasi #4).
+
+    Bug lama: ``views.js`` menyapu SELURUH ``_newsStore`` tiap render begitu
+    ``_newsSeq > 1000``, sehingga kartu lama mati diklik. Kunci perilaku baru:
+    tak ada wipe global, store berupa ``Map``, eviksi berbutir setelah insert
+    penuh, dan batas penyimpanan > jumlah maksimum kartu satu render (24).
+    """
+
+    VIEWS = Path(__file__).resolve().parent.parent / "static" / "js" / "views.js"
+
+    def _source(self) -> str:
+        return self.VIEWS.read_text(encoding="utf-8")
+
+    def test_store_is_map_not_object(self):
+        src = self._source()
+        self.assertIn("const _newsStore = new Map();", src)
+        self.assertNotIn("const _newsStore = {};", src)
+
+    def test_no_global_wipe_each_render(self):
+        src = self._source()
+        self.assertNotIn("for(const k in _newsStore)", src)
+        self.assertNotIn("delete _newsStore[k]", src)
+
+    def test_eviction_runs_after_full_batch_insert(self):
+        src = self._source()
+        self.assertIn("_newsEvict(list.length);", src)
+        self.assertIn("_newsStore.set(id, it || {});", src)
+
+    def test_store_cap_not_less_than_max_single_render(self):
+        import re
+
+        src = self._source()
+        match = re.search(r"const NEWS_STORE_CAP = (\d+);", src)
+        self.assertIsNotNone(match, "NEWS_STORE_CAP tidak ditemukan")
+        cap = int(match.group(1))
+        # Maksimum kartu satu render: 8 (`views.js`) / 15 / 24 (`news.py`).
+        self.assertGreaterEqual(cap, 24)
+
+    def test_click_reads_store_via_get(self):
+        src = self._source()
+        self.assertIn("_newsStore.get(card.getAttribute(\"data-news-id\"))", src)
+        self.assertNotIn("_newsStore[card.getAttribute", src)
 
 
 if __name__ == "__main__":

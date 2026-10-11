@@ -121,6 +121,7 @@ function hideOnboard(){ var el=document.getElementById("onboard"); if(el) el.cla
 var TAB_ORDER=["analisis","fundamental","berita","screener","live","backtest","portofolio","akurasi","pasar","musyawarah"];
 function gotoTabByIndex(i){ var name=TAB_ORDER[i]; if(!name) return; var t=document.querySelector('.tab[data-tab="'+name+'"]'); if(t) t.click(); }
 document.addEventListener("keydown",function(e){
+  if(typeof isNewsSheetOpen === "function" && isNewsSheetOpen()) return;
   var tag=(e.target.tagName||"").toLowerCase();
   if(tag==="input"||tag==="select"||tag==="textarea") return;
   if(e.key>="1"&&e.key<="9"){ gotoTabByIndex(Number(e.key)-1); }
