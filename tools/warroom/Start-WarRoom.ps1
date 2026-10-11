@@ -39,18 +39,36 @@ $script:LogoAscii = @(
     '  ============================================================'
 )
 
+# --- Warna: truecolor (Windows Terminal / VS Code) bila tersedia, else 16-warna ---
+$script:TrueColor = [bool]($env:WT_SESSION -or $env:TERM_PROGRAM -or ($env:COLORTERM -match 'truecolor|24bit'))
+function Write-Rgb {
+    param([string]$Text, [int]$R, [int]$G, [int]$B, [string]$Fallback = 'Cyan')
+    if ($script:TrueColor) {
+        $esc = [char]27
+        Write-Host ($esc + "[38;2;$R;$G;${B}m" + $Text + $esc + "[0m")
+    } else {
+        Write-Host $Text -ForegroundColor $Fallback
+    }
+}
+
 function Show-Banner {
     Write-Host ""
-    if ($script:UnicodeOK) {
-        $colors = @('Cyan', 'Blue', 'Cyan', 'Blue', 'Cyan', 'DarkCyan')
+    if ($script:UnicodeOK -and $script:LogoUnicode.Count -gt 0) {
+        # Gradient vertikal: cyan -> biru -> violet -> magenta
+        $n = [Math]::Max($script:LogoUnicode.Count - 1, 1)
         for ($k = 0; $k -lt $script:LogoUnicode.Count; $k++) {
-            Write-Host (' ' + $script:LogoUnicode[$k]) -ForegroundColor $colors[$k % $colors.Count]
+            $t = $k / $n
+            $r = [int](34 + ($t * 190))
+            $g = [int](211 - ($t * 120))
+            $b = [int](238 + ($t * 17))
+            $fb = if ($k % 2 -eq 0) { 'Cyan' } else { 'Blue' }
+            Write-Rgb -Text (' ' + $script:LogoUnicode[$k]) -R $r -G $g -B $b -Fallback $fb
         }
     } else {
         foreach ($l in $script:LogoAscii) { Write-Host $l -ForegroundColor Cyan }
     }
     Write-Host ""
-    Write-Host "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -ForegroundColor White
+    Write-Rgb -Text "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -R 255 -G 255 -B 255 -Fallback White
     Write-Host "        Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
     Write-Host ""
 }
@@ -60,10 +78,15 @@ function Show-Header {
     $snap = Get-GitSnapshot
     $cfg = Get-WarRoomConfig
     $cwd = Get-WarRoomRoot
-    Write-Host ("  CWD     : {0}" -f $cwd) -ForegroundColor Gray
-    Write-Host ("  Git     : {0} @ {1}  (staged={2} unstaged={3} untracked={4})" -f `
-        $snap.branch, $snap.head, $snap.staged.Count, $snap.unstaged.Count, $snap.untracked.Count) -ForegroundColor Gray
-    Write-Host ("  Iterasi : #{0}   Status: {1}   Model: {2}" -f $st.iteration, $st.state, $cfg.Model) -ForegroundColor Gray
+    Write-Host "  CWD     : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $cwd -ForegroundColor Gray
+    Write-Host "  Git     : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $snap.branch -NoNewline -ForegroundColor Green
+    Write-Host (" @ {0}  (staged={1} unstaged={2} untracked={3})" -f $snap.head, $snap.staged.Count, $snap.unstaged.Count, $snap.untracked.Count) -ForegroundColor Gray
+    Write-Host "  Iterasi : " -NoNewline -ForegroundColor DarkGray
+    Write-Host ("#{0}  " -f $st.iteration) -NoNewline -ForegroundColor Yellow
+    Write-Host ("Status: {0}  " -f $st.state) -NoNewline -ForegroundColor Cyan
+    Write-Host ("Model: {0}" -f $cfg.Model) -ForegroundColor Magenta
     Write-Host ""
 }
 
@@ -71,30 +94,43 @@ function Show-Status {
     $st = Get-WarRoomState
     $b = Get-BudgetStatus
     Write-Host "  --- STATUS ---" -ForegroundColor Cyan
-    Write-Host ("  Status      : {0}" -f $st.state)
-    Write-Host ("  Iterasi     : #{0}  (sukses terakhir: #{1})" -f $st.iteration, $st.lastSuccessIteration)
-    Write-Host ("  Tindakan    : {0}" -f $st.nextAction)
-    Write-Host ("  Anggaran    : mode={0}  terpakai=Rp{1:N0}  cadangan=Rp{2:N0}  sisa=Rp{3:N0}" -f `
-        $b.mode, $b.spentIDR, $b.reservedIDR, $b.remainingIDR)
-    Write-Host ("  Ambang      : warning=Rp{0:N0} reduced=Rp{1:N0} pause=Rp{2:N0}" -f `
-        $b.warningIDR, $b.reducedIDR, $b.hardPauseIDR)
-    Write-Host ("  Ledger sehat: {0}" -f $b.ledgerHealthy) -ForegroundColor $(if ($b.ledgerHealthy) { 'Green' } else { 'Red' })
+    Write-Host "  Status      : " -NoNewline -ForegroundColor DarkGray
+    Write-Host $st.state -ForegroundColor Cyan
+    Write-Host ("  Iterasi     : #{0}  (sukses terakhir: #{1})" -f $st.iteration, $st.lastSuccessIteration) -ForegroundColor Gray
+    Write-Host ("  Tindakan    : {0}" -f $st.nextAction) -ForegroundColor Gray
+    $modeColor = switch ($b.mode) { 'normal' { 'Green' } 'warning' { 'Yellow' } 'reduced' { 'DarkYellow' } 'paused' { 'Red' } default { 'Gray' } }
+    Write-Host "  Anggaran    : mode=" -NoNewline -ForegroundColor DarkGray
+    Write-Host $b.mode -NoNewline -ForegroundColor $modeColor
+    Write-Host ("  terpakai=Rp{0:N0}  cadangan=Rp{1:N0}  sisa=Rp{2:N0}" -f $b.spentIDR, $b.reservedIDR, $b.remainingIDR) -ForegroundColor Gray
+    Write-Host ("  Ambang      : warning=Rp{0:N0} reduced=Rp{1:N0} pause=Rp{2:N0}" -f $b.warningIDR, $b.reducedIDR, $b.hardPauseIDR) -ForegroundColor DarkGray
+    Write-Host "  Ledger sehat: " -NoNewline -ForegroundColor DarkGray
+    Write-Host $b.ledgerHealthy -ForegroundColor $(if ($b.ledgerHealthy) { 'Green' } else { 'Red' })
 }
 
 function Show-Team {
     $cfg = Get-WarRoomConfig
     Write-Host "  --- TIM (peran logis -> agen OpenCode nyata) ---" -ForegroundColor Cyan
-    Write-Host ("  Lead Engineer      -> {0}  (primary)" -f $cfg.Agents.Lead)
-    Write-Host ("  Code Engineer      -> {0}  (subagent, edit)" -f $cfg.Agents.Code)
-    Write-Host ("  Quant Analyst      -> {0}  (subagent, read-only)" -f $cfg.Agents.Quant)
-    Write-Host ("  QA Engineer        -> {0}  (subagent, edit)" -f $cfg.Agents.QA)
-    Write-Host ("  Independent Reviewer -> {0}  (subagent, read-only)" -f $cfg.Agents.Reviewer)
+    $rows = @(
+        @('Lead Engineer', $cfg.Agents.Lead, '(primary)'),
+        @('Code Engineer', $cfg.Agents.Code, '(subagent, edit)'),
+        @('Quant Analyst', $cfg.Agents.Quant, '(subagent, read-only)'),
+        @('QA Engineer', $cfg.Agents.QA, '(subagent, edit)'),
+        @('Independent Reviewer', $cfg.Agents.Reviewer, '(subagent, read-only)')
+    )
+    foreach ($r in $rows) {
+        Write-Host ("  {0,-20} -> " -f $r[0]) -NoNewline -ForegroundColor Gray
+        Write-Host ("{0,-16}" -f $r[1]) -NoNewline -ForegroundColor (Get-AgentColor -Agent $r[1])
+        Write-Host (" {0}" -f $r[2]) -ForegroundColor DarkGray
+    }
 }
 
 function Show-Backlog {
     $sum = Get-BacklogSummary
     Write-Host ("  --- BACKLOG (total={0}) ---" -f $sum.total) -ForegroundColor Cyan
-    foreach ($k in $sum.byStatus.Keys) { Write-Host ("    {0}: {1}" -f $k, $sum.byStatus[$k]) }
+    foreach ($k in $sum.byStatus.Keys) {
+        $kc = switch ($k) { 'done' { 'Green' } 'open' { 'Yellow' } 'blocked' { 'Red' } 'rejected' { 'DarkGray' } default { 'Gray' } }
+        Write-Host ("    {0}: {1}" -f $k, $sum.byStatus[$k]) -ForegroundColor $kc
+    }
     if ($sum.next) {
         Write-Host ("  Berikutnya : {0}  [{1}/{2}/eff={3}]  {4}" -f $sum.next.id, $sum.next.severity, $sum.next.confidence, $sum.next.effort, $sum.next.title) -ForegroundColor Yellow
     } else {
