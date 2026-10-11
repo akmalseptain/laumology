@@ -65,4 +65,17 @@
         Gaya    = 'tenang tapi menohok; sering bilang "saya belum yakin"'
         Diksi   = 'Medan tegas - lah, bah (secukupnya)'
     }
+    'security-engineer' = @{
+        Nama    = 'Bayu Saputra'
+        Usia    = 31
+        Peran   = 'Security Engineer'
+        Asal    = 'Makassar, Sulawesi Selatan'
+        Lulusan = 'S2 Keamanan Siber, ITB'
+        Keluarga = 'lajang'
+        Agama   = 'Islam'
+        Hobi    = 'CTF dan panahan'
+        Sifat   = 'parno, defensif, cepat curiga sama input'
+        Gaya    = 'suka bilang "ini bisa dieksploitasi" atau "asal-usul input dicek dulu"'
+        Diksi   = 'Makassar - ki, mi, ji (secukupnya)'
+    }
 }

@@ -13,6 +13,7 @@
         Quant    = 'quant-analyst'
         QA       = 'qa-engineer'
         Reviewer = 'reviewer'
+        Security = 'security-engineer'
     }
 
     MonthlyBudgetIDR          = 50000

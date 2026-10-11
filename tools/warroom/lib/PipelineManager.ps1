@@ -17,6 +17,7 @@ function Invoke-WarRoomPipeline {
     $quant = $cfg.Agents.Quant
     $qa = $cfg.Agents.QA
     $reviewer = $cfg.Agents.Reviewer
+    $security = if ($cfg.Agents.ContainsKey('Security')) { $cfg.Agents.Security } else { '' }
     if ($MaxConcurrent -le 0) { $MaxConcurrent = [int]$cfg.MaxConcurrentModelTasks }
 
     if ($Item) {
@@ -64,7 +65,9 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
         return [pscustomobject]$summary
     }
 
-    # --- 2. INVESTIGATE (quant & qa paralel, read-only) ---
+    # --- 2. INVESTIGATE (paralel, read-only) ---
+    $investAgents = @($quant, $qa)
+    if ($security) { $investAgents += $security }
     $investPrompt = @"
 KARAKTER: {1}
 $chaosStyle
@@ -75,17 +78,39 @@ WAJIB sertakan bukti path:line dan risiko nyata. Ringkas (<= 10 baris).
 RENCANA LEAD:
 $planText
 "@
-    Write-Section -Title ("[2/4] INVESTIGATE  -  " + $quant + " | " + $qa) -Color 'Magenta'
+    Write-Section -Title ("[2/4] INVESTIGATE  -  " + ($investAgents -join ' | ')) -Color 'Magenta'
     $runs = @()
-    $runs += Start-WarRoomAgentProcess -Agent $quant -Prompt ($investPrompt -f $quant, (Get-AgentPersona -Agent $quant)) -CycleId $CycleId -Role "$quant-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
-    $runs += Start-WarRoomAgentProcess -Agent $qa -Prompt ($investPrompt -f $qa, (Get-AgentPersona -Agent $qa)) -CycleId $CycleId -Role "$qa-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
+    foreach ($ag in $investAgents) {
+        $runs += Start-WarRoomAgentProcess -Agent $ag -Prompt ($investPrompt -f $ag, (Get-AgentPersona -Agent $ag)) -CycleId $CycleId -Role "$ag-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
+    }
     $inv = Wait-WarRoomProcessesStreaming -Runs $runs -Phase 'investigate' -TimeoutSec ($TimeoutSec + 120)
     $findings = ($inv | ForEach-Object {
         $t = if ($_.result) { $_.result.text } else { '' }
         "[$($_.agent)]`n$t"
     }) -join "`n`n"
     $summary.investigate = @($inv | Where-Object { $_.result -and $_.result.ok }).Count
-    Write-Host ("  [2/4] INVESTIGATE: {0}/2 agen ok" -f $summary.investigate) -ForegroundColor Cyan
+    Write-Host ("  [2/4] INVESTIGATE: {0}/{1} agen ok" -f $summary.investigate, $investAgents.Count) -ForegroundColor Cyan
+
+    # REAKSI silang (semi-chaos): tiap investigator menanggapi temuan rekan.
+    $reactions = ''
+    if ($investAgents.Count -gt 1 -and $findings) {
+        Write-Section -Title "[2b/4] REAKSI silang-cakap" -Color 'Magenta'
+        $rruns = @()
+        foreach ($ag in $investAgents) {
+            $rp = @"
+KARAKTER: $(Get-AgentPersona -Agent $ag)
+Gaya: ngobrol natural, boleh nyindir/bercanda ringan, tapi tetap berbukti.
+
+Ini temuan rekan-rekanmu:
+$findings
+
+Reaksi SINGKAT (1-2 kalimat, in-character): setuju atau keberatan? Alasan singkat.
+"@
+            $rruns += Start-WarRoomAgentProcess -Agent $ag -Prompt $rp -CycleId $CycleId -Role "$ag-react" -TimeoutSec $TimeoutSec -Auto:$Auto
+        }
+        $react = Wait-WarRoomProcessesStreaming -Runs $rruns -Phase 'reaksi' -TimeoutSec ($TimeoutSec + 120)
+        $reactions = ($react | ForEach-Object { "[$($_.agent)] " + $(if ($_.result) { $_.result.text } else { '' }) }) -join "`n"
+    }
 
     # --- 3. IMPLEMENT (Code Engineer, satu penulis) ---
     $implPrompt = @"
@@ -102,6 +127,9 @@ $planText
 
 TEMUAN INVESTIGASI:
 $findings
+
+REAKSI TIM (silang-cakap):
+$reactions
 
 Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil nyatanya.
 "@
@@ -125,10 +153,13 @@ Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
 RENCANA:
 $planText
 "@
-    Write-Section -Title ("[4/4] VERIFY  -  " + $quant + " | " + $reviewer) -Color 'Blue'
+    $verifyAgents = @($quant, $reviewer)
+    if ($security) { $verifyAgents += $security }
+    Write-Section -Title ("[4/4] VERIFY  -  " + ($verifyAgents -join ' | ')) -Color 'Blue'
     $vruns = @()
-    $vruns += Start-WarRoomAgentProcess -Agent $quant -Prompt ($verifyPrompt -f $quant, (Get-AgentPersona -Agent $quant)) -CycleId $CycleId -Role "$quant-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
-    $vruns += Start-WarRoomAgentProcess -Agent $reviewer -Prompt ($verifyPrompt -f $reviewer, (Get-AgentPersona -Agent $reviewer)) -CycleId $CycleId -Role "$reviewer-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
+    foreach ($ag in $verifyAgents) {
+        $vruns += Start-WarRoomAgentProcess -Agent $ag -Prompt ($verifyPrompt -f $ag, (Get-AgentPersona -Agent $ag)) -CycleId $CycleId -Role "$ag-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
+    }
     $ver = Wait-WarRoomProcessesStreaming -Runs $vruns -Phase 'verify' -TimeoutSec ($TimeoutSec + 120)
     $summary.verify = @($ver | Where-Object { $_.result -and $_.result.ok }).Count
     foreach ($v in $ver) {
