@@ -90,6 +90,28 @@ def _json_errors(e):
     return "Internal Server Error", 500
 
 
+def _env_int(name: str, default: int) -> int:
+    """Baca ``int`` dari environment dengan aman.
+
+    Nilai absen, kosong, atau bukan angka diabaikan dan ``default``
+    dipertahankan (dengan satu warning). ``_maybe_start_scheduler`` dipanggil
+    saat impor modul, jadi kesalahan konfigurasi TIDAK boleh menggagalkan boot
+    WSGI (``webapp:app``); selaras dengan penanganan env di ``config.py``/
+    ``state.py``.
+    """
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        _log.warning(
+            "Nilai env %s=%r tidak valid (int); memakai default %d.",
+            name, raw, default,
+        )
+        return default
+
+
 def _maybe_start_scheduler() -> None:
     """Jalankan auto-scanner in-process (untuk Render/VPS). Aktifkan via ENABLE_SCHEDULER=1.
 
@@ -103,12 +125,12 @@ def _maybe_start_scheduler() -> None:
         return
     import datetime as _dt
 
-    interval = max(120, int(os.environ.get("SCAN_INTERVAL", "900")))
+    interval = max(120, _env_int("SCAN_INTERVAL", 900))
     universe = os.environ.get("SCAN_UNIVERSE", "lq45")
     window = os.environ.get("SCAN_WINDOW", "market").lower()
-    start_delay = int(os.environ.get("SCAN_START_DELAY", "90"))
+    start_delay = max(0, _env_int("SCAN_START_DELAY", 90))
     warm_universe = os.environ.get("WARM_UNIVERSE", "auto")
-    warm_interval = max(600, int(os.environ.get("WARM_INTERVAL", "1800")))
+    warm_interval = max(600, _env_int("WARM_INTERVAL", 1800))
 
     def _in_window() -> bool:
         if window in ("24h", "all", "always"):

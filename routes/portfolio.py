@@ -1,6 +1,8 @@
 """Endpoint portofolio: paper trading, risiko, korelasi, notifikasi, log DB."""
 from __future__ import annotations
 
+import math
+
 from flask import Blueprint, jsonify, request
 
 import data
@@ -70,10 +72,14 @@ def api_paper_open():
     try:
         entry = float(b.get("entry") or 0)
         lots = int(b.get("lots") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return jsonify(error="Entry/lot tidak valid"), 400
-    if not entry and not lots:
-        return jsonify(error="Entry/lot kosong"), 400
+    # Entry/lot wajib bilangan berhingga & positif. Nilai 0/negatif/NaN/inf
+    # (mis. kolom Entry dikosongkan di UI lalu dikirim null -> 0) membuat P/L
+    # paper dihitung dari harga tak wajar dan menampilkan seluruh notional
+    # sebagai laba. Tolak sebelum menyentuh DB.
+    if not math.isfinite(entry) or entry <= 0 or lots <= 0:
+        return jsonify(error="Entry/lot harus lebih dari 0"), 400
     try:
         stop = float(b.get("stop") or 0)
         tp = float(b.get("tp") or 0)

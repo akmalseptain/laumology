@@ -50,9 +50,14 @@ def predict(
     feature_keys = list(FACTOR_KEYS) + (list(CANDIDATE_FACTORS) if include_candidates else [])
     close = d["Close"]
     fwd = (close.shift(-horizon) / close - 1.0)
+    # Baris tanpa hasil forward (horizon bar terakhir) ber-target NaN. Mask HARUS
+    # dihitung sebelum target diubah ke 0/1: `NaN > 0` bernilai False, sehingga
+    # baris itu tidak pernah ter-mask dan ikut terlatih dengan label palsu
+    # "turun"/0 (kebocoran label). Selaras dengan validation.py yang memakai
+    # `fwd.dropna()`.
+    valid = fwd.notna().to_numpy()
     y_all = (fwd > 0).astype(float).to_numpy()
     X_all = cf[feature_keys].astype(float).to_numpy()
-    valid = ~np.isnan(y_all)
     X = X_all[valid]
     y = y_all[valid]
     if len(X) < 60:

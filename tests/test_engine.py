@@ -85,6 +85,22 @@ class TestCandidates(unittest.TestCase):
         self.assertTrue(full["include_candidates"])
         self.assertGreater(len(full["features"]), len(base["features"]))
 
+    def test_ml_excludes_forward_nan_tail(self):
+        """Baris tanpa hasil forward (horizon terakhir) tidak boleh jadi sampel berlabel."""
+        import indicators
+        import ml
+
+        df = make_df(400)
+        horizon = 10
+        d = indicators.add_indicators(df).dropna(
+            subset=["ma50", "ma200", "atr", "supertrend"]
+        )
+        res = ml.predict(df, "TEST", horizon=horizon, include_candidates=False)
+        # Tanpa perbaikan, target NaN diubah ke 0 lebih dulu sehingga mask tidak
+        # pernah aktif dan seluruh baris (termasuk yang tanpa hasil forward)
+        # ikut terlatih. Sampel harus berkurang tepat `horizon` baris.
+        self.assertEqual(res["samples"], len(d) - horizon)
+
 
 class TestCalibration(unittest.TestCase):
     def _model(self, k):
@@ -533,6 +549,36 @@ class TestPortfolioInputValidation(unittest.TestCase):
                              json={"ticker": "BBCA", "entry": 1, "lots": 1, "side": "HOLD"})
         self.assertEqual(r.status_code, 400)
 
+    def test_paper_open_missing_entry_rejected(self):
+        # UI mengirim entry=null saat kolom Entry dibiarkan kosong. Dulu ini
+        # disimpan sebagai entry=0 sehingga /api/paper menghitung P/L dari harga
+        # 0 dan menampilkan seluruh notional sebagai laba. Harus 400 & tanpa DB.
+        from unittest.mock import patch
+
+        with patch("store.paper_open") as m:
+            r = self.client.post("/api/paper/open",
+                                 json={"ticker": "BBCA", "entry": None, "lots": 5})
+        self.assertEqual(r.status_code, 400)
+        m.assert_not_called()
+
+    def test_paper_open_non_positive_entry_or_lots_rejected(self):
+        from unittest.mock import patch
+
+        for body in (
+            {"ticker": "BBCA", "entry": 0, "lots": 5},
+            {"ticker": "BBCA", "entry": -10, "lots": 5},
+            {"ticker": "BBCA", "entry": 100, "lots": 0},
+            {"ticker": "BBCA", "entry": 100, "lots": -1},
+            # NaN/inf juga tidak boleh lolos (P/L jadi tidak wajar).
+            {"ticker": "BBCA", "entry": "nan", "lots": 5},
+            {"ticker": "BBCA", "entry": "inf", "lots": 5},
+            {"ticker": "BBCA", "entry": 100, "lots": float("inf")},
+        ):
+            with patch("store.paper_open") as m:
+                r = self.client.post("/api/paper/open", json=body)
+            self.assertEqual(r.status_code, 400, msg=str(body))
+            m.assert_not_called()
+
     def test_paper_open_note_not_string(self):
         r = self.client.post("/api/paper/open",
                              json={"ticker": "BBCA", "entry": 1, "lots": 1, "note": [1]})
@@ -642,6 +688,47 @@ class TestTtlCacheBound(unittest.TestCase):
             ttlcache.clear()
 
 
+class TestQuoteCacheBound(unittest.TestCase):
+    """Cache quote tidak boleh tumbuh tak terbatas oleh ticker arbitrer dari klien."""
+
+    def test_quote_cache_stays_bounded(self):
+        from unittest.mock import patch
+
+        import data
+
+        data._quote_cache.clear()
+        total = data._QUOTE_CACHE_MAX + 300
+        try:
+            with patch("realtime.fetch_quote", return_value=None), \
+                 patch("data._yf_quote",
+                       side_effect=lambda yt, now: {"last": 1.0, "symbol": yt}):
+                for i in range(total):
+                    self.assertIsNotNone(data.get_quote(f"T{i}"))
+            self.assertLessEqual(len(data._quote_cache), data._QUOTE_CACHE_MAX)
+            # Entri terbaru tetap tersedia (eviksi dari yang paling lama).
+            self.assertIn(data.to_yahoo(f"T{total - 1}"), data._quote_cache)
+        finally:
+            data._quote_cache.clear()
+
+    def test_expired_quote_evicted_on_read(self):
+        """Entri kedaluwarsa harus dibuang saat dibaca (bukan menumpuk)."""
+        import time
+        from unittest.mock import patch
+
+        import data
+
+        yt = data.to_yahoo("OLD")
+        data._quote_cache[yt] = (time.time() - 10_000.0, {"last": 1.0})
+        try:
+            # Refetch tidak menghasilkan quote -> entri kedaluwarsa tak diisi ulang.
+            with patch("realtime.fetch_quote", return_value=None), \
+                 patch("data._yf_quote", return_value=None):
+                self.assertIsNone(data.get_quote("OLD"))
+            self.assertNotIn(yt, data._quote_cache)
+        finally:
+            data._quote_cache.clear()
+
+
 class TestRateLimitEnvRobustness(unittest.TestCase):
     """Env RATE_LIMIT_PER_MIN buruk tidak boleh melumpuhkan seluruh endpoint /api."""
 
@@ -696,6 +783,57 @@ class TestRateLimitEnvRobustness(unittest.TestCase):
         os.environ["RATE_LIMIT_PER_MIN"] = "abc"
         r = webapp.app.test_client().get("/api/version")
         self.assertEqual(r.status_code, 200)
+
+
+class TestSchedulerEnvRobustness(unittest.TestCase):
+    """Env scheduler buruk tidak boleh menggagalkan boot webapp (impor WSGI)."""
+
+    _KEYS = ("ENABLE_SCHEDULER", "SCAN_INTERVAL", "SCAN_START_DELAY", "WARM_INTERVAL")
+
+    def setUp(self):
+        import os
+
+        self._os = os
+        self._saved = {k: os.environ.get(k) for k in self._KEYS}
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            if v is None:
+                self._os.environ.pop(k, None)
+            else:
+                self._os.environ[k] = v
+
+    def test_env_int_invalid_falls_back(self):
+        import webapp
+
+        self._os.environ["SCAN_INTERVAL"] = "abc"
+        self.assertEqual(webapp._env_int("SCAN_INTERVAL", 900), 900)
+
+    def test_env_int_blank_falls_back(self):
+        import webapp
+
+        self._os.environ["SCAN_INTERVAL"] = "   "
+        self.assertEqual(webapp._env_int("SCAN_INTERVAL", 900), 900)
+
+    def test_env_int_valid_honored(self):
+        import webapp
+
+        self._os.environ["SCAN_INTERVAL"] = "1200"
+        self.assertEqual(webapp._env_int("SCAN_INTERVAL", 900), 1200)
+
+    def test_maybe_start_scheduler_survives_bad_env(self):
+        # Dulu `int("abc")` pada impor modul melempar ValueError -> WSGI gagal muat.
+        from unittest.mock import patch
+
+        import webapp
+
+        self._os.environ["ENABLE_SCHEDULER"] = "1"
+        self._os.environ["SCAN_INTERVAL"] = "abc"
+        self._os.environ["SCAN_START_DELAY"] = "xyz"
+        self._os.environ["WARM_INTERVAL"] = ""
+        with patch.object(webapp.threading, "Thread") as th:
+            webapp._maybe_start_scheduler()  # tidak boleh melempar
+        th.assert_called_once()
 
 
 class TestCachePathConfinement(unittest.TestCase):

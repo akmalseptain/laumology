@@ -179,6 +179,28 @@ def prefetch(
 _quote_cache: dict[str, tuple[float, dict]] = {}
 _quote_lock = threading.Lock()
 
+# Batas keras jumlah entri cache quote. Key dibentuk dari ticker yang bisa
+# datang dari klien (`/api/quote?ticker=...`), sehingga tanpa batas ini cache
+# tumbuh selamanya selama quote masih segar dan bisa menghabiskan memori pada
+# proses berjalan lama. Eviksi hanya memicu ambil ulang quote yang sama, bukan
+# hasil yang salah. (Selaras dengan `ttlcache._MAX_ENTRIES`.)
+_QUOTE_CACHE_MAX = 512
+
+
+def _prune_quote_cache_locked() -> None:
+    """Buang entri quote tertua bila melebihi batas.
+
+    Dipanggil saat ``_quote_lock`` sedang dipegang. Hanya membuang entri dari
+    cache; permintaan berikutnya untuk ticker itu akan mengambil ulang quote.
+    """
+    assert _quote_lock.locked(), "harus dipanggil dengan _quote_lock dipegang"
+    excess = len(_quote_cache) - _QUOTE_CACHE_MAX
+    if excess <= 0:
+        return
+    oldest = sorted(_quote_cache.items(), key=lambda kv: kv[1][0])[:excess]
+    for key, _entry in oldest:
+        _quote_cache.pop(key, None)
+
 
 def _fi_num(fi, *names) -> float | None:
     for n in names:
@@ -228,8 +250,10 @@ def get_quote(ticker: str, suffix: str = ".JK", ttl: float | None = None) -> dic
     ttl = settings.quote_ttl_seconds if ttl is None else ttl
     with _quote_lock:
         cached = _quote_cache.get(yt)
-        if cached and now - cached[0] < ttl:
-            return cached[1]
+        if cached:
+            if now - cached[0] < ttl:
+                return cached[1]
+            _quote_cache.pop(yt, None)
 
     quote = None
     try:
@@ -245,6 +269,7 @@ def get_quote(ticker: str, suffix: str = ".JK", ttl: float | None = None) -> dic
     if quote and quote.get("last") is not None:
         with _quote_lock:
             _quote_cache[yt] = (now, quote)
+            _prune_quote_cache_locked()
         return quote
     return None
 
