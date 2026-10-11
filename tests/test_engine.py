@@ -523,6 +523,63 @@ class TestNewsRssFallback(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertIsNone(items[0]["summary"])
 
+    # `<source url>` valid tanpa `<enclosure>` → favicon host dipakai sebagai
+    # gambar cadangan (client-side), dan `publisher_url` tersimpan.
+    RSS_SOURCE_URL = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>Emiten bagikan dividen - KabarBursa.com</title>'
+        b'<link>https://example.test/5</link>'
+        b'<source url="https://example.test/kb">KabarBursa.com</source>'
+        b'</item>'
+        b'</channel></rss>'
+    )
+
+    # `<source url>` skema tak valid (javascript:) → JANGAN simpan; gambar None.
+    RSS_SOURCE_BAD = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>Judul jahat - Jahat</title>'
+        b'<link>https://example.test/6</link>'
+        b'<source url="javascript:alert(1)">Jahat</source>'
+        b'</item>'
+        b'</channel></rss>'
+    )
+
+    # `<enclosure>` tetap menang atas favicon cadangan (jangan nimpa gambar).
+    RSS_ENCLOSURE = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>Berita bergambar - KabarBursa.com</title>'
+        b'<link>https://example.test/7</link>'
+        b'<source url="https://example.test/kb">KabarBursa.com</source>'
+        b'<enclosure url="https://cdn.test/photo.jpg" type="image/jpeg"/>'
+        b'</item>'
+        b'</channel></rss>'
+    )
+
+    def test_parse_rss_source_url_fills_publisher_and_favicon(self):
+        import news
+        items = news._parse_rss(self.RSS_SOURCE_URL)
+        self.assertEqual(len(items), 1)
+        it = items[0]
+        self.assertEqual(it["publisher_url"], "https://example.test/kb")
+        self.assertEqual(it["image"], "https://example.test/favicon.ico")
+
+    def test_parse_rss_invalid_source_url_is_none(self):
+        import news
+        items = news._parse_rss(self.RSS_SOURCE_BAD)
+        self.assertEqual(len(items), 1)
+        it = items[0]
+        self.assertIsNone(it["publisher_url"])
+        self.assertIsNone(it["image"])
+
+    def test_parse_rss_enclosure_wins_over_favicon(self):
+        import news
+        items = news._parse_rss(self.RSS_ENCLOSURE)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["image"], "https://cdn.test/photo.jpg")
+
     def test_parse_rss_drops_cluster_summary(self):
         import news
         items = news._parse_rss(self.RSS_CLUSTER)
@@ -583,6 +640,126 @@ class TestNewsRssFallback(unittest.TestCase):
         with self.assertRaises(ValueError):
             news._parse_rss(payload)
 
+    # Shape nyata Bing News RSS: namespace `News:` ber-URI dinamis (memuat
+    # query), gambar `News:Image` (host www.bing.com, http) + `News:Source`,
+    # tautan `apiclick.aspx?...&url=<encoded>` ke penerbit asli, dan
+    # `<description>` = ringkasan asli (bukan "judul penerbit").
+    BING_RSS = (
+        b'<?xml version="1.0" encoding="utf-8"?>'
+        b'<rss version="2.0" xmlns:News="https://www.bing.com/news/search?q=BBCA">'
+        b'<channel><item>'
+        b'<title>BBCA dilirik investor asing</title>'
+        b'<link>https://www.bing.com/news/apiclick.aspx?ref=FexRss&amp;url='
+        b'https%3A%2F%2Fexample.test%2Fbbca&amp;c=1</link>'
+        b'<description>Investor asing mulai melirik saham BBCA setelah '
+        b'keputusan FTSE menambah bobot pasar Indonesia.</description>'
+        b'<pubDate>Sat, 10 Oct 2026 20:02:00 GMT</pubDate>'
+        b'<News:Source>TestMedia</News:Source>'
+        b'<News:Image>http://www.bing.com/th?id=abc&amp;pid=News</News:Image>'
+        b'</item></channel></rss>'
+    )
+
+    def test_parse_bing_rss_matches_item_schema(self):
+        import news
+        items = news._parse_bing_rss(self.BING_RSS)
+        self.assertEqual(len(items), 1)
+        it = items[0]
+        for key in ("title", "publisher", "url", "time", "sentiment", "pos", "neg",
+                    "summary", "image"):
+            self.assertIn(key, it)
+        self.assertEqual(it["title"], "BBCA dilirik investor asing")
+        self.assertEqual(it["publisher"], "TestMedia")
+        self.assertEqual(it["time"], "Sat, 10 Oct 2026 20:02:00 GMT")
+        # apiclick `url=` di-decode ke penerbit asli (bukan URL bing).
+        self.assertEqual(it["url"], "https://example.test/bbca")
+        # gambar http dipaksa https + host `.bing.com` dipertahankan.
+        self.assertEqual(it["image"], "https://www.bing.com/th?id=abc&pid=News")
+        self.assertIn("Investor asing mulai melirik", it["summary"])
+        self.assertNotEqual(it["summary"], it["title"])
+
+    def test_parse_bing_rss_upgrades_www_host_image(self):
+        import news
+        items = news._parse_bing_rss(self.BING_RSS)
+        self.assertTrue(items[0]["image"].startswith("https://www.bing.com/th"))
+
+    def test_parse_bing_rss_rejects_foreign_image_host(self):
+        import news
+        payload = self.BING_RSS.replace(
+            b"http://www.bing.com/th?id=abc&amp;pid=News",
+            b"http://evil.test/track.gif",
+        )
+        items = news._parse_bing_rss(payload)
+        self.assertEqual(len(items), 1)
+        self.assertIsNone(items[0]["image"])
+
+    def test_parse_bing_rss_rejects_nonstandard_image_port(self):
+        import news
+        payload = self.BING_RSS.replace(
+            b"http://www.bing.com/th?id=abc&amp;pid=News",
+            b"http://www.bing.com:8443/th?id=abc&amp;pid=News",
+        )
+        items = news._parse_bing_rss(payload)
+        self.assertEqual(len(items), 1)
+        self.assertIsNone(items[0]["image"])
+
+    def test_bing_image_url_drops_default_https_port(self):
+        import news
+        self.assertEqual(
+            news._bing_image_url("https://www.bing.com:443/th?id=abc"),
+            "https://www.bing.com/th?id=abc",
+        )
+
+    def test_parse_bing_rss_rejects_javascript_link_keeps_item(self):
+        import news
+        payload = self.BING_RSS.replace(
+            b"https%3A%2F%2Fexample.test%2Fbbca",
+            b"javascript%3Aalert(1)",
+        )
+        items = news._parse_bing_rss(payload)
+        self.assertEqual(len(items), 1)
+        self.assertIsNone(items[0]["url"])
+
+    def test_parse_bing_rss_missing_url_param_is_none(self):
+        import news
+        payload = self.BING_RSS.replace(
+            b"url=https%3A%2F%2Fexample.test%2Fbbca&amp;c=1",
+            b"c=1",
+        )
+        items = news._parse_bing_rss(payload)
+        self.assertEqual(len(items), 1)
+        self.assertIsNone(items[0]["url"])
+
+    def test_parse_bing_rss_rejects_dtd(self):
+        import news
+        with self.assertRaises(ValueError):
+            news._parse_bing_rss(b'<!DOCTYPE rss [<!ENTITY x "y">]><rss/>')
+
+    def test_bing_request_url_with_ua(self):
+        from unittest.mock import MagicMock, patch
+
+        import news
+
+        captured = {}
+
+        def fake_urlopen(req, timeout=None):
+            captured["url"] = req.full_url
+            captured["ua"] = req.headers.get("User-agent")
+            captured["timeout"] = timeout
+            cm = MagicMock()
+            cm.read.return_value = self.BING_RSS
+            cm.__enter__.return_value = cm
+            cm.__exit__.return_value = False
+            return cm
+
+        with patch("news.urllib.request.urlopen", fake_urlopen):
+            items = news._bing_items("BBCA.JK")
+        self.assertGreaterEqual(len(items), 1)
+        self.assertIn("bing.com/news/search", captured["url"])
+        self.assertIn("format=RSS", captured["url"])
+        self.assertIn("BBCA", captured["url"])
+        self.assertTrue(captured["ua"])
+        self.assertIsNotNone(captured["timeout"])
+
     def test_rss_request_google_url_with_ua(self):
         from unittest.mock import MagicMock, patch
 
@@ -614,6 +791,7 @@ class TestNewsRssFallback(unittest.TestCase):
         import news
 
         with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._bing_items", return_value=[]), \
              patch("news._rss_items", return_value=news._parse_rss(self.RSS)):
             mock_ticker.return_value.news = []
             res = news.get_news("BBCA")
@@ -627,6 +805,7 @@ class TestNewsRssFallback(unittest.TestCase):
         import news
 
         with patch("news.yf.Ticker", side_effect=RuntimeError("boom")), \
+             patch("news._bing_items", side_effect=RuntimeError("net")), \
              patch("news._rss_items", side_effect=RuntimeError("net")):
             res = news.get_news("BBCA")
         self.assertEqual(res["count"], 0)
@@ -646,6 +825,7 @@ class TestNewsRssFallback(unittest.TestCase):
         import news
 
         with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._bing_items", return_value=[]), \
              patch("news._rss_items", return_value=[]):
             mock_ticker.return_value.news = []
             res = news.get_news("BBCA")
@@ -666,6 +846,7 @@ class TestNewsRssFallback(unittest.TestCase):
         import news
 
         with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._bing_items", side_effect=RuntimeError("net")), \
              patch("news._rss_items", side_effect=RuntimeError("net")):
             mock_ticker.return_value.news = []
             res = news.get_news("BBCA")
@@ -685,10 +866,62 @@ class TestNewsRssFallback(unittest.TestCase):
         import news
 
         with patch("news.yf.Ticker", side_effect=RuntimeError("boom")), \
+             patch("news._bing_items", return_value=[]), \
              patch("news._rss_items", return_value=[]):
             res = news.get_news("BBCA")
         self.assertEqual(res["count"], 0)
         self.assertFalse(res["degraded"])
+
+    def test_bing_preferred_over_google_when_both_populated(self):
+        """Bing didahulukan saat Bing DAN Google sama-sama menyajikan berita.
+
+        Bing membawa gambar + ringkasan asli, jadi urutan sumber di
+        ``news._raw_items`` wajib memilih Bing lebih dulu dan tak boleh
+        memanggil Google setelahnya; prioritas itu dikunci di sini.
+        """
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._bing_items",
+                   return_value=news._parse_bing_rss(self.BING_RSS)) as mock_bing, \
+             patch("news._rss_items",
+                   return_value=news._parse_rss(self.RSS)) as mock_rss:
+            mock_ticker.return_value.news = []
+            res = news.get_news("BBCA")
+        self.assertGreater(res["count"], 0)
+        self.assertEqual(res["source"], "bing_news_rss")
+        self.assertFalse(res["degraded"])
+        mock_bing.assert_called_once()
+        mock_rss.assert_not_called()
+
+    def test_bing_empty_then_google_fails_not_degraded_errors_kept(self):
+        """Bing balas kosong (sumber hidup) lalu Google gagal → bukan degraded.
+
+        Satu sumber merespons tanpa exception berarti jaringan hidup, jadi UI
+        jujur "Tidak ada berita"; error Google tetap dicatat di ``_raw_items``
+        sebagai jejak diagnostik.
+        """
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._bing_items", return_value=[]), \
+             patch("news._rss_items", side_effect=RuntimeError("net")):
+            mock_ticker.return_value.news = []
+            raw = news._raw_items("BBCA.JK", 10)
+            res = news.get_news("BBCA")
+        self.assertTrue(raw.source_ok)
+        self.assertIsNone(raw.source)
+        self.assertTrue(
+            any(str(e).startswith("google_news_rss") for e in raw.errors),
+            raw.errors,
+        )
+        self.assertEqual(res["count"], 0)
+        self.assertFalse(res["degraded"])
+        self.assertIsNone(res["source"])
 
     def test_plain_list_mock_degrades_on_empty(self):
         """Mock list polos (tanpa atribut ``source_ok``) → safe-default degraded."""
@@ -706,13 +939,15 @@ class TestNewsRssFallback(unittest.TestCase):
 
         import news
 
-        with patch("news.yf.Ticker") as mock_ticker, patch("news._rss_items") as mock_rss:
+        with patch("news.yf.Ticker") as mock_ticker, patch("news._bing_items") as mock_bing, \
+             patch("news._rss_items") as mock_rss:
             for bad in ("A&x", "A#b", "A/B", "A B", "A" * 40):
                 res = news.get_news(bad)
                 self.assertEqual(res["count"], 0)
                 self.assertTrue(res["degraded"])
                 self.assertIn("error", res)
             mock_ticker.assert_not_called()
+            mock_bing.assert_not_called()
             mock_rss.assert_not_called()
         self.assertEqual(news._cache, {})
 
@@ -722,6 +957,7 @@ class TestNewsRssFallback(unittest.TestCase):
         import news
 
         with patch("news.yf.Ticker", side_effect=RuntimeError("boom")), \
+             patch("news._bing_items", side_effect=RuntimeError("net")), \
              patch("news._rss_items", side_effect=RuntimeError("net")):
             news.get_news("BBCA")
         self.assertIn("t:BBCA.JK", news._cache)

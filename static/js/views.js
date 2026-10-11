@@ -118,6 +118,21 @@ function newsThumbHtml(it){
   return '<span class="news-thumb">'+fallback
     + '<img class="news-thumb-img" src="'+escapeHtml(img)+'" alt="" loading="lazy" referrerpolicy="no-referrer"></span>';
 }
+function newsSummary(it){
+  /* Gate tunggal "ringkasan bermakna" dipakai kartu & sheet agar tak drift.
+     Ambang 24 selaras `news._MIN_SUMMARY`; ringkasan yang cuma mengulang judul
+     dianggap tak bermakna. */
+  const summary = String((it && it.summary) || "").trim();
+  const rawTitle = String((it && it.title) || "").trim();
+  const meaningful = summary.length >= 24 && summary.toLowerCase() !== rawTitle.toLowerCase();
+  return meaningful ? summary : "";
+}
+function newsSummaryHtml(it){
+  const summary = newsSummary(it);
+  /* Wajib <span> bergaya block: `.news-item` adalah <button> yang hanya boleh
+     phrasing content, jadi <p> akan memicu auto-repair DOM. */
+  return summary ? '<span class="news-item-summary">'+escapeHtml(summary)+'</span>' : '';
+}
 function newsCardHtml(it){
   const id = "n" + (++_newsSeq);
   _newsStore.set(id, it || {});
@@ -125,9 +140,15 @@ function newsCardHtml(it){
   const src = (it && it.source_ticker) ? escapeHtml(it.source_ticker) : "";
   const meta = [escapeHtml((it && it.publisher) || ""), fmtNewsTime(it && it.time), src].filter(Boolean).join(" · ");
   const title = escapeHtml((it && it.title) || "(Tanpa judul)");
-  return '<button type="button" class="news-item" data-news-id="'+id+'" aria-label="Baca detail: '+title+'">'
+  const summaryHtml = newsSummaryHtml(it);
+  const summaryText = newsSummary(it);
+  /* Ringkasan ikut dibacakan screen reader: tanpa ini `aria-label` menimpa isi
+     tombol sehingga teks ringkasan yang tampak justru bisu. */
+  const aria = "Baca detail: " + title + (summaryText ? ". " + escapeHtml(summaryText) : "");
+  return '<button type="button" class="news-item'+(summaryHtml?' has-summary':'')+'" data-news-id="'+id+'" aria-label="'+aria+'">'
     + newsThumbHtml(it)
     + '<span class="news-item-body"><span class="news-item-title">'+title+'</span>'
+    + summaryHtml
     + (meta ? '<span class="news-item-meta mono">'+meta+'</span>' : '')
     + '</span><span class="ic '+v.cls+' news-item-badge" aria-hidden="true">'+v.arrow+'</span></button>';
 }
@@ -165,10 +186,8 @@ function newsSheetHtml(it){
   const title = escapeHtml((it && it.title) || "(Tanpa judul)");
   const src = (it && it.source_ticker) ? escapeHtml(it.source_ticker) : "";
   const meta = [escapeHtml((it && it.publisher) || ""), fmtNewsTime(it && it.time), src].filter(Boolean).join(" · ");
-  const summary = String((it && it.summary) || "").trim();
-  const rawTitle = String((it && it.title) || "").trim();
-  const meaningful = summary.length >= 24 && summary.toLowerCase() !== rawTitle.toLowerCase();
-  const summaryHtml = meaningful
+  const summary = newsSummary(it);
+  const summaryHtml = summary
     ? '<p class="news-sheet-para">'+escapeHtml(summary)+'</p>'
     : '<p class="news-sheet-para muted">Ringkasan tidak tersedia dari sumber berita — buka berita untuk detail lengkap.</p>';
   const imgHtml = img
@@ -179,9 +198,12 @@ function newsSheetHtml(it){
   const link = url
     ? '<a class="btn news-sheet-link" href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" referrerpolicy="no-referrer">Lihat berita</a>'
     : '<span class="btn ghost news-sheet-link disabled" aria-disabled="true">Tautan tidak tersedia</span>';
-  return '<h3 class="news-sheet-title">'+title+'</h3>'
+  /* Gambar didahulukan agar visual langsung tampil SEBELUM judul/meta; gambar
+     yang gagal dimuat disembunyikan listener error global (views.js `error`),
+     jadi tak ada tombol/ruang kosong menggantung. */
+  return imgHtml
+    + '<h3 class="news-sheet-title">'+title+'</h3>'
     + (meta ? '<div class="news-sheet-meta mono">'+meta+'</div>' : '')
-    + imgHtml
     + '<div class="news-sheet-label mono">Kejelasan singkat</div>'
     + summaryHtml
     + '<div class="news-sheet-label mono">Kesimpulan sentimen</div>'

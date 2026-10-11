@@ -29,11 +29,14 @@ _NEGATIVE_TTL = 300.0
 # `fundamentals._MAX_KEY_LEN`.
 _TICKER_RE = re.compile(r"^[A-Z0-9.^\-]{1,16}$")
 
-# Sumber berita. `yf.Ticker(...).news` dicoba lebih dulu, lalu fallback ke
-# Google News RSS (`news.google.com/rss/search`) yang sudah diverifikasi hidup
-# (HTTP 200). Sumber RSS Yahoo lama tidak lagi dipakai; `yf.Ticker(...).news`
-# kerap mengembalikan daftar kosong sehingga fallback memang dibutuhkan.
+# Sumber berita. `yf.Ticker(...).news` dicoba lebih dulu, lalu fallback RSS:
+# Bing News RSS (`bing.com/news/search?format=RSS`) didahulukan karena
+# menyertakan gambar + ringkasan asli, lalu Google News RSS
+# (`news.google.com/rss/search`) sebagai cadangan terakhir. Sumber RSS Yahoo
+# lama tidak lagi dipakai; `yf.Ticker(...).news` kerap mengembalikan daftar
+# kosong sehingga fallback memang dibutuhkan.
 _RSS_URL = "https://news.google.com/rss/search"
+_BING_URL = "https://www.bing.com/news/search"
 _RSS_TIMEOUT = 8.0
 _RSS_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -182,6 +185,90 @@ def _safe_http_url(url) -> str | None:
     return None
 
 
+def _favicon_url(url) -> str | None:
+    """Favicon host dari URL penerbit TERVALIDASI (dipakai klien, bukan server).
+
+    Hanya dipakai sebagai cadangan bila ``<enclosure>`` tiada. Host diambil dari
+    ``hostname`` (bukan ``netloc``) agar userinfo/``x@host`` tak ikut terbawa.
+    Endpoint favicon pihak ketiga (mis. Google) TIDAK dipakai supaya host tidak
+    bocor; gambar tetap dimuat klien lewat ``<img referrerpolicy="no-referrer">``.
+    """
+    safe = _safe_http_url(url)
+    if not safe:
+        return None
+    parsed = urllib.parse.urlparse(safe)
+    host = parsed.hostname
+    if not host:
+        return None
+    netloc = host
+    try:
+        if parsed.port:
+            netloc = f"{host}:{parsed.port}"
+    except ValueError:
+        return None
+    return f"{parsed.scheme}://{netloc}/favicon.ico"
+
+
+def _local_name(tag) -> str:
+    """Nama lokal tag XML tanpa namespace (mis. ``{ns}Image`` → ``Image``).
+
+    Bing News RSS memakai prefix ``News:`` dengan URI namespace DINAMIS (memuat
+    parameter query ``?q=...``), jadi pencocokan tag lewat namespace mustahil.
+    """
+    if not isinstance(tag, str):
+        return ""
+    return tag.rsplit("}", 1)[-1]
+
+
+def _bing_image_url(url) -> str | None:
+    """Validasi gambar Bing: host `.bing.com` (subdomain boleh) + paksa https.
+
+    Gambar pihak ketiga TIDAK diterima: hanya host Bing yang dikenali yang
+    dirender klien. Host diperiksa lewat ``hostname`` (bukan ``netloc``) agar
+    userinfo ``bing.com@evil`` tak lolos; scheme dipaksa ``https`` (hindari
+    mixed-content). Port eksplisit selain 443 ditolak agar permukaan hotlink
+    tetap sempit (``bing.com:8443`` gugur), lalu port default dihilangkan dari
+    netloc.
+    """
+    safe = _safe_http_url(url)
+    if not safe:
+        return None
+    parsed = urllib.parse.urlparse(safe)
+    host = (parsed.hostname or "").lower()
+    if host != "bing.com" and not host.endswith(".bing.com"):
+        return None
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    if port not in (None, 443):
+        return None
+    return urllib.parse.urlunparse(
+        ("https", host, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
+
+
+def _decode_bing_link(link) -> str | None:
+    """Ambil URL penerbit asli dari tautan ``apiclick`` Bing News RSS.
+
+    ``apiclick.aspx?...&url=<encoded>`` di-decode lewat ``parse_qs`` (sekali,
+    bukan potong substring) lalu divalidasi ulang ``_safe_http_url`` sehingga
+    ``javascript:``/skema jahat/double-encode ditolak. Bila parameter absen atau
+    tidak valid, kembalikan ``None`` — item tetap dipakai dengan ``url=None``.
+    """
+    safe = _safe_http_url(link)
+    if not safe:
+        return None
+    parsed = urllib.parse.urlparse(safe)
+    host = (parsed.hostname or "").lower()
+    if host != "bing.com" and not host.endswith(".bing.com"):
+        return None
+    target = urllib.parse.parse_qs(parsed.query).get("url")
+    if not target:
+        return None
+    return _safe_http_url(target[0])
+
+
 def _thumb_url(thumb) -> str | None:
     """Ambil URL gambar dari `thumbnail` Yahoo (dict dengan `resolutions`)."""
     if isinstance(thumb, dict):
@@ -230,6 +317,7 @@ def _parse_item(n: dict) -> dict | None:
     return {
         "title": title,
         "publisher": publisher,
+        "publisher_url": None,
         "url": _safe_http_url(link),
         "time": ts,
         "sentiment": score,
@@ -307,20 +395,85 @@ def _parse_rss(xml_bytes: bytes) -> list[dict]:
         if not title:
             continue
         link = _safe_http_url((node.findtext("link") or "").strip() or None)
+        source_node = node.find("source")
         publisher = (node.findtext("source") or "").strip() or None
+        # `<source url="...">` Google News RSS dibuang bila hanya `findtext`;
+        # ambil `url`-nya lewat `_safe_http_url` (menolak skema/host tak valid)
+        # sebagai dasar favicon cadangan. JANGAN dipakai sebagai tautan (open
+        # redirect) — tautan tetap `link` yang sudah divalidasi.
+        publisher_url = _safe_http_url(source_node.get("url")) if source_node is not None else None
         ts = (node.findtext("pubDate") or "").strip() or None
         enclosure = node.find("enclosure")
         image = _safe_http_url(enclosure.get("url") if enclosure is not None else None)
+        if not image:
+            image = _favicon_url(publisher_url)
         pos, neg, score = _sentiment(title)
         out.append({
             "title": title,
             "publisher": publisher,
+            "publisher_url": publisher_url,
             "url": link,
             "time": ts,
             "sentiment": score,
             "pos": pos,
             "neg": neg,
             "summary": _clean_summary(node.findtext("description"), title, publisher),
+            "image": image,
+        })
+    return out
+
+
+def _parse_bing_rss(xml_bytes: bytes) -> list[dict]:
+    """Urai Bing News RSS ke skema item yang sama dengan ``_parse_item``.
+
+    ``<item>`` dicocokkan by local-name (namespace Bing dinamis). Gambar diambil
+    dari ``News:Image`` (divalidasi host ``.bing.com`` + paksa https), penerbit
+    dari ``News:Source``, dan ringkasan asli dari ``<description>`` (bukan
+    "judul + penerbit" seperti Google News). Batas keamanan sama: DTD/entitas
+    ditolak, ukuran sudah dipotong pemanggil.
+    """
+    if not xml_bytes:
+        return []
+    _reject_dtd(xml_bytes)
+    root = ET.fromstring(xml_bytes)
+    out: list[dict] = []
+    for node in root.iter():
+        if _local_name(node.tag) != "item":
+            continue
+        title = ""
+        publisher = None
+        link = None
+        ts = None
+        description = None
+        image = None
+        for child in node:
+            name = _local_name(child.tag)
+            text = (child.text or "").strip()
+            if name == "title":
+                title = text
+            elif name == "link":
+                link = _decode_bing_link(text or None)
+            elif name == "description":
+                description = child.text
+            elif name == "pubDate":
+                ts = text or None
+            elif name == "Image":
+                image = _bing_image_url(text)
+            elif name == "Source":
+                publisher = text or None
+        if not title:
+            continue
+        pos, neg, score = _sentiment(title)
+        out.append({
+            "title": title,
+            "publisher": publisher,
+            "publisher_url": None,
+            "url": link,
+            "time": ts,
+            "sentiment": score,
+            "pos": pos,
+            "neg": neg,
+            "summary": _clean_summary(description, title, publisher),
             "image": image,
         })
     return out
@@ -353,8 +506,27 @@ def _rss_items(yt: str) -> list[dict]:
     return _parse_rss(raw)
 
 
+def _bing_items(yt: str) -> list[dict]:
+    """Ambil berita dari Bing News RSS untuk simbol Yahoo ``yt``."""
+    query = urllib.parse.quote(_rss_query(yt) + " saham")
+    url = f"{_BING_URL}?q={query}&format=RSS&setlang=id"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": _RSS_UA,
+            "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+        },
+    )
+    # Verifikasi TLS biarkan default urllib (True) — jangan pernah dimatikan.
+    with urllib.request.urlopen(req, timeout=_RSS_TIMEOUT) as resp:
+        raw = resp.read(_RSS_MAX_BYTES + 1)
+    if len(raw) > _RSS_MAX_BYTES:
+        raw = raw[:_RSS_MAX_BYTES]
+    return _parse_bing_rss(raw)
+
+
 def _raw_items(yt: str, limit: int) -> list[dict]:
-    """Item berita terbaik: coba Yahoo dulu, lalu fallback Google News RSS.
+    """Item berita terbaik: coba Yahoo dulu, lalu fallback Bing/Google News RSS.
 
     Kegagalan tidak lagi ditelan diam-diam; dikumpulkan di ``_Items.errors``
     (server-side) agar ``degraded`` bisa dilaporkan jujur ke UI.
@@ -383,14 +555,23 @@ def _raw_items(yt: str, limit: int) -> list[dict]:
         source = "yahoo"
         source_ok = True
     else:
-        try:
-            for item in _rss_items(yt)[:limit]:
-                out.append(item)
+        # Bing News RSS didahulukan: menyertakan gambar + ringkasan asli,
+        # sedangkan Google News hanya favicon + deskripsi "judul penerbit".
+        for fetcher, name in (
+            (_bing_items, "bing_news_rss"),
+            (_rss_items, "google_news_rss"),
+        ):
+            try:
+                fetched = fetcher(yt)[:limit]
+            except Exception as exc:  # noqa: BLE001 - kegagalan sumber dilaporkan
+                errors.append(f"{name}:{type(exc).__name__}")
+                continue
+            # Sumber merespons tanpa exception → jaringan hidup (walau kosong).
             source_ok = True
-            if out:
-                source = "google_news_rss"
-        except Exception as exc:  # noqa: BLE001 - kegagalan sumber dilaporkan, bukan disembunyikan
-            errors.append(f"rss:{type(exc).__name__}")
+            if fetched:
+                out.extend(fetched)
+                source = name
+                break
 
     return _Items(out, source=source, source_ok=source_ok, errors=errors)
 
