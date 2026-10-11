@@ -135,7 +135,8 @@ try {
         }
 
         $cycleId = "cyc-{0:yyyyMMdd-HHmmss}" -f (Get-Date)
-        Write-Host ("`n  ===== Siklus {0} (#{1}) | {2:N0} menit berjalan =====" -f $cycleId, $i, $elapsedMin) -ForegroundColor Cyan
+        Write-Host ""
+        Write-ProgressBar -Current $i -Total $MaxCycles -Label ("SIKLUS {0}/{1}   {2}   ({3:N0} menit berjalan)" -f $i, $MaxCycles, $cycleId, $elapsedMin)
 
         # OBSERVING
         Set-WarRoomState -State 'OBSERVING' -Note 'snapshot git + anggaran' -Iteration $i | Out-Null

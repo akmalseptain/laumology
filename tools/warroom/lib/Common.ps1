@@ -125,6 +125,25 @@ function Get-AgentColor {
     }
 }
 
+function Write-Section {
+    # Header tahap/siklus yang dekoratif (ASCII agar aman di semua konsol).
+    param(
+        [Parameter(Mandatory)][string]$Title,
+        [string]$Color = 'Cyan'
+    )
+    $pad = [Math]::Max(4, 58 - $Title.Length)
+    Write-Host ""
+    Write-Host ("  " + ('>' * 2) + " " + $Title + " " + ('<' * $pad)) -ForegroundColor $Color
+}
+
+function Write-ProgressBar {
+    param([int]$Current, [int]$Total, [string]$Label = '')
+    if ($Total -le 0) { $Total = 1 }
+    $filled = [Math]::Min($Current, $Total)
+    $bar = ('#' * $filled) + ('.' * ($Total - $filled))
+    Write-Host ("  [" + $bar + "] " + $Label) -ForegroundColor Cyan
+}
+
 function Write-AgentVoice {
     # Cetak pesan agen dalam blok berwarna supaya terlihat seperti diskusi/debat.
     param(

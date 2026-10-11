@@ -38,6 +38,7 @@ KONTEKS: $ExtraContext
 
 Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas yang akan diubah, (d) kriteria penerimaan, (e) risiko regresi.
 "@
+    Write-Section -Title ("[1/4] PLAN  -  " + $lead) -Color 'Cyan'
     $plan = Invoke-OpenCodeAgentWithBudget -Agent $lead -Prompt $planPrompt -CycleId $CycleId -Role 'lead-plan' -TimeoutSec $TimeoutSec -Auto:$Auto
     $planText = if ($plan.allowed -and $plan.result) { $plan.result.text } else { '' }
     $summary.plan = ($plan.allowed -and $plan.result.exitCode -eq 0)
@@ -56,6 +57,7 @@ Kumpulkan bukti path:line, risiko, dan hal yang bisa salah.
 RENCANA LEAD:
 $planText
 "@
+    Write-Section -Title ("[2/4] INVESTIGATE  -  " + $quant + " | " + $qa) -Color 'Magenta'
     $runs = @()
     $runs += Start-WarRoomAgentProcess -Agent $quant -Prompt ($investPrompt -f $quant) -CycleId $CycleId -Role "$quant-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
     $runs += Start-WarRoomAgentProcess -Agent $qa -Prompt ($investPrompt -f $qa) -CycleId $CycleId -Role "$qa-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
@@ -81,6 +83,7 @@ $findings
 
 Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas yang diubah + hasil nyata.
 "@
+    Write-Section -Title ("[3/4] IMPLEMENT  -  " + $code) -Color 'Green'
     $impl = Invoke-OpenCodeAgentWithBudget -Agent $code -Prompt $implPrompt -CycleId $CycleId -Role 'code-implement' -TimeoutSec $TimeoutSec -Auto:$Auto
     $summary.implement = ($impl.allowed -and $impl.result -and $impl.result.exitCode -eq 0)
     Write-Host ("  [3/4] IMPLEMENT: {0}" -f $(if ($summary.implement) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.implement) { 'Green' } else { 'Yellow' })
@@ -95,6 +98,7 @@ Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
 RENCANA:
 $planText
 "@
+    Write-Section -Title ("[4/4] VERIFY  -  " + $quant + " | " + $reviewer) -Color 'Blue'
     $vruns = @()
     $vruns += Start-WarRoomAgentProcess -Agent $quant -Prompt ($verifyPrompt -f $quant) -CycleId $CycleId -Role "$quant-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
     $vruns += Start-WarRoomAgentProcess -Agent $reviewer -Prompt ($verifyPrompt -f $reviewer) -CycleId $CycleId -Role "$reviewer-verify" -TimeoutSec $TimeoutSec -Auto:$Auto

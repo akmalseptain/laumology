@@ -55,40 +55,47 @@ function Wait-WarRoomProcesses {
 
 function Wait-WarRoomProcessesStreaming {
     # Seperti Wait-WarRoomProcesses, tapi mencetak pesan tiap agen begitu selesai
-    # (terasa seperti diskusi berjalan). Mengembalikan daftar hasil.
+    # (terasa seperti diskusi berjalan) + spinner saat menunggu. Mengembalikan hasil.
     param(
         [Parameter(Mandatory)]$Runs,
         [string]$Phase = '',
         [int]$TimeoutSec = 900
     )
+    $runList = @($Runs)
     $done = @{}
-    $results = @()
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ($done.Count -lt @($Runs).Count -and (Get-Date) -lt $deadline) {
-        foreach ($r in $Runs) {
+    $start = Get-Date
+    $spin = @('|', '/', '-', '\')
+    $si = 0
+    while ($done.Count -lt $runList.Count -and (Get-Date) -lt $deadline) {
+        foreach ($r in $runList) {
             if ($done.ContainsKey($r.resultFile)) { continue }
             if (Test-Path -LiteralPath $r.resultFile) {
                 $res = Read-WarRoomJsonFile -Path $r.resultFile -Default $null
                 if ($res) {
                     $done[$r.resultFile] = $true
+                    Write-Host ("`r" + (' ' * 100) + "`r") -NoNewline
                     Write-AgentVoice -Agent $r.agent -Phase $Phase -Text $res.text
-                    $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $res }
                 }
             }
         }
-        if ($done.Count -ge @($Runs).Count) { break }
-        Start-Sleep -Milliseconds 500
-    }
-    foreach ($r in $Runs) {
-        if (-not $done.ContainsKey($r.resultFile)) {
-            $res = Read-WarRoomJsonFile -Path $r.resultFile -Default $null
-            if ($res) {
-                Write-AgentVoice -Agent $r.agent -Phase $Phase -Text $res.text
-                $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $res }
-            } else {
-                $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $null }
-            }
+        if ($done.Count -ge $runList.Count) { break }
+        $pending = ($runList | Where-Object { -not $done.ContainsKey($_.resultFile) } | ForEach-Object { $_.agent }) -join ', '
+        $secs = [int]((Get-Date) - $start).TotalSeconds
+        if ($pending) {
+            Write-Host ("`r  {0} [{1,3}s] menunggu: {2}" -f $spin[$si % 4], $secs, $pending) -NoNewline -ForegroundColor DarkGray
+            $si++
         }
+        Start-Sleep -Milliseconds 300
+    }
+    Write-Host ("`r" + (' ' * 100) + "`r") -NoNewline
+    $results = @()
+    foreach ($r in $runList) {
+        $res = Read-WarRoomJsonFile -Path $r.resultFile -Default $null
+        if ($res -and -not $done.ContainsKey($r.resultFile)) {
+            Write-AgentVoice -Agent $r.agent -Phase $Phase -Text $res.text
+        }
+        $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $res }
     }
     return $results
 }
