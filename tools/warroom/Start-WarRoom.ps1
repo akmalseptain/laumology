@@ -53,24 +53,60 @@ function Write-Rgb {
 }
 
 function Show-Banner {
-    Write-Host ""
-    if ($script:UnicodeOK -and $script:LogoUnicode.Count -gt 0) {
-        # Gradient vertikal: cyan -> biru -> violet -> magenta
-        $n = [Math]::Max($script:LogoUnicode.Count - 1, 1)
-        for ($k = 0; $k -lt $script:LogoUnicode.Count; $k++) {
-            $t = $k / $n
-            $r = [int](34 + ($t * 190))
-            $g = [int](211 - ($t * 120))
-            $b = [int](238 + ($t * 17))
-            $fb = if ($k % 2 -eq 0) { 'Cyan' } else { 'Blue' }
-            Write-Rgb -Text (' ' + $script:LogoUnicode[$k]) -R $r -G $g -B $b -Fallback $fb
-        }
-    } else {
-        foreach ($l in $script:LogoAscii) { Write-Host $l -ForegroundColor Cyan }
+    # Bila ada mascot.txt: gaya neofetch (potret kiri + info kanan). Else: logo biasa.
+    $art = @()
+    $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
+    if (Test-Path -LiteralPath $p) {
+        try { $art = @(([System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)) -split "`r?`n" | ForEach-Object { $_.TrimEnd() }) } catch { $art = @() }
+        while ($art.Count -gt 0 -and $art[0].Length -eq 0) { $art = @($art[1..($art.Count - 1)]) }
+        while ($art.Count -gt 0 -and $art[-1].Length -eq 0) { $art = @($art[0..($art.Count - 2)]) }
     }
     Write-Host ""
-    Write-Rgb -Text "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -R 255 -G 255 -B 255 -Fallback White
-    Write-Host "        Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
+    if ($art.Count -eq 0) {
+        if ($script:UnicodeOK -and $script:LogoUnicode.Count -gt 0) {
+            $n = [Math]::Max($script:LogoUnicode.Count - 1, 1)
+            for ($k = 0; $k -lt $script:LogoUnicode.Count; $k++) {
+                $t = $k / $n
+                $r = [int](34 + ($t * 190)); $g = [int](211 - ($t * 120)); $b = [int](238 + ($t * 17))
+                Write-Rgb -Text (' ' + $script:LogoUnicode[$k]) -R $r -G $g -B $b -Fallback $(if ($k % 2 -eq 0) { 'Cyan' } else { 'Blue' })
+            }
+        } else {
+            foreach ($l in $script:LogoAscii) { Write-Host $l -ForegroundColor Cyan }
+        }
+        Write-Host ""
+        Write-Rgb -Text "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -R 255 -G 255 -B 255 -Fallback White
+        Write-Host "        Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
+        Write-Host ""
+        return
+    }
+    $cfg = Get-WarRoomConfig
+    $st = Get-WarRoomState
+    $snap = Get-GitSnapshot
+    $b = Get-BudgetStatus
+    $sep = '  ' + ('-' * 38)
+    $info = @(
+        "",
+        "  L A U M O L O G Y",
+        "  A I   E N G I N E E R I N G   W A R   R O O M",
+        $sep,
+        "  Repo    : " + (Split-Path -Leaf (Get-WarRoomRoot)),
+        "  Git     : " + $snap.branch + " @ " + $snap.head,
+        "  Iterasi : #" + $st.iteration + "  (" + $st.state + ")",
+        "  Model   : " + $cfg.Model,
+        "  Budget  : " + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR),
+        $sep,
+        "  Ketik 'help' untuk daftar perintah."
+    )
+    $artW = ($art | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+    $rows = [Math]::Max($art.Count, $info.Count)
+    $margin = '  '  # margin kiri kecil (tidak mentok)
+    for ($i = 0; $i -lt $rows; $i++) {
+        $left = if ($i -lt $art.Count) { $art[$i] } else { '' }
+        $left = ($margin + $left).PadRight($artW + $margin.Length + 2)
+        Write-Host $left -NoNewline -ForegroundColor Cyan
+        $right = if ($i -lt $info.Count) { $info[$i] } else { '' }
+        Write-Host $right -ForegroundColor Gray
+    }
     Write-Host ""
 }
 
@@ -344,8 +380,6 @@ function Invoke-WarRoomCommand {
 
 # --- Main ---
 Show-Banner
-if (Test-Path -LiteralPath (Join-Path (Get-WarRoomToolDir) 'mascot.txt')) { Show-Mascot }
-Show-Header
 
 if ($Command) {
     Invoke-WarRoomCommand -Line $Command | Out-Null
