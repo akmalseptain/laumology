@@ -191,7 +191,7 @@ function Show-Mascot {
     $cw = 100
     try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
     $wmax = ($lines | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-    $pad = if ($wmax -lt $cw) { [int](($cw - $wmax) / 2) } else { 0 }
+    $pad = 2
     $prefix = ' ' * $pad
     Write-Host ""
     foreach ($ln in $lines) { Write-Host ($prefix + $ln) -ForegroundColor Cyan }
