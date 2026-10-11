@@ -42,6 +42,7 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
     $planText = if ($plan.allowed -and $plan.result) { $plan.result.text } else { '' }
     $summary.plan = ($plan.allowed -and $plan.result.exitCode -eq 0)
     Write-Host ("  [1/4] PLAN: {0}" -f $(if ($summary.plan) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.plan) { 'Green' } else { 'Yellow' })
+    Write-AgentVoice -Agent $lead -Phase 'plan' -Text $planText
     if (-not $planText) {
         # Bila perencanaan tak menghasilkan apa pun, hentikan pipeline lebih awal.
         return [pscustomobject]$summary
@@ -58,7 +59,7 @@ $planText
     $runs = @()
     $runs += Start-WarRoomAgentProcess -Agent $quant -Prompt ($investPrompt -f $quant) -CycleId $CycleId -Role "$quant-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
     $runs += Start-WarRoomAgentProcess -Agent $qa -Prompt ($investPrompt -f $qa) -CycleId $CycleId -Role "$qa-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
-    $inv = Wait-WarRoomProcesses -Runs $runs -TimeoutSec ($TimeoutSec + 120)
+    $inv = Wait-WarRoomProcessesStreaming -Runs $runs -Phase 'investigate' -TimeoutSec ($TimeoutSec + 120)
     $findings = ($inv | ForEach-Object {
         $t = if ($_.result) { $_.result.text } else { '' }
         "[$($_.agent)]`n$t"
@@ -83,6 +84,7 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas y
     $impl = Invoke-OpenCodeAgentWithBudget -Agent $code -Prompt $implPrompt -CycleId $CycleId -Role 'code-implement' -TimeoutSec $TimeoutSec -Auto:$Auto
     $summary.implement = ($impl.allowed -and $impl.result -and $impl.result.exitCode -eq 0)
     Write-Host ("  [3/4] IMPLEMENT: {0}" -f $(if ($summary.implement) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.implement) { 'Green' } else { 'Yellow' })
+    if ($impl.allowed -and $impl.result) { Write-AgentVoice -Agent $code -Phase 'implement' -Text $impl.result.text }
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
     $verifyPrompt = @"
@@ -96,7 +98,7 @@ $planText
     $vruns = @()
     $vruns += Start-WarRoomAgentProcess -Agent $quant -Prompt ($verifyPrompt -f $quant) -CycleId $CycleId -Role "$quant-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
     $vruns += Start-WarRoomAgentProcess -Agent $reviewer -Prompt ($verifyPrompt -f $reviewer) -CycleId $CycleId -Role "$reviewer-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
-    $ver = Wait-WarRoomProcesses -Runs $vruns -TimeoutSec ($TimeoutSec + 120)
+    $ver = Wait-WarRoomProcessesStreaming -Runs $vruns -Phase 'verify' -TimeoutSec ($TimeoutSec + 120)
     $summary.verify = @($ver | Where-Object { $_.result -and $_.result.ok }).Count
     foreach ($v in $ver) {
         if ($v.result -and $v.result.text -match 'REKOMENDASI:\s*(TERIMA|REVISI|TOLAK)') {

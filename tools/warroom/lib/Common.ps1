@@ -113,6 +113,35 @@ function Get-WarRoomUtcNow {
     return (Get-Date).ToUniversalTime().ToString('o')
 }
 
+function Get-AgentColor {
+    param([string]$Agent)
+    switch -Wildcard ($Agent) {
+        '*lead*'    { 'Cyan' }
+        '*code*'    { 'Green' }
+        '*quant*'   { 'Yellow' }
+        '*qa*'      { 'Magenta' }
+        '*review*'  { 'Blue' }
+        default     { 'White' }
+    }
+}
+
+function Write-AgentVoice {
+    # Cetak pesan agen dalam blok berwarna supaya terlihat seperti diskusi/debat.
+    param(
+        [Parameter(Mandatory)][string]$Agent,
+        [string]$Phase = '',
+        [string]$Text = ''
+    )
+    if ([string]::IsNullOrWhiteSpace($Text)) { return }
+    $color = Get-AgentColor -Agent $Agent
+    $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
+    Write-Host ("  +-- [ {0} ]" -f $label) -ForegroundColor $color
+    foreach ($ln in ($Text -split "`r?`n")) {
+        Write-Host ("  | {0}" -f $ln) -ForegroundColor $color
+    }
+    Write-Host ("  +--") -ForegroundColor $color
+}
+
 function Add-ContentSafe {
     # Append tahan akses bersamaan (retry singkat).
     param(

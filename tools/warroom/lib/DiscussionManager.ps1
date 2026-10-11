@@ -53,6 +53,46 @@ function Wait-WarRoomProcesses {
     return $out
 }
 
+function Wait-WarRoomProcessesStreaming {
+    # Seperti Wait-WarRoomProcesses, tapi mencetak pesan tiap agen begitu selesai
+    # (terasa seperti diskusi berjalan). Mengembalikan daftar hasil.
+    param(
+        [Parameter(Mandatory)]$Runs,
+        [string]$Phase = '',
+        [int]$TimeoutSec = 900
+    )
+    $done = @{}
+    $results = @()
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ($done.Count -lt @($Runs).Count -and (Get-Date) -lt $deadline) {
+        foreach ($r in $Runs) {
+            if ($done.ContainsKey($r.resultFile)) { continue }
+            if (Test-Path -LiteralPath $r.resultFile) {
+                $res = Read-WarRoomJsonFile -Path $r.resultFile -Default $null
+                if ($res) {
+                    $done[$r.resultFile] = $true
+                    Write-AgentVoice -Agent $r.agent -Phase $Phase -Text $res.text
+                    $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $res }
+                }
+            }
+        }
+        if ($done.Count -ge @($Runs).Count) { break }
+        Start-Sleep -Milliseconds 500
+    }
+    foreach ($r in $Runs) {
+        if (-not $done.ContainsKey($r.resultFile)) {
+            $res = Read-WarRoomJsonFile -Path $r.resultFile -Default $null
+            if ($res) {
+                Write-AgentVoice -Agent $r.agent -Phase $Phase -Text $res.text
+                $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $res }
+            } else {
+                $results += [pscustomobject]@{ agent = $r.agent; role = $r.role; result = $null }
+            }
+        }
+    }
+    return $results
+}
+
 function Invoke-WarRoomDiscussion {
     param(
         [Parameter(Mandatory)][string]$Topic,
@@ -97,7 +137,7 @@ Format: ringkas, poin-poin, setiap klaim disertai bukti.
 "@
             $runs += Start-WarRoomAgentProcess -Agent $ag -Prompt $prompt -CycleId $CycleId -Role $ag -TimeoutSec $TimeoutSec -Auto:$Auto
         }
-        $collected = Wait-WarRoomProcesses -Runs $runs -TimeoutSec ($TimeoutSec + 120)
+        $collected = Wait-WarRoomProcessesStreaming -Runs $runs -Phase 'proposal' -TimeoutSec ($TimeoutSec + 120)
         foreach ($c in $collected) {
             $messages += [pscustomobject]@{
                 round = $rounds; agent = $c.agent; role = $c.role
@@ -130,7 +170,7 @@ $synthesis
 WAJIB akhiri dengan satu baris: REKOMENDASI: TERIMA | REVISI | TOLAK
 "@
         $r = Start-WarRoomAgentProcess -Agent $cfg.Agents.Reviewer -Prompt $challenge -CycleId $CycleId -Role 'reviewer' -TimeoutSec $TimeoutSec -Auto:$Auto
-        $col = Wait-WarRoomProcesses -Runs @($r) -TimeoutSec ($TimeoutSec + 120)
+        $col = Wait-WarRoomProcessesStreaming -Runs @($r) -Phase 'challenge' -TimeoutSec ($TimeoutSec + 120)
         foreach ($c in $col) {
             $messages += [pscustomobject]@{
                 round = $rounds; agent = $cfg.Agents.Reviewer; role = 'reviewer'
