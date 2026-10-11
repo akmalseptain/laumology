@@ -28,10 +28,47 @@ $cyclesPerRun = if ($cfg.ContainsKey('CyclesPerRun')) { [int]$cfg.CyclesPerRun }
 $maxRunMinutes = if ($cfg.ContainsKey('MaxRunMinutes')) { [int]$cfg.MaxRunMinutes } else { 180 }
 $delaySec = if ($cfg.ContainsKey('InterCycleDelaySeconds')) { [int]$cfg.InterCycleDelaySeconds } else { 20 }
 $executeDefault = if ($cfg.ContainsKey('ExecuteByDefault')) { [bool]$cfg.ExecuteByDefault } else { $true }
+$autoCommit = if ($cfg.ContainsKey('AutoCommit')) { [bool]$cfg.AutoCommit } else { $false }
+$autoPush = if ($cfg.ContainsKey('AutoPush')) { [bool]$cfg.AutoPush } else { $false }
+$publishPaths = if ($cfg.ContainsKey('PublishPaths')) { @($cfg.PublishPaths) } else { @('.opencode', 'tools', 'routes', 'tests') }
 
 if ($MaxCycles -le 0) { $MaxCycles = $cyclesPerRun }
 if ($MaxMinutes -le 0) { $MaxMinutes = $maxRunMinutes }
 $execute = (-not $DryRun) -and ($Execute -or $executeDefault)
+
+function Publish-WarRoomChanges {
+    # Commit + push otonom. Staging DIBATASI ke jalur pengembangan di $publishPaths
+    # (plus modifikasi file yang sudah terlacak). File pribadi pengguna TIDAK disentuh.
+    param([string]$CycleId = 'auto')
+    Push-Location (Get-WarRoomRoot)
+    try {
+        & git add -u 2>&1 | Out-Null
+        foreach ($p in $publishPaths) {
+            if (Test-Path -LiteralPath $p) { & git add -- $p 2>&1 | Out-Null }
+        }
+        $staged = @(& git diff --cached --name-only 2>&1)
+        if ($staged.Count -eq 0) {
+            Write-Host "  Auto-publish: tidak ada perubahan untuk di-commit." -ForegroundColor DarkGray
+            return $false
+        }
+        $msg = "chore(warroom): siklus otonom $CycleId"
+        & git commit -m $msg 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Host "  Auto-commit gagal." -ForegroundColor Red; return $false }
+        Write-WarRoomEvent -Category 'orchestrator' -Message "auto-commit $CycleId ($($staged.Count) file)" | Out-Null
+        if ($autoPush) {
+            $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
+            $pushOut = & git push origin $branch 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  Auto-push gagal: $($pushOut -join ' ')" -ForegroundColor Red
+                Write-WarRoomEvent -Category 'error' -Level 'warn' -Message "auto-push gagal: $($pushOut -join ' ')" | Out-Null
+                return $false
+            }
+            Write-Host "  Auto-push berhasil: origin/$branch" -ForegroundColor Green
+            Write-WarRoomEvent -Category 'orchestrator' -Message "auto-push origin/$branch" | Out-Null
+        }
+        return $true
+    } finally { Pop-Location }
+}
 
 function Get-CyclesToday {
     $path = Join-Path (Get-WarRoomStateDir) 'cycles.jsonl'
@@ -181,6 +218,13 @@ Setelah selesai jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas ya
             }
             if ($stopReason -in @('stop-requested', 'run-time-limit')) { break }
         }
+    }
+
+    # PUBLISH otonom (commit + push -> deploy) setelah run selesai, hanya bila
+    # eksekusi nyata, AutoCommit aktif, dan tidak ada error.
+    if ($execute -and $autoCommit -and $stopReason -ne 'error') {
+        Write-Host "  PUBLISH: auto-commit + auto-push..." -ForegroundColor Cyan
+        Publish-WarRoomChanges -CycleId ("run-{0:yyyyMMdd-HHmmss}" -f (Get-Date)) | Out-Null
     }
 } catch {
     Set-WarRoomState -State 'ERROR' -Note $_.Exception.Message | Out-Null

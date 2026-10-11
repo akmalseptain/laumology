@@ -8,7 +8,7 @@
       "*": "allow",
       "git reset *": "deny",
       "git clean *": "deny",
-      "git push *": "deny",
+      "git push *": "allow",
       "git filter-branch *": "deny",
       "git rebase *": "deny",
       "rm -rf *": "deny",

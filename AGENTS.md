@@ -46,9 +46,10 @@ Tidak ada linter/type-checker/CI. Gerbang kualitas lokal: `py -3.14 tools/qualit
 
 ## Keamanan Git (WAJIB)
 
-Dilarang otomatis: `git reset --hard`, `git clean`, `git push`, force-push, menulis ulang riwayat, merge ke cabang terlindungi, deploy produksi.
+Dilarang otomatis: `git reset --hard`, `git clean`, force-push, menulis ulang riwayat, menghapus pekerjaan pengguna, `vercel deploy`/deploy produksi langsung.
+`git push origin <branch>` DIIZINKAN (kebijakan pengguna) agar War Room dapat deploy otomatis ke Render. Commit otonom hanya boleh men-stage modifikasi file terlacak dan jalur pengembangan (`tools/`, `routes/`, `tests/`, `api/`, `pine/`, `templates/`, `static/`, `.opencode/`); JANGAN pernah men-stage file pribadi pengguna (`Agent/`, `*.docx`, `*.pdf`).
 Lindungi perubahan pengguna (staged, unstaged, untracked). Jangan pernah membuang/menimpa pekerjaan pengguna.
-Gunakan cabang/worktree terisolasi untuk perubahan otonom; tinjau `git diff` sebelum menandai selesai.
+Jalankan `py -3.14 tools/quality_gate.py` (harus LULUS) sebelum push.
 
 ## Rahasia
 

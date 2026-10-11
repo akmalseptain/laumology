@@ -36,6 +36,12 @@
     InterCycleDelaySeconds    = 20      # jeda pendek antar siklus
     ExecuteByDefault          = $true   # run biasa = eksekusi nyata; pakai -DryRun untuk aman
 
+    # --- Publikasi otonom (commit + push -> deploy Render) ---
+    # Staging dibatasi ke jalur pengembangan; file pribadi pengguna tidak disentuh.
+    AutoCommit                = $true
+    AutoPush                  = $true
+    PublishPaths              = @('.opencode', 'tools', 'routes', 'tests', 'api', 'pine', 'templates', 'static')
+
     UsdToIdr                  = 16000
     ExchangeRateVerifiedDate  = 'unverified-edit-me'
     PriceVerifiedDate         = '2026-10-11'
