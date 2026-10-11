@@ -870,6 +870,196 @@ class TestRateLimitEnvRobustness(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
 
 
+class TestStateBounds(unittest.TestCase):
+    """Cache runtime dibatasi agar input tak-terbatas tak menumbuhkan memori."""
+
+    def setUp(self):
+        import os
+
+        import state
+
+        self._state = state
+        self._old_env = os.environ.get("RATE_LIMIT_PER_MIN")
+
+    def tearDown(self):
+        import os
+
+        if self._old_env is None:
+            os.environ.pop("RATE_LIMIT_PER_MIN", None)
+        else:
+            os.environ["RATE_LIMIT_PER_MIN"] = self._old_env
+        self._state._rl.clear()
+        with self._state._metrics_lock:
+            self._state._metrics["by_path"].clear()
+
+    def test_rl_cache_is_bounded(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "1"
+        old = self._state._RL_MAX_IPS
+        try:
+            self._state._RL_MAX_IPS = 64
+            self._state._rl.clear()
+            for i in range(200):
+                self._state.rate_limited(f"10.1.{i // 256}.{i % 256}")
+            self.assertLessEqual(len(self._state._rl), 64)
+        finally:
+            self._state._RL_MAX_IPS = old
+
+    def test_active_ip_still_rate_limited_at_bound(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "1"
+        old = self._state._RL_MAX_IPS
+        try:
+            self._state._RL_MAX_IPS = 64
+            self._state._rl.clear()
+            for i in range(200):
+                self._state.rate_limited(f"10.2.{i // 256}.{i % 256}")
+            self._state.rate_limited("10.9.9.9")
+            self.assertTrue(self._state.rate_limited("10.9.9.9"))
+        finally:
+            self._state._RL_MAX_IPS = old
+
+    def test_long_lived_active_ip_survives_lru_eviction(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "1"
+        old = self._state._RL_MAX_IPS
+        try:
+            self._state._RL_MAX_IPS = 4
+            self._state._rl.clear()
+            # IP lama yang terus aktif: hit pertama, lalu sudah kena limit.
+            self.assertFalse(self._state.rate_limited("10.0.0.1"))
+            self.assertTrue(self._state.rate_limited("10.0.0.1"))
+            # Banjiri dengan IP unik (memicu eviksi) sambil IP lama tetap
+            # mengakses, seperti penyerang yang mencoba me-reset window.
+            for i in range(2, 40):
+                # Wajib tetap limit TIAP iterasi: eviksi FIFO urutan-sisip
+                # membuang IP lama ini lalu me-reset window-nya -> False.
+                self.assertTrue(self._state.rate_limited("10.0.0.1"))
+                self._state.rate_limited(f"10.0.{i}.1")
+            self.assertIn("10.0.0.1", self._state._rl)
+            self.assertLessEqual(len(self._state._rl), 4)
+        finally:
+            self._state._RL_MAX_IPS = old
+
+    def test_metrics_by_path_is_bounded(self):
+        old = self._state._METRICS_PATH_MAX
+        try:
+            self._state._METRICS_PATH_MAX = 64
+            with self._state._metrics_lock:
+                self._state._metrics["by_path"].clear()
+            for i in range(200):
+                self._state.tick_metrics(f"/xxx{i}", 200)
+            with self._state._metrics_lock:
+                self.assertLessEqual(len(self._state._metrics["by_path"]), 64)
+        finally:
+            self._state._METRICS_PATH_MAX = old
+
+
+class TestScanJobBounds(unittest.TestCase):
+    """Kuota job scan dibatasi; job nyangkut dieviksi via TTL agar tak self-DoS."""
+
+    def setUp(self):
+        import state
+
+        self._state = state
+        self._saved_jobs = dict(state._scan_jobs)
+        self._saved_max = state.SCAN_JOBS_MAX
+        self._saved_ttl = state.SCAN_JOB_TTL
+        with state._scan_lock:
+            state._scan_jobs.clear()
+
+    def tearDown(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = self._saved_max
+        state.SCAN_JOB_TTL = self._saved_ttl
+        with state._scan_lock:
+            state._scan_jobs.clear()
+            state._scan_jobs.update(self._saved_jobs)
+
+    def test_create_returns_none_when_full(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = 3
+        state.SCAN_JOB_TTL = 600
+        for _ in range(3):
+            self.assertIsNotNone(state.create_scan_job({}))
+        self.assertIsNone(state.create_scan_job({}))
+        self.assertLessEqual(len(state._scan_jobs), 3)
+
+    def test_terminal_job_is_evicted(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = 1
+        state.SCAN_JOB_TTL = 600
+        old = state.create_scan_job({})
+        state.update_scan_job(old, state="done")
+        self.assertIsNotNone(state.create_scan_job({}))
+        self.assertLessEqual(len(state._scan_jobs), 1)
+
+    def test_stuck_job_evicted_by_ttl(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = 1
+        state.SCAN_JOB_TTL = 1
+        old = state.create_scan_job({})
+        self.assertIsNotNone(old)
+        with state._scan_lock:
+            state._scan_jobs[old]["created"] -= 10  # job 'running' nyangkut
+        self.assertIsNotNone(state.create_scan_job({}))
+
+    def test_expired_job_marked_terminal_not_evicted(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = 1
+        state.SCAN_JOB_TTL = 1
+        old = state.create_scan_job({})
+        with state._scan_lock:
+            state._scan_jobs[old]["created"] -= 10  # job 'running' nyangkut
+        self.assertIsNotNone(state.create_scan_job({}))  # kuota bebas
+        payload = state.get_scan_job(old)
+        self.assertIsNotNone(payload)  # bukan 404
+        self.assertEqual(payload["state"], "error")
+        self.assertEqual(payload["error"], "kedaluwarsa")
+        self.assertTrue(state.cancel_scan_job(old))
+
+    def test_terminal_job_not_resurrected_by_update(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = 2
+        state.SCAN_JOB_TTL = 600
+        jid = state.create_scan_job({})
+        state.update_scan_job(jid, state="cancelled")
+        state.update_scan_job(jid, state="running", scanned=5)  # TOCTOU write
+        payload = state.get_scan_job(jid)
+        self.assertEqual(payload["state"], "cancelled")
+        self.assertEqual(payload["scanned"], 0)
+
+    def test_nonpositive_ttl_does_not_break_cap(self):
+        state = self._state
+        state.SCAN_JOBS_MAX = 2
+        state.SCAN_JOB_TTL = 0
+        for _ in range(2):
+            self.assertIsNotNone(state.create_scan_job({}))
+        self.assertIsNone(state.create_scan_job({}))
+
+    def test_api_scan_start_returns_429_when_full(self):
+        import time
+
+        import webapp
+
+        state = self._state
+        state.SCAN_JOBS_MAX = 1
+        state.SCAN_JOB_TTL = 600
+        with state._scan_lock:
+            state._scan_jobs["busy"] = {
+                "state": "running", "scanned": 0, "total": 0, "rows": [],
+                "created": time.time(), "cancel": False, "error": None,
+            }
+        r = webapp.app.test_client().post("/api/scan/start", json={"list": "lq45"})
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("Terlalu banyak scan aktif", r.get_json().get("error", ""))
+        with state._scan_lock:
+            self.assertLessEqual(len(state._scan_jobs), 1)
+
+
 class TestSchedulerEnvRobustness(unittest.TestCase):
     """Env scheduler buruk tidak boleh menggagalkan boot webapp (impor WSGI)."""
 

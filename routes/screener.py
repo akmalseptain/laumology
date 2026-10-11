@@ -176,6 +176,8 @@ def api_data_quality():
 def api_scan_start():
     b = json_object() or {}
     jid = state.create_scan_job(b)
+    if jid is None:
+        return jsonify(error="Terlalu banyak scan aktif"), 429
     threading.Thread(target=_scan_worker, args=(jid, b), daemon=True, name="scan-" + jid).start()
     return jsonify(job=jid)
 

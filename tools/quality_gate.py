@@ -52,6 +52,11 @@ def check_syntax() -> list[str]:
             # utf-8-sig: varian UTF-8 yang menoleransi BOM (dianggap sah oleh
             # tokenizer Python); compile() atas str menolak U+FEFF mentah.
             source = path.read_text(encoding="utf-8-sig")
+        except FileNotFoundError:
+            # Berkas hilang di antara enumerasi rglob dan pembacaan (mis. proses
+            # lain menghapus/merevert saat gate berjalan). Bukan kesalahan
+            # sintaks, jadi lewati agar gate tidak gagal palsu.
+            continue
         except (OSError, UnicodeDecodeError) as exc:
             failures.append(f"{rel}: gagal dibaca ({exc})")
             continue
