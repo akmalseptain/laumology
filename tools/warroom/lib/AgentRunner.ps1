@@ -112,7 +112,7 @@ function Invoke-OpenCodeAgent {
 
     if ($Stream) {
         Write-Host ""
-        Write-Host ("  {0} {1} ({2})" -f (Get-AgentIcon -Agent $Agent), $Agent, (Get-Date).ToString('HH:mm')) -ForegroundColor $agentColor
+        Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $Agent, (Get-Date).ToString('HH:mm')) -ForegroundColor $agentColor
         Write-Host ("    > ") -NoNewline -ForegroundColor $agentColor
     }
 
