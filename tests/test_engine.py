@@ -510,5 +510,30 @@ class TestPortfolioInputValidation(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
 
 
+class TestScreenerEfficiency(unittest.TestCase):
+    """Screener tidak boleh membaca OHLCV dua kali per emiten di jalur serial."""
+
+    def test_screen_single_ohlcv_read_serial(self):
+        import data
+        import screener
+
+        calls = {}
+
+        def fake_get_ohlcv(t, period=None, use_cache=True, **kwargs):
+            calls[t] = calls.get(t, 0) + 1
+            return make_df(320)
+
+        old = data.get_ohlcv
+        data.get_ohlcv = fake_get_ohlcv
+        try:
+            screener._ROW_CACHE.clear()
+            screener.screen(["AAA", "BBB", "CCC"], refresh=True)
+        finally:
+            data.get_ohlcv = old
+            screener._ROW_CACHE.clear()
+        for t in ("AAA", "BBB", "CCC"):
+            self.assertEqual(calls.get(t, 0), 1, f"{t} dibaca {calls.get(t, 0)} kali")
+
+
 if __name__ == "__main__":
     unittest.main()

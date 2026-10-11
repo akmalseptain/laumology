@@ -144,7 +144,8 @@ def screen(
         if cached and not refresh and now - cached[0] < _ROW_TTL:
             rows.append(dict(cached[1]))
         else:
-            todo.append((t, key_suffix))
+            # Simpan df dari loop ini agar cabang serial tak membaca ulang OHLCV.
+            todo.append((t, key_suffix, df))
 
     # Analisis yang belum ada cache (paralel bila memungkinkan).
     if todo:
@@ -160,17 +161,18 @@ def screen(
             try:
                 from concurrent.futures import ProcessPoolExecutor
                 with ProcessPoolExecutor(max_workers=workers) as ex:
-                    results = list(ex.map(_screen_one, [(t, period, refresh) for t, _ in todo],
+                    # Cabang paralel tetap memakai (t, period, refresh); df tidak
+                    # dikirim ke proses anak (diambil sendiri oleh anak).
+                    results = list(ex.map(_screen_one, [(t, period, refresh) for t, _, _ in todo],
                                           chunksize=2))
-                for (_t, key_suffix), row in zip(todo, results):
+                for (_t, key_suffix, _df), row in zip(todo, results):
                     if row:
                         computed.append((key_suffix, row))
             except Exception:
                 computed = []
         if not computed:
-            for t, key_suffix in todo:
+            for t, key_suffix, df in todo:
                 try:
-                    df = data.get_ohlcv(t, period=period, use_cache=not refresh)
                     if len(df) < 80:
                         continue
                     computed.append((key_suffix, _row_from_df(t, df)))
