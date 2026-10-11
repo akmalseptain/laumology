@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -149,6 +150,34 @@ class TestCalibration(unittest.TestCase):
                 os.unlink(path)
             except OSError:
                 pass
+
+
+class TestCalibrationLabels(unittest.TestCase):
+    """Baris tanpa forward return (look-ahead) tidak boleh dilabeli 'down'."""
+
+    def test_last_horizon_rows_not_labeled_down(self):
+        import calibration
+        import data
+
+        n = 320
+        idx = pd.date_range(end=pd.Timestamp.now().normalize(), periods=n, freq="D")
+        close = np.linspace(1000.0, 2000.0, n)
+        df = pd.DataFrame({
+            "Open": close * 0.999, "High": close * 1.002,
+            "Low": close * 0.998, "Close": close,
+            "Volume": np.full(n, 1_000_000.0),
+        }, index=idx)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda t, *a, **k: df
+        try:
+            frames, used, errors = calibration._collect(["TEST"], horizon=5, min_bars=40)
+        finally:
+            data.get_ohlcv = old
+        self.assertTrue(frames)
+        self.assertEqual(used, ["TEST"])
+        for f in frames:
+            # Deret naik monoton: setiap forward return yang diketahui > 0.
+            self.assertTrue(bool((f["_y"] == 1).all()))
 
 
 class TestLegacyRegression(unittest.TestCase):
@@ -526,6 +555,50 @@ class TestPortfolioInputValidation(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
 
 
+class TestPaperPnlSide(unittest.TestCase):
+    """PnL paper trading harus mengikuti arah posisi (SELL untung saat harga turun)."""
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_unrealized_pnl_respects_side(self):
+        from unittest.mock import patch
+
+        rows = [
+            {"id": 1, "ticker": "BBCA", "side": "BUY", "entry": 1000.0, "lots": 2, "status": "OPEN"},
+            {"id": 2, "ticker": "BBCA", "side": "SELL", "entry": 1000.0, "lots": 2, "status": "OPEN"},
+        ]
+        with patch("store.paper_rows", return_value=rows), \
+             patch("data.get_quote", return_value={"last": 1100.0}):
+            resp = self.client.get("/api/paper")
+        self.assertEqual(resp.status_code, 200)
+        out = resp.get_json()["rows"]
+        # BUY: (1100-1000) * 2 lot * 100 = +20.000 (naik 10%)
+        self.assertEqual(out[0]["pnl"], 20000.0)
+        self.assertEqual(out[0]["pnl_pct"], 10.0)
+        # SELL: harga naik 10% -> rugi -20.000
+        self.assertEqual(out[1]["pnl"], -20000.0)
+        self.assertEqual(out[1]["pnl_pct"], -10.0)
+
+    def test_realized_pnl_respects_side(self):
+        from unittest.mock import patch
+
+        row = {"id": 5, "ticker": "BBCA", "side": "SELL", "entry": 1000.0, "lots": 1, "status": "OPEN"}
+        captured = {}
+
+        def fake_close(pid, exit_price, pnl, note=""):
+            captured["pid"], captured["exit"], captured["pnl"] = pid, exit_price, pnl
+
+        with patch("store.paper_rows", return_value=[row]), \
+             patch("store.paper_close", side_effect=fake_close):
+            resp = self.client.post("/api/paper/close", json={"id": 5, "exit": 900.0})
+        self.assertEqual(resp.status_code, 200)
+        # SELL: harga turun 1000 -> 900 = untung (1000-900) * 1 * 100 = +10.000
+        self.assertEqual(captured["pnl"], 10000.0)
+        self.assertEqual(resp.get_json()["pnl"], 10000.0)
+
+
 class TestScreenerEfficiency(unittest.TestCase):
     """Screener tidak boleh membaca OHLCV dua kali per emiten di jalur serial."""
 
@@ -567,6 +640,100 @@ class TestTtlCacheBound(unittest.TestCase):
             self.assertIsNotNone(ttlcache.get("bound:1199"))
         finally:
             ttlcache.clear()
+
+
+class TestRateLimitEnvRobustness(unittest.TestCase):
+    """Env RATE_LIMIT_PER_MIN buruk tidak boleh melumpuhkan seluruh endpoint /api."""
+
+    def setUp(self):
+        import os
+
+        import state
+
+        self._state = state
+        self._old = os.environ.get("RATE_LIMIT_PER_MIN")
+        state._rl.clear()
+
+    def tearDown(self):
+        import os
+
+        if self._old is None:
+            os.environ.pop("RATE_LIMIT_PER_MIN", None)
+        else:
+            os.environ["RATE_LIMIT_PER_MIN"] = self._old
+        self._state._rl.clear()
+
+    def test_invalid_value_falls_back_to_default(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "abc"
+        self.assertEqual(self._state._rate_limit_per_min(), 600)
+
+    def test_blank_value_falls_back_to_default(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = ""
+        self.assertEqual(self._state._rate_limit_per_min(), 600)
+
+    def test_non_positive_value_falls_back_to_default(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "0"
+        self.assertEqual(self._state._rate_limit_per_min(), 600)
+
+    def test_valid_value_is_honored(self):
+        import os
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "1"
+        self.assertFalse(self._state.rate_limited("10.0.0.1"))
+        self.assertTrue(self._state.rate_limited("10.0.0.1"))
+
+    def test_api_still_serves_with_invalid_value(self):
+        import os
+
+        import webapp
+
+        os.environ["RATE_LIMIT_PER_MIN"] = "abc"
+        r = webapp.app.test_client().get("/api/version")
+        self.assertEqual(r.status_code, 200)
+
+
+class TestCachePathConfinement(unittest.TestCase):
+    """``ticker`` dari klien tidak boleh menggeser path cache keluar cache_dir."""
+
+    def _base(self):
+        from config import settings
+
+        return Path(settings.cache_dir).resolve()
+
+    def _inside(self, ticker: str, period: str = "1y", interval: str = "1d"):
+        import data
+
+        return data._cache_path(data.to_yahoo(ticker), period, interval).resolve()
+
+    def test_valid_ticker_name_unchanged(self):
+        import data
+        from config import settings
+
+        p = data._cache_path("BBCA_JK", "1y", "1d")
+        self.assertEqual(p, Path(settings.cache_dir) / "BBCA_JK_1y_1d.csv")
+
+    def test_absolute_and_unc_tickers_stay_confined(self):
+        base = self._base()
+        for evil in ["//evilhost/share/x", "C:/windows/win", "/tmp/x", "..\\..\\escape"]:
+            got = self._inside(evil)
+            self.assertTrue(
+                got.is_relative_to(base),
+                f"{evil!r} keluar dari cache_dir: {got}",
+            )
+
+    def test_separators_removed_from_filename(self):
+        import data
+
+        name = data._cache_path(data.to_yahoo("//evilhost/share/x"), "1y", "1d").name
+        self.assertNotIn("/", name)
+        self.assertNotIn("\\", name)
+        self.assertNotIn(":", name)
 
 
 if __name__ == "__main__":

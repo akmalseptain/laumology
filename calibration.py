@@ -85,14 +85,17 @@ def _collect(tickers: list[str], horizon: int, min_bars: int):
                 errors.append({"ticker": t.upper(), "error": "data kurang"})
                 continue
             X = feature_frame(d)
-            y = (d["Close"].shift(-horizon) / d["Close"] - 1.0) > 0
-            y = y.astype(float)
-            valid = (~y.isna()) & (~X.isna().any(axis=1))
+            # Forward return: baris terakhir `horizon` tidak punya hasil (NaN),
+            # jadi harus dibuang -- bukan dilabeli 0/down. `NaN > 0` bernilai
+            # False sehingga tanpa penyaringan eksplisit baris look-ahead itu
+            # masuk sebagai sampel "down" dan mengotori label latih.
+            fwd = d["Close"].shift(-horizon) / d["Close"] - 1.0
+            valid = fwd.notna() & (~X.isna().any(axis=1))
             if valid.sum() < min_bars // 2:
                 errors.append({"ticker": t.upper(), "error": "sampel kurang"})
                 continue
             f = X[valid].copy()
-            f["_y"] = y[valid].to_numpy()
+            f["_y"] = (fwd[valid] > 0).astype(float).to_numpy()
             f["_date"] = d.index[valid]
             frames.append(f)
             used.append(t.upper())

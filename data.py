@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 import time
 from pathlib import Path
@@ -8,6 +9,11 @@ import pandas as pd
 import yfinance as yf
 
 from config import settings
+
+# Hanya karakter ini yang boleh muncul pada komponen nama berkas cache.
+# Pemisah path (``/`` dan ``\``) serta ``:`` (drive Windows/UNC) diganti ``_``
+# agar ``ticker`` dari klien tidak bisa keluar dari ``settings.cache_dir``.
+_CACHE_SAFE = re.compile(r"[^A-Za-z0-9_\-]")
 
 
 def to_yahoo(ticker: str, suffix: str = ".JK") -> str:
@@ -19,6 +25,7 @@ def to_yahoo(ticker: str, suffix: str = ".JK") -> str:
 
 def _cache_path(ticker: str, period: str, interval: str) -> Path:
     safe = ticker.replace(".", "_").replace("^", "idx_")
+    safe = _CACHE_SAFE.sub("_", safe)
     return Path(settings.cache_dir) / f"{safe}_{period}_{interval}.csv"
 
 

@@ -12,6 +12,23 @@ from routes._util import json_object
 bp = Blueprint("portfolio", __name__)
 
 
+def _side_sign(side: str | None) -> float:
+    """Arah posisi: BUY untung saat harga naik, SELL (short) untung saat turun."""
+    return -1.0 if (side or "BUY").strip().upper() == "SELL" else 1.0
+
+
+def _pnl(entry: float, price: float, lots: int, side: str | None) -> float:
+    """Laba/rugi rupiah posisi paper, memperhitungkan arah (BUY/SELL)."""
+    return round((price - entry) * int(lots) * 100 * _side_sign(side), 0)
+
+
+def _pnl_pct(entry: float, price: float, side: str | None) -> float:
+    """Persentase laba/rugi terhadap harga masuk, memperhitungkan arah posisi."""
+    if not entry:
+        return 0.0
+    return round((price / entry - 1.0) * 100.0 * _side_sign(side), 2)
+
+
 @bp.route("/api/db/signals")
 def api_db_signals():
     ticker = (request.args.get("ticker") or "").strip().upper() or None
@@ -36,8 +53,8 @@ def api_paper():
             if q and q.get("last") is not None:
                 price = float(q["last"])
                 r["last"] = price
-                r["pnl"] = round((price - r["entry"]) * int(r["lots"]) * 100, 0)
-                r["pnl_pct"] = round((price / r["entry"] - 1.0) * 100.0, 2) if r["entry"] else 0.0
+                r["pnl"] = _pnl(r["entry"], price, r["lots"], r.get("side"))
+                r["pnl_pct"] = _pnl_pct(r["entry"], price, r.get("side"))
     return jsonify(rows=rows)
 
 
@@ -101,7 +118,7 @@ def api_paper_close():
         note = ""
     if not isinstance(note, str):
         return jsonify(error="note tidak valid"), 400
-    pnl = round((exit_price - row["entry"]) * int(row["lots"]) * 100, 0)
+    pnl = _pnl(row["entry"], exit_price, row["lots"], row.get("side"))
     store.paper_close(pid, exit_price, pnl, note)
     return jsonify(ok=True, exit=exit_price, pnl=pnl)
 

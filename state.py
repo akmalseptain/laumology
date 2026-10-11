@@ -5,10 +5,13 @@ riwayat sinyal, metrik request, rate-limit, dan job scan latar.
 """
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
 import uuid
+
+_log = logging.getLogger("laumology.state")
 
 VERSION = "1.0.0"
 START = time.time()
@@ -85,8 +88,39 @@ def metrics_snapshot() -> dict:
 
 
 # --- Rate limiting ---
+_RATE_LIMIT_DEFAULT = 600  # dipakai bila env absen/blank/tidak valid/non-positif
+_rate_limit_warned = False
+
+
+def _rate_limit_per_min() -> int:
+    """Baca ``RATE_LIMIT_PER_MIN`` dengan aman.
+
+    Kesalahan konfigurasi (nilai blank, bukan angka, atau <= 0) TIDAK boleh
+    melumpuhkan endpoint /api: nilai buruk diabaikan dan kembali ke default,
+    dengan satu warning. Ini mencegah satu env var salah memicu HTTP 500 pada
+    *setiap* request (``rate_limited`` dipanggil di ``before_request``).
+    """
+    global _rate_limit_warned
+    raw = os.environ.get("RATE_LIMIT_PER_MIN")
+    if raw is None or not raw.strip():
+        return _RATE_LIMIT_DEFAULT
+    try:
+        limit = int(raw)
+    except (TypeError, ValueError):
+        limit = 0
+    if limit <= 0:
+        if not _rate_limit_warned:
+            _log.warning(
+                "Nilai env RATE_LIMIT_PER_MIN=%r tidak valid; memakai default %d.",
+                raw, _RATE_LIMIT_DEFAULT,
+            )
+            _rate_limit_warned = True
+        return _RATE_LIMIT_DEFAULT
+    return limit
+
+
 def rate_limited(ip: str) -> bool:
-    limit = int(os.environ.get("RATE_LIMIT_PER_MIN", "600"))
+    limit = _rate_limit_per_min()
     now = time.time()
     with _rl_lock:
         win = _rl.setdefault(ip, [])
