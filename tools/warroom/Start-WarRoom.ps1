@@ -184,16 +184,25 @@ function Show-Mascot {
     $hasAnsi = $txt.Contains([char]27)
     $cw = 100
     try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
-    Write-Host ""
-    foreach ($ln in ($txt -split "`r?`n")) {
-        if ($hasAnsi) {
-            Write-Host $ln   # biarkan kode warna ANSI asli tampil
-        } elseif ($ln.Length -gt $cw) {
-            Write-Host $ln.Substring(0, $cw) -ForegroundColor Cyan
-        } else {
-            Write-Host $ln -ForegroundColor Cyan
-        }
+    $lines = @($txt -split "`r?`n")
+    if ($hasAnsi) {
+        Write-Host ""
+        foreach ($ln in $lines) { Write-Host $ln }
+        Write-Host ""
+        return
     }
+    # Buang indentasi umum, rapikan kanan, lalu PUSATKAN sesuai lebar jendela.
+    $nonEmpty = @($lines | Where-Object { $_.Trim().Length -gt 0 })
+    if ($nonEmpty.Count -eq 0) { return }
+    $minIndent = ($nonEmpty | ForEach-Object { $_.Length - $_.TrimStart().Length } | Measure-Object -Minimum).Minimum
+    $body = @($lines | ForEach-Object {
+        if ($_.Length -ge $minIndent) { $_.Substring($minIndent) } else { $_.TrimStart() }
+    } | ForEach-Object { $_.TrimEnd() })
+    $wmax = ($body | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
+    $pad = if ($wmax -lt $cw) { [int](($cw - $wmax) / 2) } else { 0 }
+    $prefix = ' ' * $pad
+    Write-Host ""
+    foreach ($ln in $body) { Write-Host ($prefix + $ln) -ForegroundColor Cyan }
     Write-Host ""
 }
 
