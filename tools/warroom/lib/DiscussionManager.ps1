@@ -134,6 +134,7 @@ function Invoke-WarRoomDiscussion {
             $prompt = @"
 Anda berperan sebagai agen '$ag'. Selidiki masalah berikut SECARA INDEPENDEN dan read-only.
 Sajikan temuan berbasis BUKTI (path:line, output uji nyata). Jangan mengarang. Jangan mengubah berkas.
+Gaya bahasa: ngobrol santai sesama tim kantor (boleh sapa rekan), tapi tetap ringkas & berbukti (<= 10 baris).
 
 TOPIK: $Topic
 KONTEKS: $Context
@@ -166,6 +167,7 @@ Format: ringkas, poin-poin, setiap klaim disertai bukti.
         $challenge = @"
 Anda adalah Independent Reviewer. Berikut temuan tim atas masalah berikut.
 Tantang secara KRITIS: cari regresi, masalah keamanan, kerumitan tak perlu, dan klaim tanpa bukti.
+Gaya bahasa: ngobrol santai sesama tim kantor (boleh menantang rekan langsung), tapi tetap berbukti & ringkas.
 
 TOPIK: $Topic
 MASALAH:

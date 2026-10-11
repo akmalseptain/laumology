@@ -32,6 +32,8 @@ function Invoke-WarRoomPipeline {
 Anda Lead Engineer War Room. Susun rencana implementasi TERFOKUS (maksimal SATU peningkatan).
 JANGAN mengubah berkas apa pun; hanya analisis & rencana.
 Ikuti AGENTS.md (jangan ubah rumus keuangan tanpa bukti, jaga uji golden).
+Gaya bahasa: ngobrol santai sesama tim kantor (boleh sapa rekan, mis. 'Quant, tolong cek...'),
+tetapi WAJIB sertakan bukti path:line dan keputusan yang tegas. Ringkas (<= 12 baris).
 
 $target
 KONTEKS: $ExtraContext
@@ -52,6 +54,8 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
     # --- 2. INVESTIGATE (quant & qa paralel, read-only) ---
     $investPrompt = @"
 Anda agen '{0}'. Investigasi READ-ONLY terkait rencana berikut. JANGAN mengubah berkas.
+Gaya bahasa: ngobrol santai sesama tim kantor (boleh menanggapi Lead/rekan, mis. 'Wah, iya nih...'),
+tetapi WAJIB sertakan bukti path:line dan risiko nyata. Ringkas (<= 10 baris).
 Kumpulkan bukti path:line, risiko, dan hal yang bisa salah.
 
 RENCANA LEAD:
@@ -74,6 +78,7 @@ $planText
 Anda Code Engineer War Room. Implementasikan rencana berikut secara TERFOKUS (satu peningkatan).
 Ikuti AGENTS.md (bahasa Indonesia; jangan ubah rumus keuangan tanpa fixture; jaga uji golden).
 Jangan commit/push. Jangan operasi Git destruktif.
+Gaya laporan: santai sesama tim (mis. 'Oke, udah gue beresin ya...'), sebut berkas yang diubah + ringkasan.
 
 RENCANA:
 $planText
@@ -81,7 +86,7 @@ $planText
 TEMUAN INVESTIGASI:
 $findings
 
-Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas yang diubah + hasil nyata.
+Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil nyatanya.
 "@
     Write-Section -Title ("[3/4] IMPLEMENT  -  " + $code) -Color 'Green'
     $impl = Invoke-OpenCodeAgentWithBudget -Agent $code -Prompt $implPrompt -CycleId $CycleId -Role 'code-implement' -TimeoutSec $TimeoutSec -Auto:$Auto
@@ -92,7 +97,8 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas y
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
     $verifyPrompt = @"
 Anda agen '{0}'. Tinjau perubahan BELUM di-commit ('git --no-pager diff') terhadap rencana berikut. READ-ONLY.
-Cari regresi, masalah keamanan, klaim tanpa bukti, atau penyimpangan dari rencana.
+Gaya bahasa: ngobrol santai sesama tim kantor (boleh menantang rekan), tetapi WAJIB berbasis bukti.
+Cari regresi, masalah keamanan, klaim tanpa bukti, atau penyimpangan dari rencana. Ringkas (<= 10 baris).
 Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
 
 RENCANA:

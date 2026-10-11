@@ -145,20 +145,30 @@ function Write-ProgressBar {
 }
 
 function Write-AgentVoice {
-    # Cetak pesan agen dalam blok berwarna supaya terlihat seperti diskusi/debat.
+    # Cetak pesan agen bergaya chat kantor (nama + waktu + isi). -Plain untuk gaya blok.
     param(
         [Parameter(Mandatory)][string]$Agent,
         [string]$Phase = '',
-        [string]$Text = ''
+        [string]$Text = '',
+        [switch]$Plain
     )
     if ([string]::IsNullOrWhiteSpace($Text)) { return }
     $color = Get-AgentColor -Agent $Agent
-    $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
-    Write-Host ("  +-- [ {0} ]" -f $label) -ForegroundColor $color
-    foreach ($ln in ($Text -split "`r?`n")) {
-        Write-Host ("  | {0}" -f $ln) -ForegroundColor $color
+    $lines = @($Text -split "`r?`n")
+    if ($Plain) {
+        $label = if ($Phase) { "$Agent : $Phase" } else { $Agent }
+        Write-Host ("  +-- [ {0} ]" -f $label) -ForegroundColor $color
+        foreach ($ln in $lines) { Write-Host ("  | {0}" -f $ln) -ForegroundColor $color }
+        Write-Host ("  +--") -ForegroundColor $color
+        return
     }
-    Write-Host ("  +--") -ForegroundColor $color
+    $time = (Get-Date).ToString('HH:mm')
+    Write-Host ""
+    Write-Host ("  {0} ({1})" -f $Agent, $time) -ForegroundColor $color
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($i -eq 0) { Write-Host ("    > " + $lines[$i]) -ForegroundColor $color }
+        else { Write-Host ("      " + $lines[$i]) -ForegroundColor $color }
+    }
 }
 
 function Add-ContentSafe {
