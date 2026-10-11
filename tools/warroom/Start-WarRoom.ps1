@@ -130,7 +130,7 @@ function Show-Help {
         'resume           lanjutkan',
         'stop             minta berhenti anggun',
         'discuss <topik>  jalankan diskusi multi-agen (nyata, berbiaya)',
-        'ask <agen> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer)',
+        'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
     ) | ForEach-Object { Write-Host ("  {0}" -f $_) }
@@ -150,6 +150,16 @@ function Invoke-WarRoomAsk {
     }
     $cfg = Get-WarRoomConfig
     $alias = $p[0].ToLowerInvariant()
+    $task = Join-Path (Get-WarRoomToolDir) 'Invoke-WarRoomTask.ps1'
+    if ($alias -in @('all', 'semua', '*')) {
+        $names = @($cfg.Agents.Lead, $cfg.Agents.Code, $cfg.Agents.Quant, $cfg.Agents.QA, $cfg.Agents.Reviewer)
+        Write-Host ("  Mengirim prompt ke SEMUA agen: {0}" -f ($names -join ', ')) -ForegroundColor Cyan
+        foreach ($n in $names) {
+            Write-Host ("  -> {0}" -f $n) -ForegroundColor DarkGray
+            & $task -Agent $n -Role $n -CycleId 'manual-all' -Prompt $p[1] -TimeoutSec 900
+        }
+        return
+    }
     $name = switch ($alias) {
         'lead'     { $cfg.Agents.Lead }
         'code'     { $cfg.Agents.Code }
@@ -158,7 +168,6 @@ function Invoke-WarRoomAsk {
         'reviewer' { $cfg.Agents.Reviewer }
         default    { $p[0] }
     }
-    $task = Join-Path (Get-WarRoomToolDir) 'Invoke-WarRoomTask.ps1'
     Write-Host ("  Menjalankan agen '{0}'..." -f $name) -ForegroundColor Cyan
     & $task -Agent $name -Role $name -CycleId 'manual' -Prompt $p[1] -TimeoutSec 900
 }
