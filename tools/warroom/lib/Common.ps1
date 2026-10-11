@@ -168,6 +168,30 @@ function Get-AgentIcon {
     try { return [char]::ConvertFromUtf32($cp) } catch { return '[-]' }
 }
 
+function Get-AgentPersonaData {
+    $path = Join-Path (Get-WarRoomToolDir) 'personas.psd1'
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    try { return (Import-PowerShellDataFile -LiteralPath $path) } catch { return $null }
+}
+
+function Get-AgentName {
+    param([string]$Agent)
+    $p = Get-AgentPersonaData
+    if ($p -and $p.ContainsKey($Agent)) { return $p[$Agent].Nama }
+    return $Agent
+}
+
+function Get-AgentPersona {
+    param([string]$Agent)
+    $p = Get-AgentPersonaData
+    if ($p -and $p.ContainsKey($Agent)) {
+        $d = $p[$Agent]
+        return ("Kamu adalah {0} ({1} th), {2}. Lulusan {3}. {4}. Beragama {5}. Hobi: {6}. Sifat: {7}. Gaya bicara: {8}." -f `
+            $d.Nama, $d.Usia, $d.Peran, $d.Lulusan, $d.Keluarga, $d.Agama, $d.Hobi, $d.Sifat, $d.Gaya)
+    }
+    return ''
+}
+
 function Invoke-WarRoomBeep {
     param([ValidateSet('ok', 'info', 'warn', 'error')][string]$Kind = 'info')
     if ($env:WARROOM_NO_SOUND) { return }
@@ -258,7 +282,7 @@ function Write-AgentVoice {
     }
     $time = (Get-Date).ToString('HH:mm')
     Write-Host ""
-    Write-Host ("  {0} {1} ({2})" -f (Get-AgentIcon -Agent $Agent), $Agent, $time) -ForegroundColor $color
+    Write-Host ("  {0} {1} ({2}) {3}" -f (Get-AgentIcon -Agent $Agent), (Get-AgentName -Agent $Agent), $Agent, $time) -ForegroundColor $color
     for ($i = 0; $i -lt $lines.Count; $i++) {
         if ($i -eq 0) { Write-Host ("    > " + $lines[$i]) -ForegroundColor $color }
         else { Write-Host ("      " + $lines[$i]) -ForegroundColor $color }

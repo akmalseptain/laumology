@@ -132,9 +132,11 @@ function Invoke-WarRoomDiscussion {
         $runs = @()
         foreach ($ag in $batch) {
             $prompt = @"
+KARAKTER: $(Get-AgentPersona -Agent $ag)
+Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan. WAJIB: jujur, sertakan bukti path:line, jangan mengarang. (Agama/keluarga hanya latar.)
+
 Anda berperan sebagai agen '$ag'. Selidiki masalah berikut SECARA INDEPENDEN dan read-only.
-Sajikan temuan berbasis BUKTI (path:line, output uji nyata). Jangan mengarang. Jangan mengubah berkas.
-Gaya bahasa: ngobrol santai sesama tim kantor (boleh sapa rekan), tapi tetap ringkas & berbukti (<= 10 baris).
+Sajikan temuan berbasis BUKTI (path:line, output uji nyata). Jangan mengubah berkas. Ringkas (<= 10 baris).
 
 TOPIK: $Topic
 KONTEKS: $Context
@@ -165,9 +167,11 @@ Format: ringkas, poin-poin, setiap klaim disertai bukti.
             "[$($_.agent)]`n$($_.text)"
         }) -join "`n`n"
         $challenge = @"
+KARAKTER: $(Get-AgentPersona -Agent $cfg.Agents.Reviewer)
+Perankan natural & menantang, tapi tetap berbukti.
+
 Anda adalah Independent Reviewer. Berikut temuan tim atas masalah berikut.
-Tantang secara KRITIS: cari regresi, masalah keamanan, kerumitan tak perlu, dan klaim tanpa bukti.
-Gaya bahasa: ngobrol santai sesama tim kantor (boleh menantang rekan langsung), tapi tetap berbukti & ringkas.
+Tantang secara KRITIS: cari regresi, masalah keamanan, kerumitan tak perlu, dan klaim tanpa bukti. Ringkas.
 
 TOPIK: $Topic
 MASALAH:

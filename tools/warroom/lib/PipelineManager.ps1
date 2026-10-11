@@ -33,12 +33,15 @@ function Invoke-WarRoomPipeline {
         $rmScript = Join-Path (Get-WarRoomRoot) 'tools\repomap.py'
         if (Test-Path -LiteralPath $rmScript) { $repoMap = ((& py -3.14 $rmScript 2>$null) -join "`n") }
     } catch { $repoMap = '' }
+    $chaosStyle = "Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan, kadang melantur sedikit lalu balik fokus. WAJIB tetap akurat, sertakan bukti path:line, dan keputusan tegas. (Agama/keluarga hanya latar; JANGAN jadikan bahan lelucon sensitif.)"
     $planPrompt = @"
+KARAKTER: $(Get-AgentPersona -Agent $lead)
+$chaosStyle
+
 Anda Lead Engineer War Room. Susun rencana implementasi TERFOKUS (maksimal SATU peningkatan).
 JANGAN mengubah berkas apa pun; hanya analisis & rencana.
 Ikuti AGENTS.md (jangan ubah rumus keuangan tanpa bukti, jaga uji golden).
-Gaya bahasa: ngobrol santai sesama tim kantor (boleh sapa rekan, mis. 'Quant, tolong cek...'),
-tetapi WAJIB sertakan bukti path:line dan keputusan yang tegas. Ringkas (<= 12 baris).
+Ringkas (<= 12 baris).
 
 $target
 KONTEKS: $ExtraContext
@@ -63,19 +66,19 @@ Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas y
 
     # --- 2. INVESTIGATE (quant & qa paralel, read-only) ---
     $investPrompt = @"
+KARAKTER: {1}
+$chaosStyle
+
 Anda agen '{0}'. Investigasi READ-ONLY terkait rencana berikut. JANGAN mengubah berkas.
-Gaya bahasa: ngobrol santai sesama tim kantor (boleh menanggapi Lead/rekan, mis. 'Wah, iya nih...'),
-tetapi WAJIB sertakan bukti path:line dan risiko nyata. Ringkas (<= 10 baris).
-Kumpulkan bukti path:line, risiko, dan hal yang bisa salah.
+WAJIB sertakan bukti path:line dan risiko nyata. Ringkas (<= 10 baris).
 
 RENCANA LEAD:
 $planText
 "@
-    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 1 -Color 'Magenta'
     Write-Section -Title ("[2/4] INVESTIGATE  -  " + $quant + " | " + $qa) -Color 'Magenta'
     $runs = @()
-    $runs += Start-WarRoomAgentProcess -Agent $quant -Prompt ($investPrompt -f $quant) -CycleId $CycleId -Role "$quant-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
-    $runs += Start-WarRoomAgentProcess -Agent $qa -Prompt ($investPrompt -f $qa) -CycleId $CycleId -Role "$qa-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
+    $runs += Start-WarRoomAgentProcess -Agent $quant -Prompt ($investPrompt -f $quant, (Get-AgentPersona -Agent $quant)) -CycleId $CycleId -Role "$quant-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
+    $runs += Start-WarRoomAgentProcess -Agent $qa -Prompt ($investPrompt -f $qa, (Get-AgentPersona -Agent $qa)) -CycleId $CycleId -Role "$qa-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
     $inv = Wait-WarRoomProcessesStreaming -Runs $runs -Phase 'investigate' -TimeoutSec ($TimeoutSec + 120)
     $findings = ($inv | ForEach-Object {
         $t = if ($_.result) { $_.result.text } else { '' }
@@ -86,10 +89,13 @@ $planText
 
     # --- 3. IMPLEMENT (Code Engineer, satu penulis) ---
     $implPrompt = @"
+KARAKTER: $(Get-AgentPersona -Agent $code)
+$chaosStyle
+
 Anda Code Engineer War Room. Implementasikan rencana berikut secara TERFOKUS (satu peningkatan).
 Ikuti AGENTS.md (bahasa Indonesia; jangan ubah rumus keuangan tanpa fixture; jaga uji golden).
 Jangan commit/push. Jangan operasi Git destruktif.
-Gaya laporan: santai sesama tim (mis. 'Oke, udah gue beresin ya...'), sebut berkas yang diubah + ringkasan.
+Sebut berkas yang diubah + ringkasan secara natural.
 
 RENCANA:
 $planText
@@ -109,19 +115,20 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil ny
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
     $verifyPrompt = @"
+KARAKTER: {1}
+$chaosStyle
+
 Anda agen '{0}'. Tinjau perubahan BELUM di-commit ('git --no-pager diff') terhadap rencana berikut. READ-ONLY.
-Gaya bahasa: ngobrol santai sesama tim kantor (boleh menantang rekan), tetapi WAJIB berbasis bukti.
 Cari regresi, masalah keamanan, klaim tanpa bukti, atau penyimpangan dari rencana. Ringkas (<= 10 baris).
 Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
 
 RENCANA:
 $planText
 "@
-    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 3 -Color 'Blue'
     Write-Section -Title ("[4/4] VERIFY  -  " + $quant + " | " + $reviewer) -Color 'Blue'
     $vruns = @()
-    $vruns += Start-WarRoomAgentProcess -Agent $quant -Prompt ($verifyPrompt -f $quant) -CycleId $CycleId -Role "$quant-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
-    $vruns += Start-WarRoomAgentProcess -Agent $reviewer -Prompt ($verifyPrompt -f $reviewer) -CycleId $CycleId -Role "$reviewer-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
+    $vruns += Start-WarRoomAgentProcess -Agent $quant -Prompt ($verifyPrompt -f $quant, (Get-AgentPersona -Agent $quant)) -CycleId $CycleId -Role "$quant-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
+    $vruns += Start-WarRoomAgentProcess -Agent $reviewer -Prompt ($verifyPrompt -f $reviewer, (Get-AgentPersona -Agent $reviewer)) -CycleId $CycleId -Role "$reviewer-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
     $ver = Wait-WarRoomProcessesStreaming -Runs $vruns -Phase 'verify' -TimeoutSec ($TimeoutSec + 120)
     $summary.verify = @($ver | Where-Object { $_.result -and $_.result.ok }).Count
     foreach ($v in $ver) {
