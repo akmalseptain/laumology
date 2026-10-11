@@ -82,7 +82,7 @@ function Show-Banner {
         "  A I   E N G I N E E R I N G   W A R   R O O M",
         $line,
         "  CWD      : " + (Get-WarRoomRoot),
-        "  Git      : " + $snap.branch + " @ " + $snap.head + "  (staged=" + $snap.staged.Count + " unstaged=" + $snap.unstaged.Count + " untracked=" + $snap.untracked.Count + ")",
+        "  Git      : " + $snap.branch + " @ " + $snap.head + "  (+" + $snap.staged.Count + " ~" + $snap.unstaged.Count + " ?" + $snap.untracked.Count + ")",
         "  Iterasi  : #" + $st.iteration + "  (" + $st.state + ")",
         "  Model    : " + $cfg.Model,
         "  Budget   : mode=" + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR),
