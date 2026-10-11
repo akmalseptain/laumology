@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from math import floor
 
@@ -25,6 +26,8 @@ from factors import (
     confluence_frame,
     score_frame,
 )
+
+_log = logging.getLogger("laumology.signals")
 
 
 def support_resistance(d: pd.DataFrame) -> tuple[float, float]:
@@ -427,6 +430,10 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
                         model_used = True
         except Exception:
             prob_up = None
+            _log.warning(
+                "Gagal memuat/menghitung model skor terlatih; memakai skor heuristik.",
+                exc_info=True,
+            )
 
     signal, action = _action(score, uptrend, extended, breakout)
     grade = _grade(score, confidence, uptrend)

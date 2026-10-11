@@ -29,8 +29,10 @@ def _key() -> str:
 
 
 def _base() -> str:
+    # Default diselaraskan dengan default model (deepseek-reasoner) dan
+    # .env.example / llm.example.json agar tidak mengarah ke endpoint OpenAI.
     base = (os.environ.get("OPENAI_BASE_URL") or os.environ.get("LLM_BASE_URL")
-            or _cfg().get("base_url") or "https://api.openai.com/v1")
+            or _cfg().get("base_url") or "https://api.deepseek.com/v1")
     return str(base).rstrip("/")
 
 

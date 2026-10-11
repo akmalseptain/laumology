@@ -27,3 +27,6 @@ node_modules/
 # --- misc ---
 .DS_Store
 *.tsbuildinfo
+
+# --- war room (status runtime, ledger, log) ---
+tools/warroom/state/

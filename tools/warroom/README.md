@@ -1,0 +1,89 @@
+# LAUMOLOGY AI WAR ROOM
+
+Supervisor rekayasa otonom berbasis PowerShell untuk repositori LAUMOLOGY.
+Menggunakan agen OpenCode yang nyata, kendali anggaran API, dan pengaman Git.
+
+## Prasyarat
+
+- Windows PowerShell 5.1.
+- `py -3.14` (Python 3.14 di `C:\Python314`) dengan dependensi `requirements.txt`.
+- `git` dan `opencode` CLI (v1.18.35+) tersedia di PATH.
+- Kredensial provider DeepSeek terdaftar di OpenCode (`opencode auth`).
+
+## Struktur
+
+```
+.opencode/agents/            # 5 agen nyata: lead-engineer, code-engineer, quant-analyst, qa-engineer, reviewer
+opencode.jsonc               # model + permission least-privilege (deny operasi destruktif)
+tools/warroom/
+  Start-WarRoom.ps1          # terminal komando
+  Invoke-WarRoomTask.ps1     # satu panggilan agen (dengan kendali anggaran)
+  Invoke-AutonomousLoop.ps1  # supervisor persisten
+  warroom.options.psd1       # konfigurasi anggaran, tarif token, kurs (EDITABLE)
+  lib/                       # Common, EventLog, StateManager, GitGuard, BudgetManager, BacklogManager, AgentRunner, DiscussionManager
+  tests/Test-WarRoom.ps1     # uji mandiri
+  state/                     # runtime (gitignored): status, ledger, log, backlog
+```
+
+## Perintah Persis
+
+Semua dijalankan dari root repo LAUMOLOGY.
+
+### Menjalankan terminal
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1
+```
+Perintah dalam terminal: `help, team, status, backlog, diff, test, logs, doctor, pause, resume, stop, discuss <topik>, loop, exit`.
+
+### Menjalankan supervisor otonom
+```powershell
+# Dry-run (tidak memanggil model; tetap menjalankan tes lokal + rekam status):
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -Once
+
+# Eksekusi nyata (memanggil agen Lead untuk item backlog), maksimum 1 siklus:
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -MaxCycles 1 -Execute
+```
+
+### Memeriksa status dan anggaran
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1 -Command status
+```
+
+### Menjeda / melanjutkan / menghentikan
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1 -Command pause
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1 -Command resume
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1 -Command stop
+```
+
+### Melihat log dan penggunaan
+```powershell
+Get-Content tools\warroom\state\usage-ledger.jsonl      # buku besar token/biaya
+Get-Content tools\warroom\state\events.jsonl -Tail 30   # event log
+Get-Content tools\warroom\state\supervisor.json         # status supervisor
+```
+
+### Menjalankan uji War Room
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\tests\Test-WarRoom.ps1
+```
+
+## Anggaran
+
+Edit `tools/warroom/warroom.options.psd1`. Ambang default (IDR):
+`Warning 25.000 · Reduced 30.000 · TargetOtomasi/HardPause 35.000 · Bulanan 50.000`.
+Kurs `UsdToIdr` dan `ExchangeRateVerifiedDate` wajib disesuaikan pengguna.
+
+- Mode **warning**: peringatan.
+- Mode **reduced**: diskusi opsional & paralel dimatikan.
+- Mode **paused**: tidak ada panggilan AI otomatis baru.
+- **Fail-closed**: bila ledger rusak/tak terbaca, semua panggilan otomatis dihentikan.
+
+## Batasan (jujur)
+
+- Supervisor lokal **tidak dapat menjamin** batas penagihan mutlak di sisi provider.
+  Kendali berlaku untuk panggilan yang diluncurkan War Room; panggilan di luar itu tidak terpantau.
+- Biaya aktual diambil dari `cost` yang dilaporkan OpenCode; bila tidak tersedia,
+  digunakan perkiraan konservatif dan entri ditandai `unknown=true` (tidak dianggap nol).
+- Model rutin: `deepseek/deepseek-flash`. Tarif token: harga resmi DeepSeek (diverifikasi 2026-10-11),
+  mode peak untuk reservasi konservatif.

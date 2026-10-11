@@ -1,0 +1,184 @@
+# lib/AgentRunner.ps1 — pemanggil OpenCode nyata (non-interaktif) + parsing penggunaan token/biaya.
+# Bergantung pada: Common.ps1, EventLog.ps1, BudgetManager.ps1 (dot-source di pemanggil).
+
+function Get-OpenCodeCommand {
+    $cmd = Get-Command opencode.cmd -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $ps = Get-Command opencode.ps1 -ErrorAction SilentlyContinue
+    if ($ps) { return $ps.Source }
+    $exe = Get-Command opencode -ErrorAction SilentlyContinue
+    if ($exe) { return $exe.Source }
+    return $null
+}
+
+function Test-OpenCodeAvailable {
+    return [bool](Get-OpenCodeCommand)
+}
+
+function Get-OpenCodeVersion {
+    $cmd = Get-OpenCodeCommand
+    if (-not $cmd) { return $null }
+    try { return ((& $cmd --version) 2>&1 | Select-Object -First 1).ToString().Trim() } catch { return $null }
+}
+
+function ConvertFrom-OpenCodeEvents {
+    # Parse baris JSON dari `opencode run --format json` menjadi teks + token + biaya.
+    param([Parameter(Mandatory)][string[]]$Lines)
+    $textParts = @()
+    $sessionId = $null
+    $tokens = $null
+    $costUSD = $null
+    $sawFinish = $false
+    foreach ($l in $Lines) {
+        $t = $l.Trim()
+        if (-not $t.StartsWith('{')) { continue }
+        try { $ev = $t | ConvertFrom-Json } catch { continue }
+        if ($ev.sessionID) { $sessionId = $ev.sessionID }
+        switch ($ev.type) {
+            'text' { if ($ev.part -and $ev.part.text) { $textParts += $ev.part.text } }
+            'step_finish' {
+                $sawFinish = $true
+                if ($ev.part -and $ev.part.tokens) { $tokens = $ev.part.tokens }
+                if ($ev.part -and $null -ne $ev.part.cost) { $costUSD = [double]$ev.part.cost }
+            }
+        }
+    }
+    return [pscustomobject]@{
+        text      = ($textParts -join "`n")
+        sessionId = $sessionId
+        tokens    = $tokens
+        costUSD   = $costUSD
+        sawFinish = $sawFinish
+    }
+}
+
+function Invoke-OpenCodeAgent {
+    # Menjalankan satu panggilan agen OpenCode secara non-interaktif.
+    param(
+        [Parameter(Mandatory)][string]$Agent,
+        [Parameter(Mandatory)][string]$Prompt,
+        [string]$Model = '',
+        [string]$SessionId = '',
+        [int]$TimeoutSec = 600,
+        [switch]$Auto
+    )
+    $cfg = Get-WarRoomConfig
+    if (-not $Model) { $Model = $cfg.Model }
+    $root = Get-WarRoomRoot
+    if (-not (Test-OpenCodeAvailable)) {
+        throw "opencode CLI tidak ditemukan di PATH."
+    }
+
+    # Shim opencode.cmd memotong argumen yang memuat baris baru. Untuk prompt
+    # multi-baris, tulis ke berkas lalu kirim instruksi satu baris yang menunjuk
+    # berkas tersebut (isi tetap utuh).
+    $effectivePrompt = $Prompt
+    if ($Prompt -match "[`r`n]") {
+        $tmpDir = Join-Path (Get-WarRoomStateDir) 'tmp'
+        if (-not (Test-Path -LiteralPath $tmpDir)) { New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null }
+        $pf = Join-Path $tmpDir ("prompt-{0}.md" -f [guid]::NewGuid().ToString('N').Substring(0, 8))
+        Set-Content -LiteralPath $pf -Value $Prompt -Encoding UTF8
+        $effectivePrompt = "Baca berkas '$pf' dan jalankan SELURUH instruksi di dalamnya secara lengkap. Jangan meminta klarifikasi; kerjakan sekarang."
+    }
+
+    $startTs = Get-Date
+    $job = Start-Job -ArgumentList $root, $Agent, $Model, $effectivePrompt, $SessionId, [bool]$Auto -ScriptBlock {
+        param($Root, $Agent, $Model, $Prompt, $SessionId, $Auto)
+        Set-Location -LiteralPath $Root
+        $oCmd = (Get-Command opencode.cmd -ErrorAction SilentlyContinue).Source
+        if (-not $oCmd) { $oCmd = (Get-Command opencode.ps1).Source }
+        if (-not $oCmd) { $oCmd = 'opencode' }
+        $a = @('run', '--format', 'json', '--agent', $Agent, '-m', $Model)
+        if ($SessionId) { $a += @('--session', $SessionId) }
+        if ($Auto) { $a += '--auto' }
+        $a += $Prompt
+        $lines = & $oCmd @a 2>&1 | ForEach-Object { "$_" }
+        $code = $LASTEXITCODE
+        $lines | ForEach-Object { $_ }
+        "__WARROOM_EXIT__=$code"
+    }
+    $timedOut = $false
+    Wait-Job -Job $job -Timeout $TimeoutSec | Out-Null
+    if ($job.State -eq 'Running') {
+        $timedOut = $true
+        Stop-Job -Job $job
+    }
+    $raw = @(Receive-Job -Job $job -ErrorAction SilentlyContinue)
+    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+
+    $exitCode = -1
+    $lines = @()
+    foreach ($l in $raw) {
+        if ("$l" -match '^__WARROOM_EXIT__=(\-?\d+)$') { $exitCode = [int]$Matches[1]; continue }
+        $lines += "$l"
+    }
+    $parsed = ConvertFrom-OpenCodeEvents -Lines $lines
+    $duration = ((Get-Date) - $startTs).TotalSeconds
+
+    $source = if ($null -ne $parsed.costUSD) { 'reported' } elseif ($parsed.tokens) { 'estimated' } else { 'unknown' }
+
+    $result = [pscustomobject]@{
+        agent      = $Agent
+        model      = $Model
+        sessionId  = $parsed.sessionId
+        exitCode   = $exitCode
+        timedOut   = $timedOut
+        durationSec = [math]::Round($duration, 2)
+        text       = $parsed.text
+        tokens     = $parsed.tokens
+        costUSD    = $parsed.costUSD
+        costSource = $source
+        rawLines   = $lines
+    }
+
+    # Log tugas (teredaksi).
+    $logName = "task-{0}-{1}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $Agent
+    $logPath = Join-Path (Get-WarRoomStateDir) $logName
+    $safe = ($lines | ForEach-Object { Protect-WarRoomSecret $_ }) -join "`n"
+    Add-ContentSafe -Path $logPath -Value $safe
+    $result | Add-Member -NotePropertyName logFile -NotePropertyValue $logName
+
+    Write-WarRoomEvent -Category 'agent' -Actor $Agent -Message "panggil agen selesai (exit=$exitCode, timeout=$timedOut)" -Data @{
+        model = $Model; durationSec = $result.durationSec; costSource = $source
+        tokens = ($(if ($parsed.tokens) { "$($parsed.tokens.total)" } else { 'n/a' })); sessionId = $parsed.sessionId
+    } | Out-Null
+    return $result
+}
+
+function Invoke-OpenCodeAgentWithBudget {
+    # Bungkus panggilan dengan reservasi anggaran + commit.
+    param(
+        [Parameter(Mandatory)][string]$Agent,
+        [Parameter(Mandatory)][string]$Prompt,
+        [string]$Model = '',
+        [string]$CycleId = '',
+        [string]$Role = '',
+        [string]$SessionId = '',
+        [int]$TimeoutSec = 600,
+        [int]$ExpectedInputTokens = 8000,
+        [switch]$Auto
+    )
+    $cfg = Get-WarRoomConfig
+    if (-not $Model) { $Model = $cfg.Model }
+    $resId = "res-$([guid]::NewGuid().ToString('N').Substring(0,12))"
+    $est = Get-ConservativeEstimateIDR -Model $Model -ExpectedInputTokens $ExpectedInputTokens
+    $r = Reserve-Budget -ReservationId $resId -EstimatedCostIDR $est -CycleId $CycleId -Model $Model
+    if (-not $r.granted) {
+        Write-WarRoomEvent -Category 'budget' -Level 'warn' -Message "panggilan ditolak anggaran ($($r.reason))" -Data @{ agent = $Agent; estIDR = $est } | Out-Null
+        return [pscustomobject]@{ allowed = $false; reason = $r.reason; result = $null; estimatedIDR = $est }
+    }
+    try {
+        $res = Invoke-OpenCodeAgent -Agent $Agent -Prompt $Prompt -Model $Model -SessionId $SessionId -TimeoutSec $TimeoutSec -Auto:$Auto
+        $entry = Commit-Budget -ReservationId $resId -CycleId $CycleId -Role $Role -Agent $Agent -Model $Model `
+            -Operation 'agent-call' -SessionId $res.sessionId -Tokens $res.tokens `
+            -ReportedCostUSD $(if ($null -ne $res.costUSD) { [double]$res.costUSD } else { -1 }) `
+            -Source $res.costSource -Error $(if ($res.exitCode -ne 0) { "exit=$($res.exitCode); timeout=$($res.timedOut)" } else { '' }) `
+            -Cancelled:$res.timedOut
+        $res | Add-Member -NotePropertyName ledgerEntry -NotePropertyValue $entry
+        return [pscustomobject]@{ allowed = $true; reason = 'ok'; result = $res; estimatedIDR = $est }
+    } catch {
+        Commit-Budget -ReservationId $resId -CycleId $CycleId -Role $Role -Agent $Agent -Model $Model `
+            -Operation 'agent-call' -Source 'unknown' -Error $_.Exception.Message | Out-Null
+        throw
+    }
+}

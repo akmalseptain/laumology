@@ -10,6 +10,7 @@ Dipakai oleh `signals.analyze` untuk:
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 
@@ -19,6 +20,8 @@ import pandas as pd
 from config import settings
 from factors import COMPONENT_MAX, SCORE_COMPONENTS, score_frame
 from indicators import add_indicators
+
+_log = logging.getLogger("laumology.calibration")
 
 MIN_BARS = 140
 
@@ -216,6 +219,11 @@ def load_model() -> dict | None:
     try:
         model = json.loads(path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
+        _log.warning(
+            "Model skor ada di %s tetapi gagal dibaca; diabaikan (pakai skor heuristik).",
+            path,
+            exc_info=True,
+        )
         return None
     _MODEL_CACHE.update(mtime=mtime, model=model, path=str(path))
     return model

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "deepseek/deepseek-flash",
+  "small_model": "deepseek/deepseek-flash",
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "*": "allow",
+      "git reset *": "deny",
+      "git clean *": "deny",
+      "git push *": "deny",
+      "git filter-branch *": "deny",
+      "git rebase *": "deny",
+      "rm -rf *": "deny",
+      "Remove-Item -Recurse *": "deny",
+      "npm publish *": "deny",
+      "vercel deploy *": "deny",
+      "vercel --prod *": "deny"
+    },
+    "webfetch": "allow"
+  }
+}
