@@ -21,6 +21,7 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libDir 'BacklogManager.ps1')
 . (Join-Path $libDir 'AgentRunner.ps1')
 . (Join-Path $libDir 'DiscussionManager.ps1')
+. (Join-Path $libDir 'PipelineManager.ps1')
 
 Initialize-WarRoomState
 $cfg = Get-WarRoomConfig
@@ -144,44 +145,14 @@ try {
         }
         Set-WarRoomState -State 'PLANNING' -Note 'rencana siklus' -Iteration $i -NextAction ($(if ($next) { $next.id } else { 'discovery' })) | Out-Null
 
-        # IMPLEMENTING
-        Set-WarRoomState -State 'IMPLEMENTING' -Note 'eksekusi' -Iteration $i | Out-Null
+        # IMPLEMENTING (pipeline bertahap: plan -> investigate -> implement -> verify)
+        Set-WarRoomState -State 'IMPLEMENTING' -Note 'pipeline' -Iteration $i | Out-Null
         if (-not $execute) {
             Write-Host "  [dry-run] Tidak memanggil model." -ForegroundColor DarkGray
-        } elseif ($next) {
-            $prompt = @"
-Anda Lead Engineer War Room. Kerjakan SATU peningkatan kecil dan aman untuk item backlog berikut.
-Ikuti AGENTS.md (bahasa Indonesia, jangan ubah rumus keuangan tanpa bukti, jaga uji golden).
-Jangan commit/push. Jangan operasi Git destruktif.
-
-ITEM: $($next.id) - $($next.title)
-EVIDENCE: $($next.evidence)
-FILES: $($next.files -join ', ')
-ACCEPTANCE: $($next.acceptance)
-
-Lakukan: implementasi terfokus, lalu jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas yang diubah + hasil nyata.
-"@
-            $o = Invoke-OpenCodeAgentWithBudget -Agent $cfg.Agents.Lead -Prompt $prompt -CycleId $cycleId -Role 'lead-engineer' -TimeoutSec $CycleTimeoutSec -Auto
-            if (-not $o.allowed) {
-                Write-Host "  Panggilan Lead ditolak anggaran: $($o.reason)" -ForegroundColor Yellow
-            } elseif ($o.result.exitCode -ne 0) {
-                Write-Host "  Panggilan Lead gagal (exit=$($o.result.exitCode), timeout=$($o.result.timedOut))." -ForegroundColor Red
-            } else {
-                Write-Host "  Lead Engineer selesai; perubahan diterapkan." -ForegroundColor Green
-            }
         } else {
-            $discPrompt = @"
-Anda Lead Engineer War Room. Tidak ada item backlog terbuka.
-Tugas: temukan SATU peningkatan kecil, aman, dan reversibel pada aplikasi LAUMOLOGY, LALU implementasikan.
-Aturan: baca AGENTS.md; sertakan bukti path:line; jangan ubah rumus keuangan tanpa fixture; jangan tambah dependensi; jangan commit/push; jangan operasi Git destruktif.
-Setelah selesai jalankan 'py -3.14 tools/quality_gate.py' dan laporkan berkas yang diubah + ringkasan. Bila tidak ada perubahan aman yang layak, nyatakan dan jangan ubah apa pun.
-"@
-            $o = Invoke-OpenCodeAgentWithBudget -Agent $cfg.Agents.Lead -Prompt $discPrompt -CycleId $cycleId -Role 'lead-engineer-discovery' -TimeoutSec $CycleTimeoutSec -Auto
-            if ($o.allowed -and $o.result.exitCode -eq 0) {
-                Write-Host "  Discovery+implementasi selesai." -ForegroundColor Green
-            } else {
-                Write-Host "  Discovery tidak menghasilkan perubahan (atau ditolak anggaran)." -ForegroundColor DarkGray
-            }
+            $pipe = Invoke-WarRoomPipeline -CycleId $cycleId -Item $next -ExtraContext "iterasi #$i" -TimeoutSec $CycleTimeoutSec -Auto
+            Write-Host ("  Pipeline: plan={0} investigate={1}/2 implement={2} verify={3}/2 rekomendasi={4}" -f `
+                $pipe.plan, $pipe.investigate, $pipe.implement, $pipe.verify, $pipe.recommendation)
         }
 
         # TESTING

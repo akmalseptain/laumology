@@ -52,6 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-Autonom
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -Once
 ```
 Bila backlog kosong, tiap siklus otomatis melakukan **discovery+implementasi** kecil.
+Setiap siklus eksekusi menjalankan **pipeline bertahap**: Lead (rencana) → investigasi paralel (quant+qa, read-only) → implementasi (code, satu penulis) → verifikasi paralel (quant+reviewer). Hasil per siklus disimpan di `state/pipeline-<cycleId>.json`.
 Sesuaikan `CyclesPerRun`, `MaxRunMinutes`, `InterCycleDelaySeconds`, `ExecuteByDefault` di `warroom.options.psd1`.
 
 ### Memeriksa status dan anggaran
