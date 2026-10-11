@@ -45,6 +45,18 @@ Balas sebagai '$ag' dalam BAHASA SEHARI-HARI, MAKSIMAL 2 kalimat. Tanggapi pesan
 
     Write-Host ""
     Invoke-WarRoomBeep -Kind 'ok'
+
+    # Simpan hasil rapat ke backlog agar loop mengerjakannya (rapat -> backlog -> loop).
+    if ($env:WARROOM_CHAT_NO_BACKLOG -ne '1') {
+        try {
+            $desc = (($transcript -split "`r?`n" | Where-Object { $_ -match '^[a-z].*: ' } | Select-Object -First 6) -join ' | ')
+            $item = Add-BacklogItem -Title $Topic -Description $desc -Evidence 'hasil rapat (rapat <topik>)' -Files @() -Benefit 'Tindak lanjut hasil rapat' -Severity 'medium' -Confidence 'medium' -Effort 'M' -Status 'open'
+            Write-Host ("  ^ dimasukkan ke backlog: {0} - {1}  (loop akan mengerjakannya)" -f $item.id, $Topic) -ForegroundColor DarkGray
+        } catch {
+            Write-Host "  (gagal menambah backlog dari rapat)" -ForegroundColor DarkGray
+        }
+    }
+
     Send-WarRoomToast -Title 'LAUMOLOGY War Room' -Text ("Rapat '$Topic' selesai.") | Out-Null
     return $transcript
 }
