@@ -174,15 +174,20 @@ function Show-Demo {
 }
 
 function Show-Mascot {
-    # ASCII art kustom (niche!) dari tools\warroom\mascot.txt. Ditampilkan saat start & via 'mascot'.
+    # ASCII art kustom (niche!) dari tools\warroom\mascot.txt. Dipotong agar muat lebar jendela.
     $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
     if (-not (Test-Path -LiteralPath $p)) {
         Write-Host "  (Belum ada mascot.txt - simpan ASCII art Anda ke tools\warroom\mascot.txt)" -ForegroundColor DarkGray
         return
     }
     try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return }
+    $cw = 100
+    try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
     Write-Host ""
-    foreach ($ln in ($txt -split "`r?`n")) { Write-Host $ln -ForegroundColor Cyan }
+    foreach ($ln in ($txt -split "`r?`n")) {
+        if ($ln.Length -gt $cw) { Write-Host $ln.Substring(0, $cw) -ForegroundColor Cyan }
+        else { Write-Host $ln -ForegroundColor Cyan }
+    }
     Write-Host ""
 }
 
