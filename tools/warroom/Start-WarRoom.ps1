@@ -52,57 +52,25 @@ function Write-Rgb {
     }
 }
 
-function Get-MascotLines {
-    # Baca mascot.txt (ASCII), buang indent umum & spasi kanan; kembalikan array baris.
-    $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
-    if (-not (Test-Path -LiteralPath $p)) { return @() }
-    try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return @() }
-    if ($txt.Contains([char]27)) { return @($txt -split "`r?`n") }
-    $src = @($txt -split "`r?`n")
-    $ne = @($src | Where-Object { $_.Trim().Length -gt 0 })
-    if ($ne.Count -eq 0) { return @() }
-    $mi = ($ne | ForEach-Object { $_.Length - $_.TrimStart().Length } | Measure-Object -Minimum).Minimum
-    return @($src | ForEach-Object {
-        $l = if ($_.Length -ge $mi) { $_.Substring($mi) } else { $_.TrimStart() }
-        $l.TrimEnd()
-    })
-}
-
 function Show-Banner {
-    # Neofetch-style: potret (kiri) + info sistem (kanan).
-    $art = @(Get-MascotLines)
-    $cfg = Get-WarRoomConfig
-    $st = Get-WarRoomState
-    $snap = Get-GitSnapshot
-    $b = Get-BudgetStatus
-    $line = '  ' + ('-' * 30)
-    $info = @(
-        "",
-        "  L A U M O L O G Y",
-        "  A I  E N G I N E E R I N G  W A R  R O O M",
-        $line,
-        "  Repo    : " + (Split-Path -Leaf (Get-WarRoomRoot)),
-        "  Git     : " + $snap.branch + " @ " + $snap.head,
-        "  Iterasi : #" + $st.iteration + "  (" + $st.state + ")",
-        "  Model   : " + $cfg.Model,
-        "  Budget  : " + $b.mode + "  sisa=Rp" + ([int]$b.remainingIDR),
-        $line,
-        "  Ketik 'help' untuk perintah."
-    )
     Write-Host ""
-    if ($art.Count -eq 0) {
-        foreach ($l in $info) { Write-Host $l -ForegroundColor Gray }
-    } else {
-        $artW = ($art | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-        $rows = [Math]::Max($art.Count, $info.Count)
-        for ($i = 0; $i -lt $rows; $i++) {
-            $left = if ($i -lt $art.Count) { ' ' + $art[$i] } else { ' ' }
-            $left = $left.PadRight($artW + 3)
-            Write-Host $left -NoNewline -ForegroundColor Cyan
-            $right = if ($i -lt $info.Count) { $info[$i] } else { '' }
-            Write-Host $right -ForegroundColor Gray
+    if ($script:UnicodeOK -and $script:LogoUnicode.Count -gt 0) {
+        # Gradient vertikal: cyan -> biru -> violet -> magenta
+        $n = [Math]::Max($script:LogoUnicode.Count - 1, 1)
+        for ($k = 0; $k -lt $script:LogoUnicode.Count; $k++) {
+            $t = $k / $n
+            $r = [int](34 + ($t * 190))
+            $g = [int](211 - ($t * 120))
+            $b = [int](238 + ($t * 17))
+            $fb = if ($k % 2 -eq 0) { 'Cyan' } else { 'Blue' }
+            Write-Rgb -Text (' ' + $script:LogoUnicode[$k]) -R $r -G $g -B $b -Fallback $fb
         }
+    } else {
+        foreach ($l in $script:LogoAscii) { Write-Host $l -ForegroundColor Cyan }
     }
+    Write-Host ""
+    Write-Rgb -Text "        >>  A I   E N G I N E E R I N G   W A R   R O O M  <<" -R 255 -G 255 -B 255 -Fallback White
+    Write-Host "        Rekayasa otonom . bukti nyata . peningkatan berkelanjutan" -ForegroundColor DarkGray
     Write-Host ""
 }
 
@@ -205,39 +173,6 @@ function Show-Demo {
     Write-Host ""
 }
 
-function Show-Mascot {
-    # ASCII art kustom (niche!) dari tools\warroom\mascot.txt. Dipotong agar muat lebar jendela.
-    $p = Join-Path (Get-WarRoomToolDir) 'mascot.txt'
-    if (-not (Test-Path -LiteralPath $p)) {
-        Write-Host "  (Belum ada mascot.txt - simpan ASCII art Anda ke tools\warroom\mascot.txt)" -ForegroundColor DarkGray
-        return
-    }
-    try { $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) } catch { return }
-    $hasAnsi = $txt.Contains([char]27)
-    $cw = 100
-    try { $cw = [Math]::Max(40, [Console]::WindowWidth - 1) } catch { }
-    $lines = @($txt -split "`r?`n")
-    if ($hasAnsi) {
-        Write-Host ""
-        foreach ($ln in $lines) { Write-Host $ln }
-        Write-Host ""
-        return
-    }
-    # Buang indentasi umum, rapikan kanan, lalu PUSATKAN sesuai lebar jendela.
-    $nonEmpty = @($lines | Where-Object { $_.Trim().Length -gt 0 })
-    if ($nonEmpty.Count -eq 0) { return }
-    $minIndent = ($nonEmpty | ForEach-Object { $_.Length - $_.TrimStart().Length } | Measure-Object -Minimum).Minimum
-    $body = @($lines | ForEach-Object {
-        if ($_.Length -ge $minIndent) { $_.Substring($minIndent) } else { $_.TrimStart() }
-    } | ForEach-Object { $_.TrimEnd() })
-    $wmax = ($body | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
-    $pad = if ($wmax -lt $cw) { [int](($cw - $wmax) / 2) } else { 0 }
-    $prefix = ' ' * $pad
-    Write-Host ""
-    foreach ($ln in $body) { Write-Host ($prefix + $ln) -ForegroundColor Cyan }
-    Write-Host ""
-}
-
 function Show-Logs {
     param([int]$Tail = 20)
     Write-Host "  --- EVENT LOG (tail $Tail) ---" -ForegroundColor Cyan
@@ -303,7 +238,6 @@ function Show-Help {
         'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
         'rapat <topik>    obrolan tim bergantian (interaktif, ala chat)',
         'demo             pratinjau tampilan (tanpa biaya API)',
-        'mascot           tampilkan ASCII art (tools\warroom\mascot.txt)',
         'replay           tampilkan notulen/debat terakhir',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
@@ -378,7 +312,6 @@ function Invoke-WarRoomCommand {
         'prompt'  { Invoke-WarRoomAsk -Text $arg }
         'replay'  { Show-Replay }
         'demo'    { Show-Demo }
-        'mascot'  { Show-Mascot }
         'rapat'   {
             if (-not $arg) { Write-Host "  Gunakan: rapat <topik>" -ForegroundColor Yellow }
             else { Invoke-WarRoomChat -Topic $arg | Out-Null }
@@ -395,6 +328,7 @@ function Invoke-WarRoomCommand {
 
 # --- Main ---
 Show-Banner
+Show-Header
 
 if ($Command) {
     Invoke-WarRoomCommand -Line $Command | Out-Null
