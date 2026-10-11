@@ -93,14 +93,15 @@ async function loadNews(t){
     const cls = n.label==="Positif"?"v-up":(n.label==="Negatif"?"v-red":"v-muted");
     const items = (n.items||[]).slice(0,8).map(it=>{
       const s = it.sentiment>=0.2?"v-up":(it.sentiment<=-0.2?"v-red":"v-muted");
-      const link = it.url ? '<a href="'+it.url+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+(it.title||"-")+'</a>' : (it.title||"-");
-      return '<div class="check" style="align-items:flex-start"><span class="ic '+s+'">'+(it.sentiment>0?'▲':(it.sentiment<0?'▼':'•'))+'</span><span style="flex:1">'+link+'<br><span class="mono" style="color:#8a9a90;font-size:10px">'+(it.publisher||"")+'</span></span></div>';
+      const url = safeUrl(it.url);
+      const link = url ? '<a href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+escapeHtml(it.title||"-")+'</a>' : escapeHtml(it.title||"-");
+      return '<div class="check" style="align-items:flex-start"><span class="ic '+s+'">'+(it.sentiment>0?'▲':(it.sentiment<0?'▼':'•'))+'</span><span style="flex:1">'+link+'<br><span class="mono" style="color:#8a9a90;font-size:10px">'+escapeHtml(it.publisher||"")+'</span></span></div>';
     }).join("");
     el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div>'
       + '<div class="grid"><div class="metric hl"><div class="k">Sentimen</div><div class="v '+cls+'">'+n.label+'</div></div>'
       + '<div class="metric"><div class="k">Skor rata-rata</div><div class="v v-muted">'+n.avg_sentiment+'</div></div>'
       + '<div class="metric"><div class="k">Jumlah berita</div><div class="v v-white">'+n.count+'</div></div></div>'
-      + (items ? '<div style="margin-top:12px">'+items+'</div>' : '<div class="empty" style="padding:20px">Tidak ada berita.</div>')
+      + (items ? '<div style="margin-top:12px">'+items+'</div>' : (n.degraded ? '<div class="empty" style="padding:20px">Gagal memuat berita (sumber tidak tersedia).</div>' : '<div class="empty" style="padding:20px">Tidak ada berita.</div>'))
       + '</div>';
   }catch(e){ el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
 }
@@ -209,7 +210,7 @@ function fmtNewsTime(ts){
 async function loadNewsTab(){
   const t=($("#beTicker").value||"").trim().toUpperCase(); const el=$("#beResult"); if(!el) return;
   if(!t){ el.innerHTML='<div class="card empty">Masukkan kode saham.</div>'; return; }
-  el.innerHTML='<div class="card empty">Memuat berita '+t+'...</div>';
+  el.innerHTML='<div class="card empty">Memuat berita '+escapeHtml(t)+'...</div>';
   showStatus("Memuat berita "+t+"...", true);
   try{
     const n=await (await fetch('/api/news?ticker='+encodeURIComponent(t))).json();
@@ -218,11 +219,12 @@ async function loadNewsTab(){
     const items=(n.items||[]).map(it=>{
       const s = it.sentiment>=0.2?"v-up":(it.sentiment<=-0.2?"v-red":"v-muted");
       const arrow = it.sentiment>0?"▲":(it.sentiment<0?"▼":"•");
-      const title = it.url ? '<a href="'+it.url+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+(it.title||"-")+'</a>' : (it.title||"-");
+      const url = safeUrl(it.url);
+      const title = url ? '<a href="'+escapeHtml(url)+'" target="_blank" rel="noreferrer" style="color:var(--brand-dark);text-decoration:none">'+escapeHtml(it.title||"-")+'</a>' : escapeHtml(it.title||"-");
       return '<div class="check" style="align-items:flex-start;gap:10px">'
         + '<span class="ic '+s+'">'+arrow+'</span>'
         + '<span style="flex:1;font-family:var(--ui-font);white-space:normal;line-height:1.55">'+title
-        + '<br><span class="mono" style="color:var(--muted);font-size:10px">'+[(it.publisher||""),fmtNewsTime(it.time)].filter(Boolean).join(" · ")+'</span></span></div>';
+        + '<br><span class="mono" style="color:var(--muted);font-size:10px">'+[escapeHtml(it.publisher||""),fmtNewsTime(it.time)].filter(Boolean).join(" · ")+'</span></span></div>';
     }).join("");
     el.innerHTML =
       '<div class="card">'
@@ -232,7 +234,8 @@ async function loadNewsTab(){
       + '<div class="metric"><div class="k">Jumlah berita</div><div class="v v-white">'+n.count+'</div></div>'
       + '</div>'
       + (items? '<div class="mono" style="color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.06em;margin:18px 0 6px">Daftar berita</div><div>'+items+'</div>'
-               : '<div class="empty" style="padding:24px">Tidak ada berita untuk '+t+'.</div>')
+               : (n.degraded ? '<div class="empty" style="padding:24px">Gagal memuat berita untuk '+escapeHtml(t)+' (sumber tidak tersedia).</div>'
+                             : '<div class="empty" style="padding:24px">Tidak ada berita untuk '+escapeHtml(t)+'.</div>'))
       + '</div>';
     showStatus("Selesai");
   }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }

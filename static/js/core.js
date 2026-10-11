@@ -9,6 +9,18 @@ const idr = (n) => "Rp " + fmt(n);
 function signalClass(s){ if(s.includes("STRONG"))return "STRONG"; if(s==="BUY")return "BUY"; if(s==="ACCUMULATE")return "ACC"; if(s==="HOLD")return "HOLD"; if(s==="SELL")return "SELL"; return "AVOID"; }
 function scoreColor(s){ return s>=80 ? "#16a34a" : s>=65 ? "#4b8f6a" : s>=40 ? "#8a948d" : "#e5484d"; }
 function chg(v){ return `<span class="chg" style="color:${v>=0?'#26a69a':'#ef5350'}">${v>=0?'+':'−'}${fmt(Math.abs(v),2)}%</span>`; }
+/* Sanitasi teks dari feed berita sebelum disuntik ke innerHTML (cegah XSS). */
+function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+/* Hanya izinkan URL web (http/https); tolak javascript:/data:/blob: dll. */
+function safeUrl(u){
+  const s = String(u==null?"":u).trim();
+  if(!s) return "";
+  try{
+    const parsed = new URL(s, window.location.origin);
+    if(parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
+  }catch(e){}
+  return "";
+}
 
 async function mapLimit(items, limit, fn){
   const ret = new Array(items.length);

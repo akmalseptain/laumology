@@ -442,8 +442,206 @@ class TestNews(unittest.TestCase):
     def test_market_news_shape(self):
         import news
         res = news.get_market_news()
+        for key in ("ticker", "count", "avg_sentiment", "label", "items",
+                    "degraded", "source"):
+            self.assertIn(key, res)
+
+
+class TestNewsRssFallback(unittest.TestCase):
+    """Fallback sumber berita (Google News RSS) + pelaporan kegagalan jujur."""
+
+    RSS = (
+        b'<?xml version="1.0" encoding="UTF-8"?>'
+        b'<rss version="2.0"><channel>'
+        b'<item><title>BBCA naik laba</title>'
+        b'<link>https://example.test/1</link>'
+        b'<pubDate>Wed, 07 Oct 2026 04:24:00 GMT</pubDate>'
+        b'<source>TestMedia</source></item>'
+        b'</channel></rss>'
+    )
+
+    def tearDown(self):
+        import news
+        news._cache.clear()
+
+    def test_parse_rss_matches_item_schema(self):
+        import news
+        items = news._parse_rss(self.RSS)
+        self.assertEqual(len(items), 1)
+        it = items[0]
+        for key in ("title", "publisher", "url", "time", "sentiment", "pos", "neg"):
+            self.assertIn(key, it)
+        self.assertEqual(it["title"], "BBCA naik laba")
+        self.assertEqual(it["publisher"], "TestMedia")
+        self.assertEqual(it["url"], "https://example.test/1")
+
+    def test_parse_rss_rejects_dtd(self):
+        import news
+        with self.assertRaises(ValueError):
+            news._parse_rss(b'<!DOCTYPE rss [<!ENTITY x "y">]><rss/>')
+
+    def test_parse_rss_rejects_dtd_utf16(self):
+        """DTD tetap tertangkap walau XML di-encode UTF-16 (byte nol menyelip)."""
+        import news
+        payload = (
+            '<?xml version="1.0" encoding="UTF-16"?>'
+            '<!DOCTYPE rss [<!ENTITY e "boom">]><rss/>'
+        ).encode("utf-16")
+        with self.assertRaises(ValueError):
+            news._parse_rss(payload)
+
+    def test_parse_rss_rejects_dtd_beyond_head_window(self):
+        """DTD yang digeser melewati 4 KB pertama tetap ditolak (scan seluruh body)."""
+        import news
+        pad = b"<!--" + b"x" * 6000 + b"-->"
+        payload = (b'<?xml version="1.0" encoding="UTF-8"?>' + pad
+                   + b'<!DOCTYPE rss [<!ENTITY e "boom">]><rss/>')
+        with self.assertRaises(ValueError):
+            news._parse_rss(payload)
+
+    def test_rss_request_google_url_with_ua(self):
+        from unittest.mock import MagicMock, patch
+
+        import news
+
+        captured = {}
+
+        def fake_urlopen(req, timeout=None):
+            captured["url"] = req.full_url
+            captured["ua"] = req.headers.get("User-agent")
+            captured["timeout"] = timeout
+            cm = MagicMock()
+            cm.read.return_value = self.RSS
+            cm.__enter__.return_value = cm
+            cm.__exit__.return_value = False
+            return cm
+
+        with patch("news.urllib.request.urlopen", fake_urlopen):
+            items = news._rss_items("BBCA.JK")
+        self.assertGreaterEqual(len(items), 1)
+        self.assertIn("news.google.com/rss/search", captured["url"])
+        self.assertIn("BBCA", captured["url"])
+        self.assertTrue(captured["ua"])
+        self.assertIsNotNone(captured["timeout"])
+
+    def test_fallback_used_when_yahoo_empty(self):
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._rss_items", return_value=news._parse_rss(self.RSS)):
+            mock_ticker.return_value.news = []
+            res = news.get_news("BBCA")
+        self.assertGreater(res["count"], 0)
+        self.assertEqual(res["source"], "google_news_rss")
+        self.assertFalse(res["degraded"])
+
+    def test_degraded_when_sources_fail(self):
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker", side_effect=RuntimeError("boom")), \
+             patch("news._rss_items", side_effect=RuntimeError("net")):
+            res = news.get_news("BBCA")
+        self.assertEqual(res["count"], 0)
+        self.assertTrue(res["degraded"])
+        self.assertIsNone(res["source"])
         for key in ("ticker", "count", "avg_sentiment", "label", "items"):
             self.assertIn(key, res)
+
+    def test_empty_but_reachable_sources_not_degraded(self):
+        """Dua sumber merespons tanpa exception, tapi nihil berita → bukan degraded.
+
+        Sumber yang benar-benar sukses (walau kosong) berarti memang tidak ada
+        berita; UI harus bilang "Tidak ada berita", bukan "sumber tidak tersedia".
+        """
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._rss_items", return_value=[]):
+            mock_ticker.return_value.news = []
+            res = news.get_news("BBCA")
+        self.assertEqual(res["count"], 0)
+        self.assertFalse(res["degraded"])
+        self.assertIsNone(res["source"])
+
+    def test_yahoo_empty_then_rss_fails_is_degraded(self):
+        """Yahoo balas `[]` (tanpa exception) lalu RSS gagal → `degraded=True`.
+
+        Feed Yahoo kerap mengembalikan daftar kosong tanpa melempar; itu BUKAN
+        bukti sumber hidup. Bila RSS kemudian error, tak ada satu pun sumber
+        yang benar-benar menyajikan berita → UI harus jujur bilang "sumber
+        tidak tersedia", bukan menyesatkan "Tidak ada berita".
+        """
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker") as mock_ticker, \
+             patch("news._rss_items", side_effect=RuntimeError("net")):
+            mock_ticker.return_value.news = []
+            res = news.get_news("BBCA")
+        self.assertEqual(res["count"], 0)
+        self.assertTrue(res["degraded"])
+        self.assertIsNone(res["source"])
+
+    def test_one_failed_source_still_not_degraded(self):
+        """Yahoo gagal (exception) tapi RSS sukses-kosong → jangan salah-lapor degraded.
+
+        Dulu ``degraded = bool(errors) and not items`` menyalakan degraded hanya
+        karena ada error, padahal sumber cadangan hidup. Dengan ``source_ok``
+        eksplisit, keberadaan satu sumber yang merespons mencegah false-degraded.
+        """
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker", side_effect=RuntimeError("boom")), \
+             patch("news._rss_items", return_value=[]):
+            res = news.get_news("BBCA")
+        self.assertEqual(res["count"], 0)
+        self.assertFalse(res["degraded"])
+
+    def test_plain_list_mock_degrades_on_empty(self):
+        """Mock list polos (tanpa atribut ``source_ok``) → safe-default degraded."""
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news._raw_items", return_value=[]):
+            res = news.get_news("BBCA")
+        self.assertEqual(res["count"], 0)
+        self.assertTrue(res["degraded"])
+
+    def test_invalid_ticker_rejected_without_fetch(self):
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker") as mock_ticker, patch("news._rss_items") as mock_rss:
+            for bad in ("A&x", "A#b", "A/B", "A B", "A" * 40):
+                res = news.get_news(bad)
+                self.assertEqual(res["count"], 0)
+                self.assertTrue(res["degraded"])
+                self.assertIn("error", res)
+            mock_ticker.assert_not_called()
+            mock_rss.assert_not_called()
+        self.assertEqual(news._cache, {})
+
+    def test_negative_ttl_cached_when_degraded(self):
+        from unittest.mock import patch
+
+        import news
+
+        with patch("news.yf.Ticker", side_effect=RuntimeError("boom")), \
+             patch("news._rss_items", side_effect=RuntimeError("net")):
+            news.get_news("BBCA")
+        self.assertIn("t:BBCA.JK", news._cache)
+        self.assertEqual(news._cache["t:BBCA.JK"][2], news._NEGATIVE_TTL)
 
 
 class TestWiring(unittest.TestCase):
