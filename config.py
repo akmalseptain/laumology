@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import logging
+import math
 from dataclasses import dataclass
+
+
+_logger = logging.getLogger(__name__)
 
 
 LQ45 = [
@@ -149,6 +154,81 @@ if _os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"):
 _data_dir = _os.environ.get("DATA_DIR")
 if _data_dir:
     settings.cache_dir = _os.path.join(_data_dir, ".cache")
+
+
+# --- Override flag penting lewat environment variable (12-factor) ---
+# Prefix LAUM_. Bila env tidak diset, nilai default di kode TIDAK berubah.
+# Nilai tidak valid diabaikan dan dicatat sebagai warning (tidak crash).
+def _parse_bool(raw: str) -> bool | None:
+    """Parse bool dari env: 1/0, true/false, yes/no, on/off (case-insensitive)."""
+    val = raw.strip().lower()
+    if val in ("1", "true", "yes", "on"):
+        return True
+    if val in ("0", "false", "no", "off"):
+        return False
+    return None
+
+
+_ENV_BOOL_OVERRIDES = {
+    "LAUM_REGIME_FILTER": "regime_filter",
+    "LAUM_ENABLE_DECISION": "enable_decision",
+    "LAUM_USE_OPTIMIZED_SCORE": "use_optimized_score",
+}
+_ENV_FLOAT_OVERRIDES = {
+    "LAUM_MIN_DATA_QUALITY": "min_data_quality",
+    "LAUM_ML_BLEND_ALPHA": "ml_blend_alpha",
+    "LAUM_MIN_OOS_AUC": "min_oos_auc",
+}
+_ENV_INT_OVERRIDES = {
+    "LAUM_SCREEN_WORKERS": "screen_workers",
+}
+
+
+def _apply_env_overrides() -> None:
+    """Terapkan override whitelist dari environment variable (prefix LAUM_)."""
+    for env_name, attr in _ENV_BOOL_OVERRIDES.items():
+        raw = _os.environ.get(env_name)
+        if raw is None:
+            continue
+        parsed = _parse_bool(raw)
+        if parsed is None:
+            _logger.warning(
+                "Nilai env %s=%r tidak valid (bool); nilai default dipertahankan.",
+                env_name, raw,
+            )
+            continue
+        setattr(settings, attr, parsed)
+
+    for env_name, attr in _ENV_FLOAT_OVERRIDES.items():
+        raw = _os.environ.get(env_name)
+        if raw is None:
+            continue
+        try:
+            parsed = float(raw)
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed is None or not math.isfinite(parsed):
+            _logger.warning(
+                "Nilai env %s=%r tidak valid (float); nilai default dipertahankan.",
+                env_name, raw,
+            )
+            continue
+        setattr(settings, attr, parsed)
+
+    for env_name, attr in _ENV_INT_OVERRIDES.items():
+        raw = _os.environ.get(env_name)
+        if raw is None:
+            continue
+        try:
+            setattr(settings, attr, int(raw))
+        except (TypeError, ValueError):
+            _logger.warning(
+                "Nilai env %s=%r tidak valid (int); nilai default dipertahankan.",
+                env_name, raw,
+            )
+
+
+_apply_env_overrides()
 
 
 # --- Universe luas: daftar saham IDX likuid (fallback bila fetch otomatis gagal) ---

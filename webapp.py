@@ -16,23 +16,13 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request
 
-import state
-import store
-from routes import register as register_routes
-
-_log = logging.getLogger("laumology.webapp")
-
-app = Flask(__name__)
-store.init()
-register_routes(app)
-
 
 def _load_dotenv(path: str = ".env") -> None:
     try:
         p = Path(path)
         if not p.exists():
             return
-        for raw in p.read_text(encoding="utf-8").splitlines():
+        for raw in p.read_text(encoding="utf-8-sig").splitlines():
             line = raw.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -42,7 +32,20 @@ def _load_dotenv(path: str = ".env") -> None:
         pass
 
 
+# Muat .env SEBELUM mengimpor modul yang membaca config/env saat impor
+# (mis. `config.py` via `state`/`routes`), agar override `LAUM_*` dari .env berlaku.
 _load_dotenv()
+
+import state  # noqa: E402
+import store  # noqa: E402
+from routes import register as register_routes  # noqa: E402
+
+_log = logging.getLogger("laumology.webapp")
+
+app = Flask(__name__)
+store.init()
+register_routes(app)
+
 
 _api_key_warned = False
 

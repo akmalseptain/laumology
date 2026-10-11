@@ -10,7 +10,7 @@ LAUMOLOGY adalah aplikasi analisis saham IDX berbasis Python/Flask.
 - **Routing:** `routes/` (6 blueprint, 50 endpoint) diregistrasi via `routes/__init__.py:register`.
 - **Mesin analisis:** `indicators.py`, `factors.py`, `signals.py`, `decision.py`, `calibration.py`, `musyawarah.py`, `stock.py`.
 - **Backtest/risiko:** `backtest.py`, `risk.py`, `metrics.py`, `validation.py`.
-- **Config:** `config.py` (dataclass `settings`, nilai default di kode).
+- **Config:** `config.py` (dataclass `settings`, nilai default di kode). Flag penting dapat di-override lewat environment variable dengan prefix `LAUM_` (12-factor), lihat `.env.example`.
 - **Penyimpanan:** `store.py` (SQLite), `state.py` (state runtime in-memory).
 
 ## Perintah Penting
