@@ -136,7 +136,7 @@ try {
 
         $cycleId = "cyc-{0:yyyyMMdd-HHmmss}" -f (Get-Date)
         Write-Host ""
-        Write-ProgressBar -Current $i -Total $MaxCycles -Label ("SIKLUS {0}/{1}   {2}   ({3:N0} menit berjalan)" -f $i, $MaxCycles, $cycleId, $elapsedMin)
+        Write-ProgressBar -Current $i -Total $MaxCycles -Label ("SIKLUS {0}/{1}   {2}   ({3:N0} menit)   |   {4}" -f $i, $MaxCycles, $cycleId, $elapsedMin, (Get-QuickStatusLine))
 
         # OBSERVING
         Set-WarRoomState -State 'OBSERVING' -Note 'snapshot git + anggaran' -Iteration $i | Out-Null
@@ -215,4 +215,6 @@ try {
     Exit-WarRoomSingleInstance
     $mins = [math]::Round(((Get-Date) - $runStart).TotalMinutes, 1)
     Write-Host ("  Supervisor berhenti ({0}) setelah {1} menit." -f $stopReason, $mins) -ForegroundColor Cyan
+    if ($stopReason -eq 'error') { Invoke-WarRoomBeep -Kind 'error' } else { Invoke-WarRoomBeep -Kind 'ok' }
+    Send-WarRoomToast -Title 'LAUMOLOGY War Room' -Text ("Run selesai ({0}) setelah {1} menit." -f $stopReason, $mins) | Out-Null
 }

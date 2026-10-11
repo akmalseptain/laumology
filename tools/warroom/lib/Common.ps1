@@ -144,6 +144,100 @@ function Write-ProgressBar {
     Write-Host ("  [" + $bar + "] " + $Label) -ForegroundColor Cyan
 }
 
+function Get-AgentIcon {
+    # Ikon per agen. Emoji bila didukung, fallback ASCII bila WARROOM_NO_UNICODE.
+    param([string]$Agent)
+    if ($env:WARROOM_NO_UNICODE) {
+        switch -Wildcard ($Agent) {
+            '*lead*'   { return '[*]' }
+            '*code*'   { return '[#]' }
+            '*quant*'  { return '[Q]' }
+            '*qa*'     { return '[?]' }
+            '*review*' { return '[R]' }
+            default    { return '[-]' }
+        }
+    }
+    $cp = switch -Wildcard ($Agent) {
+        '*lead*'   { 0x1F9E0 }
+        '*code*'   { 0x1F4BB }
+        '*quant*'  { 0x1F4CA }
+        '*qa*'     { 0x1F50D }
+        '*review*' { 0x1F6E1 }
+        default    { 0x1F464 }
+    }
+    try { return [char]::ConvertFromUtf32($cp) } catch { return '[-]' }
+}
+
+function Invoke-WarRoomBeep {
+    param([ValidateSet('ok', 'info', 'warn', 'error')][string]$Kind = 'info')
+    if ($env:WARROOM_NO_SOUND) { return }
+    try {
+        switch ($Kind) {
+            'ok' { [console]::beep(880, 110); [console]::beep(1175, 110) }
+            'info' { [console]::beep(700, 90) }
+            'warn' { [console]::beep(520, 200) }
+            'error' { [console]::beep(340, 280) }
+        }
+    } catch { }
+}
+
+function Write-StageProgress {
+    param([Parameter(Mandatory)][string[]]$Stages, [int]$Current = 0, [string]$Color = 'Cyan')
+    $parts = @()
+    for ($i = 0; $i -lt $Stages.Count; $i++) {
+        if ($i -lt $Current) { $parts += ('[v] ' + $Stages[$i]) }
+        elseif ($i -eq $Current) { $parts += ('[>] ' + $Stages[$i]) }
+        else { $parts += ('[ ] ' + $Stages[$i]) }
+    }
+    Write-Host ("  " + ($parts -join '   ')) -ForegroundColor $Color
+}
+
+function Send-WarRoomToast {
+    param([string]$Title = 'LAUMOLOGY War Room', [string]$Text = '')
+    if ($env:WARROOM_NO_TOAST) { return }
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+        $ni = New-Object System.Windows.Forms.NotifyIcon
+        $ni.Icon = [System.Drawing.SystemIcons]::Information
+        $ni.Visible = $true
+        $ni.ShowBalloonTip(5000, $Title, $Text, [System.Windows.Forms.ToolTipIcon]::Info)
+        Start-Sleep -Milliseconds 400
+        $ni.Dispose()
+    } catch { }
+}
+
+function Out-WarRoomMinutes {
+    # Notulen rapat: ringkasan tiap pembicara + keputusan. Disimpan .md di state/.
+    param(
+        [string]$Title = 'Rapat',
+        $Messages,
+        [string]$Decision = '',
+        [string]$Id = ''
+    )
+    $name = if ($Id) { "notulen-$Id.md" } else { ("notulen-{0}.md" -f (Get-Date -Format 'yyyyMMdd-HHmmss')) }
+    $path = Join-Path (Get-WarRoomStateDir) $name
+    $lines = @("# Notulen: $Title", "", ("Waktu: " + (Get-WarRoomUtcNow)), "")
+    foreach ($m in @($Messages)) {
+        if (-not $m) { continue }
+        $body = ($m.text -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 6) -join ' / '
+        $lines += ("- **{0}**: {1}" -f $m.agent, $body)
+    }
+    if ($Decision) { $lines += "", ("**Keputusan:** " + $Decision) }
+    $lines += "", ("Biaya rapat: " + (Get-BudgetStatus).spentIDR + " IDR (kumulatif)")
+    Set-Content -LiteralPath $path -Value ($lines -join "`n") -Encoding UTF8
+    return $path
+}
+
+function Get-QuickStatusLine {
+    try {
+        $b = Get-BudgetStatus
+        $s = Get-WarRoomState
+        return ("iter #{0} {1} | budget {2} Rp{3:N0}/Rp{4:N0}" -f `
+            $s.iteration, $s.state, $b.mode, $b.effectiveIDR, $b.monthlyBudgetIDR)
+    } catch { return '' }
+}
+
 function Write-AgentVoice {
     # Cetak pesan agen bergaya chat kantor (nama + waktu + isi). -Plain untuk gaya blok.
     param(
@@ -164,7 +258,7 @@ function Write-AgentVoice {
     }
     $time = (Get-Date).ToString('HH:mm')
     Write-Host ""
-    Write-Host ("  {0} ({1})" -f $Agent, $time) -ForegroundColor $color
+    Write-Host ("  {0} {1} ({2})" -f (Get-AgentIcon -Agent $Agent), $Agent, $time) -ForegroundColor $color
     for ($i = 0; $i -lt $lines.Count; $i++) {
         if ($i -eq 0) { Write-Host ("    > " + $lines[$i]) -ForegroundColor $color }
         else { Write-Host ("      " + $lines[$i]) -ForegroundColor $color }

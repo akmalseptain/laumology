@@ -138,6 +138,20 @@ function Show-Backlog {
     }
 }
 
+function Show-Replay {
+    $dir = Get-WarRoomStateDir
+    $f = Get-ChildItem -LiteralPath $dir -Filter 'notulen-*.md' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $f) {
+        $f = Get-ChildItem -LiteralPath $dir -Filter 'discussion-*.json' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    }
+    if ($f) {
+        Write-Host ("  --- REPLAY: {0} ---" -f $f.Name) -ForegroundColor Cyan
+        Get-Content -LiteralPath $f.FullName -Encoding UTF8 | ForEach-Object { Write-Host ("  " + $_) }
+    } else {
+        Write-Host "  Belum ada notulen/debat tersimpan." -ForegroundColor DarkGray
+    }
+}
+
 function Show-Logs {
     param([int]$Tail = 20)
     Write-Host "  --- EVENT LOG (tail $Tail) ---" -ForegroundColor Cyan
@@ -195,6 +209,7 @@ function Show-Help {
         'stop             minta berhenti anggun',
         'discuss <topik>  jalankan diskusi multi-agen (nyata, berbiaya)',
         'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
+        'replay           tampilkan notulen/debat terakhir',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
         'exit             keluar'
     ) | ForEach-Object { Write-Host ("  {0}" -f $_) }
@@ -266,6 +281,7 @@ function Invoke-WarRoomCommand {
         }
         'ask'     { Invoke-WarRoomAsk -Text $arg }
         'prompt'  { Invoke-WarRoomAsk -Text $arg }
+        'replay'  { Show-Replay }
         'exit'    { return $false }
         default   { Write-Host ("  Perintah tidak dikenal: {0}. Ketik 'help'." -f $cmd) -ForegroundColor Yellow }
     }
@@ -284,6 +300,8 @@ if ($NonInteractive) { return }
 
 while ($true) {
     Write-Host ""
+    $qs = Get-QuickStatusLine
+    if ($qs) { Write-Host ("  " + $qs) -ForegroundColor DarkGray }
     Write-Host "warroom> " -NoNewline -ForegroundColor Cyan
     $line = Read-Host
     if ($null -eq $line) { break }

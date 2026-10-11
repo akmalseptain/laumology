@@ -40,12 +40,14 @@ KONTEKS: $ExtraContext
 
 Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas yang akan diubah, (d) kriteria penerimaan, (e) risiko regresi.
 "@
+    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 0 -Color 'Cyan'
     Write-Section -Title ("[1/4] PLAN  -  " + $lead) -Color 'Cyan'
     $plan = Invoke-OpenCodeAgentWithBudget -Agent $lead -Prompt $planPrompt -CycleId $CycleId -Role 'lead-plan' -TimeoutSec $TimeoutSec -Auto:$Auto
     $planText = if ($plan.allowed -and $plan.result) { $plan.result.text } else { '' }
     $summary.plan = ($plan.allowed -and $plan.result.exitCode -eq 0)
     Write-Host ("  [1/4] PLAN: {0}" -f $(if ($summary.plan) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.plan) { 'Green' } else { 'Yellow' })
     Write-AgentVoice -Agent $lead -Phase 'plan' -Text $planText
+    if ($summary.plan) { Invoke-WarRoomBeep -Kind 'info' }
     if (-not $planText) {
         # Bila perencanaan tak menghasilkan apa pun, hentikan pipeline lebih awal.
         return [pscustomobject]$summary
@@ -61,6 +63,7 @@ Kumpulkan bukti path:line, risiko, dan hal yang bisa salah.
 RENCANA LEAD:
 $planText
 "@
+    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 1 -Color 'Magenta'
     Write-Section -Title ("[2/4] INVESTIGATE  -  " + $quant + " | " + $qa) -Color 'Magenta'
     $runs = @()
     $runs += Start-WarRoomAgentProcess -Agent $quant -Prompt ($investPrompt -f $quant) -CycleId $CycleId -Role "$quant-investigate" -TimeoutSec $TimeoutSec -Auto:$Auto
@@ -88,11 +91,13 @@ $findings
 
 Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil nyatanya.
 "@
+    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 2 -Color 'Green'
     Write-Section -Title ("[3/4] IMPLEMENT  -  " + $code) -Color 'Green'
     $impl = Invoke-OpenCodeAgentWithBudget -Agent $code -Prompt $implPrompt -CycleId $CycleId -Role 'code-implement' -TimeoutSec $TimeoutSec -Auto:$Auto
     $summary.implement = ($impl.allowed -and $impl.result -and $impl.result.exitCode -eq 0)
     Write-Host ("  [3/4] IMPLEMENT: {0}" -f $(if ($summary.implement) { 'ok' } else { 'gagal/ditolak' })) -ForegroundColor $(if ($summary.implement) { 'Green' } else { 'Yellow' })
     if ($impl.allowed -and $impl.result) { Write-AgentVoice -Agent $code -Phase 'implement' -Text $impl.result.text }
+    Invoke-WarRoomBeep -Kind 'info'
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
     $verifyPrompt = @"
@@ -104,6 +109,7 @@ Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
 RENCANA:
 $planText
 "@
+    Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 3 -Color 'Blue'
     Write-Section -Title ("[4/4] VERIFY  -  " + $quant + " | " + $reviewer) -Color 'Blue'
     $vruns = @()
     $vruns += Start-WarRoomAgentProcess -Agent $quant -Prompt ($verifyPrompt -f $quant) -CycleId $CycleId -Role "$quant-verify" -TimeoutSec $TimeoutSec -Auto:$Auto
@@ -129,6 +135,13 @@ $planText
     $file = Join-Path (Get-WarRoomStateDir) ("pipeline-{0}.json" -f $CycleId)
     Write-WarRoomJsonFile -Path $file -Object $rec
     Write-WarRoomEvent -Category 'orchestrator' -Message "pipeline $CycleId selesai; rekomendasi=$($summary.recommendation)" | Out-Null
+
+    Invoke-WarRoomBeep -Kind $(if ($summary.recommendation -eq 'TERIMA') { 'ok' } else { 'warn' })
+    $minutes = @()
+    if ($planText) { $minutes += [pscustomobject]@{ agent = $lead; text = $planText } }
+    foreach ($x in (@($inv) + @($ver))) { if ($x -and $x.result) { $minutes += [pscustomobject]@{ agent = $x.agent; text = $x.result.text } } }
+    Out-WarRoomMinutes -Title ("Siklus $CycleId") -Messages $minutes -Decision $summary.recommendation -Id $CycleId | Out-Null
+    Send-WarRoomToast -Title 'LAUMOLOGY War Room' -Text ("Siklus $CycleId selesai - rekomendasi: $($summary.recommendation)") | Out-Null
 
     return [pscustomobject]$summary
 }
