@@ -194,7 +194,7 @@ function Show-Mascot {
     $pad = if ($wmax -lt $cw) { [int](($cw - $wmax) / 2) } else { 0 }
     $prefix = ' ' * $pad
     Write-Host ""
-    foreach ($ln in $lines) { Write-Host ($prefix + $ln) -ForegroundColor Cyan }
+    foreach ($ln in $lines) { Write-Host ($prefix + $ln) -ForegroundColor Green }
     Write-Host ""
 }
 
