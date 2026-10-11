@@ -35,14 +35,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.
 ```
 Perintah dalam terminal: `help, team, status, backlog, diff, test, logs, doctor, pause, resume, stop, discuss <topik>, loop, exit`.
 
-### Menjalankan supervisor otonom
+### Menjalankan supervisor otonom (mode batch manual)
 ```powershell
-# Dry-run (tidak memanggil model; tetap menjalankan tes lokal + rekam status):
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -Once
+# Default: 4 siklus nyata, jeda pendek antar siklus, berhenti sendiri,
+# dibatasi wall-clock 180 menit (3 jam). Cocok untuk dijalankan manual tanpa VPS.
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1
 
-# Eksekusi nyata (memanggil agen Lead untuk item backlog), maksimum 1 siklus:
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -MaxCycles 1 -Execute
+# Mode aman (tanpa panggilan model):
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -DryRun
+
+# Override jumlah siklus / batas waktu:
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -MaxCycles 4 -MaxMinutes 180
+
+# Satu siklus saja:
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -Once
 ```
+Bila backlog kosong, tiap siklus otomatis melakukan **discovery+implementasi** kecil.
+Sesuaikan `CyclesPerRun`, `MaxRunMinutes`, `InterCycleDelaySeconds`, `ExecuteByDefault` di `warroom.options.psd1`.
 
 ### Memeriksa status dan anggaran
 ```powershell

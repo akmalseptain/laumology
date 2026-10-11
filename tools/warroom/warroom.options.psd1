@@ -21,13 +21,20 @@
     ReducedModeThresholdIDR   = 30000
     HardPauseThresholdIDR     = 35000
     PerCycleBudgetIDR         = 1000
-    MaxCyclesPerDay           = 3
+    MaxCyclesPerDay           = 8
     MaxDiscussionRounds       = 2
     MaxConcurrentModelTasks   = 2
     MaxRepairAttempts         = 2
     MaxOutputTokensPerCall    = 4096
     NormalIdleIntervalMinutes = 30
     FailureBackoffMinutes     = 60
+
+    # --- Mode batch manual (tanpa VPS) ---
+    # Sekali jalankan Invoke-AutonomousLoop.ps1: N siklus, lalu berhenti.
+    CyclesPerRun              = 4
+    MaxRunMinutes             = 180     # batas wall-clock per run (3 jam)
+    InterCycleDelaySeconds    = 20      # jeda pendek antar siklus
+    ExecuteByDefault          = $true   # run biasa = eksekusi nyata; pakai -DryRun untuk aman
 
     UsdToIdr                  = 16000
     ExchangeRateVerifiedDate  = 'unverified-edit-me'
