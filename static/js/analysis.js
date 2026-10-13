@@ -44,8 +44,6 @@ function render(d){
   const checks = (d.checklist||[]).map(c=>`<div class="check ${c.pass?'ok':'no'}"><span class="ic">${c.pass?'✓':'✗'}</span>${c.label}</div>`).join("");
   const reasons = d.reasons.length? d.reasons.map(x=>`<li>${x}</li>`).join("") : "<li style='color:#737373;border-left-color:rgba(255,255,255,.15)'>Tidak ada faktor bullish kuat.</li>";
   const warns = d.warnings.length? d.warnings.map(x=>`<li>${x}</li>`).join("") : "<li style='color:#737373;border-left-color:rgba(255,255,255,.15)'>Tidak ada peringatan.</li>";
-  const rsTxt = d.rs_change===null ? "n/a" : (d.rs_change>=0?"+":"−")+fmt(Math.abs(d.rs_change),1)+"%";
-  const rsCls = d.rs_strong ? "v-up" : "v-red";
   const stCls = d.st_dir_up ? "v-up" : "v-red";
   const passed = (d.checklist||[]).filter(c=>c.pass).length;
 
@@ -102,54 +100,19 @@ function render(d){
     </div>
 
     <div class="card glass modish">
-      <div class="sec"><span class="num">03</span><div class="line"></div><span class="badge">Indicators</span></div>
+      <div class="sec"><span class="num">03</span><div class="line"></div><span class="badge">Indikator</span></div>
       <div class="grid">
         <div class="metric"><div class="k">RSI (14)</div><div class="v v-muted">${fmt(d.rsi,1)}</div></div>
-        <div class="metric"><div class="k">ADX</div><div class="v v-muted">${fmt(d.adx,1)}</div></div>
-        <div class="metric"><div class="k">+DI / -DI</div><div class="v v-muted">${fmt(d.plus_di,0)}/${fmt(d.minus_di,0)}</div></div>
-        <div class="metric"><div class="k">SuperTrend</div><div class="v ${stCls}">${d.st_dir_up?'UP':'DOWN'}</div></div>
         <div class="metric"><div class="k">MACD Hist</div><div class="v v-muted">${fmt(d.macd_hist,2)}</div></div>
-        <div class="metric"><div class="k">Stoch %K</div><div class="v v-muted">${fmt(d.stoch_k,1)}</div></div>
-        <div class="metric"><div class="k">CCI</div><div class="v v-muted">${fmt(d.cci,0)}</div></div>
-        <div class="metric"><div class="k">MFI</div><div class="v v-muted">${fmt(d.mfi,1)}</div></div>
-        <div class="metric"><div class="k">CMF</div><div class="v ${d.cmf>=0?'v-up':'v-red'}">${fmt(d.cmf,3)}</div></div>
+        <div class="metric"><div class="k">ADX</div><div class="v v-muted">${fmt(d.adx,1)}</div></div>
+        <div class="metric"><div class="k">SuperTrend</div><div class="v ${stCls}">${d.st_dir_up?'UP':'DOWN'}</div></div>
         <div class="metric"><div class="k">ATR %</div><div class="v v-muted">${fmt(d.atr_pct,2)}%</div></div>
         <div class="metric"><div class="k">Volume Ratio</div><div class="v v-muted">${fmt(d.vol_ratio,2)}x</div></div>
-        <div class="metric"><div class="k">RS vs IHSG</div><div class="v ${rsCls}">${rsTxt}</div></div>
-      </div>
-    </div>
-
-    <div class="card glass modish">
-      <div class="sec"><span class="num">03B</span><div class="line"></div><span class="badge">Konfluensi Lanjutan</span></div>
-      <div class="grid">
         <div class="metric"><div class="k">Squeeze</div><div class="v ${d.squeeze_on?'v-red':'v-up'}">${d.squeeze_on?'ON':'OFF'}</div></div>
-        <div class="metric"><div class="k">Sqz Momentum</div><div class="v ${d.squeeze_mom>=0?'v-up':'v-red'}">${fmt(d.squeeze_mom,1)}</div></div>
         <div class="metric"><div class="k">Choppiness</div><div class="v ${d.chop>=61.8?'v-red':(d.chop<38?'v-up':'v-muted')}">${fmt(d.chop,1)}</div></div>
-        <div class="metric"><div class="k">ADR %</div><div class="v v-muted">${fmt(d.adr_pct,2)}%</div></div>
-        <div class="metric"><div class="k">ATR Persentil</div><div class="v v-muted">${fmt(d.atr_pctl,0)}</div></div>
-        <div class="metric"><div class="k">Vol Regime</div><div class="v v-muted">${d.vol_regime||'-'}</div></div>
-        <div class="metric"><div class="k">Anchored VWAP</div><div class="v ${d.price>=d.avwap?'v-up':'v-red'}">${idr(d.avwap)}</div></div>
         <div class="metric"><div class="k">MTF (D/W/M)</div><div class="v v-muted">${d.mtf||'-'}</div></div>
-        <div class="metric"><div class="k">POC</div><div class="v v-muted">${idr(d.vp?d.vp.poc:0)}</div></div>
-        <div class="metric"><div class="k">VAH</div><div class="v v-red">${idr(d.vp?d.vp.vah:0)}</div></div>
-        <div class="metric"><div class="k">VAL</div><div class="v v-up">${idr(d.vp?d.vp.val:0)}</div></div>
-        <div class="metric"><div class="k">Tren Bulanan</div><div class="v v-muted">${d.monthly_trend||'-'}</div></div>
-      </div>
-      ${(d.zones && d.zones.length)?'<div class="mono" style="margin-top:12px;color:#a3a3a3;font-size:11px">Zona: ' + d.zones.slice(-4).map(z => '<span style="color:' + (z.type==='demand'?'#26a69a':'#ef5350') + '">' + (z.type==='demand'?'DEMAND':'SUPPLY') + ' ' + fmt(z.bottom) + '-' + fmt(z.top) + '</span>').join(' &middot; ') + '</div>':''}
-    </div>
-
-    <div class="card glass modish">
-      <div class="sec"><span class="num">03C</span><div class="line"></div><span class="badge">Indikator Mutakhir</span></div>
-      <div class="grid">
-        <div class="metric"><div class="k">Hull MA 20</div><div class="v ${d.price>=d.hma20?'v-up':'v-red'}">${idr(d.hma20)}</div></div>
-        <div class="metric"><div class="k">KAMA</div><div class="v ${d.price>=d.kama?'v-up':'v-red'}">${idr(d.kama)}</div></div>
-        <div class="metric"><div class="k">Aroon Up / Down</div><div class="v ${d.aroon_up>=d.aroon_down?'v-up':'v-red'}">${fmt(d.aroon_up,0)} / ${fmt(d.aroon_down,0)}</div></div>
-        <div class="metric"><div class="k">Vortex + / -</div><div class="v ${d.vortex_plus>=d.vortex_minus?'v-up':'v-red'}">${fmt(d.vortex_plus,2)} / ${fmt(d.vortex_minus,2)}</div></div>
-        <div class="metric"><div class="k">Awesome Osc</div><div class="v ${d.ao>=0?'v-up':'v-red'}">${fmt(d.ao,1)}</div></div>
-        <div class="metric"><div class="k">Ultimate Osc</div><div class="v ${d.uo>=50?'v-up':'v-red'}">${fmt(d.uo,1)}</div></div>
         <div class="metric"><div class="k">RVOL</div><div class="v ${d.rvol>=1.2?'v-up':'v-muted'}">${fmt(d.rvol,2)}x</div></div>
       </div>
-      <div class="mono" style="margin-top:10px;color:#8a9a90;font-size:10px">Kandidat faktor baru — divalidasi di tab Akurasi sebelum masuk skor.</div>
     </div>
 
     <div class="cols">
@@ -164,6 +127,7 @@ function render(d){
           <div class="metric"><div class="k">Fib 0.618</div><div class="v v-muted">${fmt(d.fib["0.618"],0)}</div></div>
           <div class="metric"><div class="k">Fib Ext 1.618</div><div class="v v-up">${fmt(d.fib["ext_1.618"],0)}</div></div>
         </div>
+        ${(d.zones && d.zones.length)?'<div class="mono" style="margin-top:12px;color:#a3a3a3;font-size:11px">Zona: ' + d.zones.slice(-4).map(z => '<span style="color:' + (z.type==='demand'?'#26a69a':'#ef5350') + '">' + (z.type==='demand'?'DEMAND':'SUPPLY') + ' ' + fmt(z.bottom) + '-' + fmt(z.top) + '</span>').join(' &middot; ') + '</div>':''}
       </div>
       <div class="card glass modish">
         <div class="sec"><span class="num">05</span><div class="line"></div><span class="badge">Score Breakdown</span></div>
