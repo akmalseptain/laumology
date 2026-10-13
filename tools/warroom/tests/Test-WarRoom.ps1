@@ -233,6 +233,10 @@ Add-AgentLesson -Agent 'seo-engineer' -Lesson 'Verifikasi REVISI: metadata og:im
 Add-AgentLesson -Agent 'seo-engineer' -Lesson 'Berhasil: tambah robots.txt' | Out-Null
 $rel = Get-AgentMemory -Agent 'seo-engineer' -Query 'perbaiki metadata og:image halaman' -TopEntries 1
 Assert-True ($rel -match 'og:image') "retrieval memilih pelajaran paling relevan"
+# Regresi: satu entri ber-count besar tidak boleh hilang akibat fallback .Count.
+1..20 | ForEach-Object { Add-AgentLesson -Agent 'reviewer' -Lesson 'Selalu cek look-ahead bias pada perhitungan bar' | Out-Null }
+$revMem = Get-AgentMemory -Agent 'reviewer' -TopEntries 3
+Assert-True ($revMem -match 'look-ahead') "satu entri ber-count besar tetap terkirim"
 
 # --- T11: riwayat tugas + thrift anggaran ---
 Write-Host "T11 riwayat tugas & thrift" -ForegroundColor Cyan

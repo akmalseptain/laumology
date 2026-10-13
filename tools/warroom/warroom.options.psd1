@@ -34,15 +34,19 @@
     NormalIdleIntervalMinutes = 30
     FailureBackoffMinutes     = 60
 
-    # --- Routing model & efisiensi konteks (mutakhir, hemat biaya) ---
-    # Semua default = flash agar tidak menaikkan biaya. Isi Strong/Fast/ByRole
-    # bila ingin mengarahkan tugas kritis ke model lebih kuat.
+    # --- Routing model & efisiensi konteks (pintar + irit) ---
+    # Model KUAT hanya untuk tugas kritis (rencana, implementasi, verifikasi);
+    # model FLASH murah untuk investigasi/reaksi/rapat. Ganti ID bila perlu.
     Models                    = @{
-        Default = 'deepseek/deepseek-flash'   # fallback semua peran
-        Fast    = 'deepseek/deepseek-flash'   # tugas ringan: investigasi, reaksi, rapat
-        Strong  = 'deepseek/deepseek-flash'   # tugas kritis: rencana, implementasi, verifikasi
-        ByRole  = @{}                          # mis. @{ 'lead-plan' = 'deepseek/deepseek-v4-pro' }
-        ByAgent = @{}                          # mis. @{ 'code-engineer' = 'deepseek/deepseek-v4-pro' }
+        Default = 'deepseek/deepseek-flash'     # fallback semua peran
+        Fast    = 'deepseek/deepseek-flash'     # tugas ringan: investigasi, reaksi, rapat
+        Strong  = 'deepseek/deepseek-v4-pro'    # tugas kritis: rencana, implementasi, verifikasi
+        ByRole  = @{                            # override per-peran (opsional)
+            'lead-plan'       = 'deepseek/deepseek-v4-pro'
+            'code-implement'  = 'deepseek/deepseek-v4-pro'
+            'reviewer-verify' = 'deepseek/deepseek-v4-pro'
+        }
+        ByAgent = @{}                           # mis. @{ 'code-engineer' = 'deepseek/deepseek-v4-pro' }
     }
     EnableCrossTalk           = $true   # reaksi silang antar-investigator (matikan utk hemat)
     MaxAgentRetries           = 1       # ulangan otomatis saat agen gagal (transient), bukan saat anggaran ditolak
@@ -85,6 +89,9 @@
     PriceVerifiedDate         = '2026-10-11'
 
     # Tarif peak (konservatif). off-peak = /2 untuk flash.
+    # CATATAN: tarif model 'opencode/*' di bawah adalah PLACEHOLDER konservatif;
+    # verifikasi harga resmi lalu perbarui (biaya aktual tetap diambil dari laporan
+    # provider bila tersedia). Model tanpa entri memakai DefaultRate.
     Rates = @{
         'deepseek/deepseek-flash' = @{
             InputCacheHitPerMillionUSD  = 0.006
@@ -95,6 +102,16 @@
             InputCacheHitPerMillionUSD  = 0.044
             InputCacheMissPerMillionUSD = 1.32
             OutputPerMillionUSD         = 3.96
+        }
+        'opencode/gemini-3.8-flash' = @{
+            InputCacheHitPerMillionUSD  = 0.03
+            InputCacheMissPerMillionUSD = 0.50
+            OutputPerMillionUSD         = 1.50
+        }
+        'opencode/claude-fable-5-1' = @{
+            InputCacheHitPerMillionUSD  = 0.30
+            InputCacheMissPerMillionUSD = 3.00
+            OutputPerMillionUSD         = 15.00
         }
     }
 

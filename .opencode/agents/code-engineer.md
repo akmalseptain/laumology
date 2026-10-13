@@ -1,7 +1,7 @@
 ---
 description: Code Engineer — implementasi perubahan kode terfokus pada LAUMOLOGY sesuai konvensi proyek.
 mode: subagent
-model: deepseek/deepseek-flash
+model: deepseek/deepseek-v4-pro
 temperature: 0.1
 steps: 40
 permission:

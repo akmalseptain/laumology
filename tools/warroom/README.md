@@ -111,10 +111,14 @@ prompt siklus berikutnya — tanpa panggilan model tambahan.
 - **Mengerucut:** pelajaran yang mirip digabung (kemiripan token/Jaccard
   >= `LearningSimilarityThreshold`) menjadi satu entri kanonik berhitungan `(xN)`,
   jadi memori jadi padat, bukan menumpuk. Saat melebihi `LearningMaxEntries`,
-  entri ber-signal terendah (hitungan kecil/tertua) yang dibuang.
-- **Irit token (thrift):** hanya sinyal terpenting yang disuntik (`(xN)` tinggi
-  lebih dulu) dan ukuran blok **menyusut otomatis** saat anggaran masuk mode
-  `warning`/`reduced` (faktor 0.75/0.5). Matikan total dengan `EnableLearning = $false`.
+  digabung lagi secara **aglomeratif** (`LearningMergeThreshold`) lalu entri
+  ber-signal terendah dibuang.
+- **Retrieval relevan:** hanya **TopK** pelajaran paling relevan dengan tugas
+  berjalan (`LearningRetrievalTopK`) yang disuntik — lebih cerdas sekaligus lebih
+  irit token.
+- **Irit token (thrift):** hanya sinyal terpenting yang disuntik dan ukuran blok
+  **menyusut otomatis** saat anggaran masuk mode `warning`/`reduced` (faktor
+  0.75/0.5). Matikan total dengan `EnableLearning = $false`.
 - **Riwayat tugas:** tugas yang sudah dikerjakan dicatat ringkas di
   `state/learning/history.md` dan disuntik ke Lead agar tidak mengulang pekerjaan
   lama (bangun di atasnya), tetapi hemat karena dibatasi `LearningHistoryMaxChars`.
@@ -123,8 +127,8 @@ Disuntik ke tahap PLAN (lead: memori + riwayat + global), INVESTIGATE (spesialis
 global), IMPLEMENT (code + global), dan VERIFY (spesialis + global).
 
 Knob di `warroom.options.psd1`: `EnableLearning`, `LearningMaxEntries`,
-`LearningMemoryMaxChars`, `LearningSimilarityThreshold`, `LearningHistoryMaxEntries`,
-`LearningHistoryMaxChars`.
+`LearningMemoryMaxChars`, `LearningSimilarityThreshold`, `LearningMergeThreshold`,
+`LearningRetrievalTopK`, `LearningHistoryMaxEntries`, `LearningHistoryMaxChars`.
 
 Periksa memori yang terkumpul:
 ```powershell
@@ -139,5 +143,6 @@ Get-Content tools\warroom\state\learning\history.md
   Kendali berlaku untuk panggilan yang diluncurkan War Room; panggilan di luar itu tidak terpantau.
 - Biaya aktual diambil dari `cost` yang dilaporkan OpenCode; bila tidak tersedia,
   digunakan perkiraan konservatif dan entri ditandai `unknown=true` (tidak dianggap nol).
-- Model rutin: `deepseek/deepseek-flash`. Tarif token: harga resmi DeepSeek (diverifikasi 2026-10-11),
-  mode peak untuk reservasi konservatif.
+- Model rutin (fast): `deepseek/deepseek-flash`; tugas kritis (plan/implement/verify):
+  `deepseek/deepseek-v4-pro` (routing berjenjang via `Models.ByRole` di `warroom.options.psd1`).
+  Tarif token di config mengikuti harga resmi DeepSeek; entri `opencode/*` lama tidak lagi dipakai.

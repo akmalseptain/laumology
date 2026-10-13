@@ -1,7 +1,7 @@
 ---
 description: Lead Engineer — koordinator tim War Room; prioritas backlog berbasis bukti, delegasi, dan keputusan akhir.
 mode: primary
-model: deepseek/deepseek-flash
+model: deepseek/deepseek-v4-pro
 temperature: 0.2
 steps: 24
 permission:

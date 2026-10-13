@@ -1,7 +1,7 @@
 ---
 description: Independent Reviewer — tinjauan kritis independen atas diff, regresi, keamanan, dan klaim (read-only).
 mode: subagent
-model: deepseek/deepseek-flash
+model: deepseek/deepseek-v4-pro
 temperature: 0.2
 steps: 16
 permission:

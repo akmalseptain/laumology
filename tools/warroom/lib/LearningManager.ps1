@@ -226,11 +226,11 @@ function Get-AgentMemory {
         })
         $picked = @($scored | Where-Object { [double]$_._sim -gt 0 } |
             Sort-Object -Property @{ Expression = { [double]$_._sim }; Descending = $true }, @{ Expression = { [int]$_.count }; Descending = $true })
-        if ($picked.Count -eq 0) { $picked = & $sortSignal $entries }
+        if ($picked.Count -eq 0) { $picked = @(& $sortSignal $entries) }
     } else {
-        $picked = & $sortSignal $entries
+        $picked = @(& $sortSignal $entries)
     }
-    if ($TopEntries -gt 0 -and $picked.Count -gt $TopEntries) { $picked = $picked[0..($TopEntries - 1)] }
+    if ($TopEntries -gt 0 -and $picked.Count -gt $TopEntries) { $picked = @($picked[0..($TopEntries - 1)]) }
     $text = (($picked | ForEach-Object {
         if ([int]$_.count -gt 1) { '- {0} (x{1})' -f $_.text, [int]$_.count } else { '- ' + $_.text }
     }) -join "`n")
