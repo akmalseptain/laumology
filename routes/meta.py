@@ -56,12 +56,33 @@ def _public_base() -> str:
     return _validated_base(os.environ.get("LAUM_PUBLIC_BASE_URL"))
 
 
+# Tanggal modifikasi konten publik (W3C date). Nilai tetap agar sitemap
+# deterministik (bukan ``datetime.now()`` yang berubah tiap request/run).
+_CONTENT_LASTMOD = "2026-10-13"
+
+
 @bp.route("/")
 def index():
     return render_template(
         "index.html",
         presets=list(WATCHLIST_PRESETS.keys()),
         canonical_base=_public_base(),
+    )
+
+
+@bp.route("/tentang")
+def tentang():
+    """Halaman konten statis yang dapat di-crawl mesin pencari."""
+    return render_template("tentang.html", canonical_base=_public_base())
+
+
+@bp.route("/panduan")
+def panduan():
+    """Panduan how-to analisis saham IDX (konten statis, server-rendered)."""
+    return render_template(
+        "panduan.html",
+        canonical_base=_public_base(),
+        content_lastmod=_CONTENT_LASTMOD,
     )
 
 
@@ -85,11 +106,20 @@ def robots():
 def sitemap():
     base = _public_base()
     loc = f"{base}/" if base else "/"
+    about_loc = f"{base}/tentang" if base else "/tentang"
+    panduan_loc = f"{base}/panduan" if base else "/panduan"
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-        f"  <url><loc>{loc}</loc><changefreq>daily</changefreq>"
+        f"  <url><loc>{loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
+        "<changefreq>daily</changefreq>"
         "<priority>1.0</priority></url>\n"
+        f"  <url><loc>{about_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
+        "<changefreq>weekly</changefreq>"
+        "<priority>0.8</priority></url>\n"
+        f"  <url><loc>{panduan_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
+        "<changefreq>weekly</changefreq>"
+        "<priority>0.7</priority></url>\n"
         "</urlset>\n"
     )
     return Response(body, mimetype="application/xml")

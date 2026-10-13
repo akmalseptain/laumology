@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<!-- LAUMOLOGY - Tentang. Developed by AKMALSEPTAIN. -->
+<meta name="author" content="AKMALSEPTAIN">
+<meta name="description" content="Tentang LAUMOLOGY: platform analisis teknikal saham IDX berbasis evidence. Fitur, cara pakai, kebijakan data, dan disclaimer risiko investasi.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tentang LAUMOLOGY · Fitur, Cara Pakai &amp; Disclaimer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/static/laumology.svg">
+<link rel="canonical" href="{{ canonical_base }}/tentang">
+<meta name="theme-color" content="#16a34a">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="LAUMOLOGY">
+<meta property="og:locale" content="id_ID">
+<meta property="og:title" content="Tentang LAUMOLOGY · Fitur, Cara Pakai &amp; Disclaimer">
+<meta property="og:description" content="Fitur, cara pakai, kebijakan data, dan disclaimer risiko investasi di balik terminal analisis saham IDX LAUMOLOGY.">
+<meta property="og:url" content="{{ canonical_base }}/tentang">
+<meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Tentang LAUMOLOGY · Fitur, Cara Pakai &amp; Disclaimer">
+<meta name="twitter:description" content="Fitur, cara pakai, kebijakan data, dan disclaimer risiko investasi di balik terminal analisis saham IDX LAUMOLOGY.">
+<meta name="twitter:image" content="{{ canonical_base }}/static/og-cover.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  {% if canonical_base %}"url": {{ (canonical_base ~ "/tentang")|tojson }},{% endif %}
+  "name": "Tentang LAUMOLOGY",
+  "inLanguage": "id-ID",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "LAUMOLOGY"{% if canonical_base %},
+    "url": {{ canonical_base|tojson }}{% endif %}
+  }
+}
+</script>
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  .doc-wrap{max-width:840px;margin:0 auto;padding:32px 20px 8px}
+  .doc-wrap h1{font-family:var(--display-font);font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}
+  .doc-wrap h2{font-family:var(--display-font);font-size:20px;letter-spacing:-.01em;margin:30px 0 10px}
+  .doc-wrap p{color:var(--foreground);margin:0 0 12px}
+  .doc-wrap ul,.doc-wrap ol{margin:0 0 12px;padding-left:22px}
+  .doc-wrap li{margin:0 0 7px}
+  .doc-lead{font-size:16px;color:var(--muted)}
+  .doc-callout{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-lg);padding:16px 18px;margin:18px 0}
+  .doc-callout h2{margin-top:0}
+  .doc-back{margin:26px 0 0}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="hwrap">
+    <a class="brand" href="/" aria-label="LAUMOLOGY">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
+    </a>
+  </div>
+</header>
+
+<main>
+  <article class="doc-wrap">
+    <h1>Tentang LAUMOLOGY</h1>
+    <p class="doc-lead">LAUMOLOGY adalah terminal analisis saham Bursa Efek Indonesia (IDX) berbasis <b>evidence</b>. Alih-alih memberi sinyal tanpa alasan, setiap keluaran dirancang dapat ditelusuri: dari data harga, indikator, faktor, hingga rencana trade.</p>
+
+    <h2>Fitur inti</h2>
+    <ul>
+      <li><b>Analisis teknikal</b> &mdash; ringkasan tren, momentum, volatilitas, level support/resistance, dan konfluensi indikator.</li>
+      <li><b>Screener</b> &mdash; memfilter emiten IDX berdasarkan skor, keyakinan, sektor, nilai transaksi, dan struktur tren.</li>
+      <li><b>Live chart</b> &mdash; grafik harga dengan penanda sinyal dan level penting.</li>
+      <li><b>Backtest</b> &mdash; menguji aturan masuk/keluar pada data historis beserta metrik risiko (drawdown, profit factor, RRR).</li>
+      <li><b>Portofolio &amp; position sizing</b> &mdash; membantu menghitung ukuran posisi dan manajemen risiko.</li>
+      <li><b>Musyawarah</b> &mdash; panel multi-agen (teknikal, fundamental, sentimen, bandarmologi, moderator risiko) yang merangkum pertimbangan sebelum keputusan.</li>
+    </ul>
+
+    <h2>Cara pakai</h2>
+    <ol>
+      <li>Buka <a href="/">halaman utama</a> dan masukkan kode saham IDX, misalnya <b>BBCA</b>, lalu tekan <b>Analisis</b>.</li>
+      <li>Telusuri tab <b>Fundamental</b>, <b>Berita</b>, <b>Screener</b>, <b>Live Chart</b>, <b>Backtest</b>, dan <b>Portofolio</b> sesuai kebutuhan.</li>
+      <li>Gunakan hasil backtest dan position sizing untuk menilai rasio imbal/risiko sebelum bertransaksi.</li>
+      <li>Selalu padukan dengan riset mandiri; tool ini alat bantu, bukan pengganti penilaian Anda.</li>
+    </ol>
+
+    <h2>Data &amp; privasi</h2>
+    <p>LAUMOLOGY mengambil data pasar dari sumber publik pihak ketiga (mis. penyedia data harga dan berita). Data dapat tertunda dan akurasi tidak dijamin. Halaman ini bersifat informatif dan tidak meminta data pribadi Anda; kami tidak menjual data pengguna.</p>
+
+    <div class="doc-callout">
+      <h2>Disclaimer</h2>
+      <p>LAUMOLOGY adalah alat bantu analisis dan edukasi, <b>BUKAN nasihat keuangan atau investasi</b>. Keputusan investasi sepenuhnya tanggung jawab pengguna. Selalu kelola risiko dan konsultasikan dengan penasihat berlisensi.</p>
+    </div>
+
+    <p class="doc-back"><a href="/">&larr; Kembali ke terminal</a></p>
+  </article>
+</main>
+
+<footer class="site-footer">
+  <div class="fwrap">
+    <div class="fbrand">
+      <p>Platform analisis teknikal saham IDX berbasis evidence: sinyal, rencana trade, position sizing, screener, backtest, dan portofolio dalam satu terminal.</p>
+    </div>
+    <div class="fmeta">
+      <p><a href="{{ url_for('meta.panduan') }}" style="color:var(--brand);text-decoration:none">Panduan Analisis</a></p>
+      <p>&copy; 2026 LAUMOLOGY. All rights reserved.</p>
+      <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

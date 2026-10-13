@@ -29,6 +29,11 @@ services:
         value: "1800"
       - key: RATE_LIMIT_PER_MIN
         value: "600"
+      # Base URL kanonik publik (WAJIB absolut). Dipakai untuk canonical/sitemap
+      # dan og:image/twitter:image; tanpa ini kartu berbagi FB/X/WA jadi relatif
+      # alias kosong. Sesuaikan bila domain kustom dipakai.
+      - key: LAUM_PUBLIC_BASE_URL
+        value: https://laumology.onrender.com
       # Batas ukuran body request (byte) untuk semua endpoint; default 1 MB.
       - key: LAUM_MAX_BODY_BYTES
         value: "1048576"

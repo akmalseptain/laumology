@@ -710,6 +710,289 @@ class TestPublicBaseCanonical(unittest.TestCase):
         self.assertIn("application/ld+json", hb)
         self.assertIn('"url": "https://laumology.example"', hb)
 
+    @staticmethod
+    def _ld_json_block(html: str) -> dict:
+        import json
+
+        marker = '<script type="application/ld+json">'
+        start = html.index(marker) + len(marker)
+        end = html.index("</script>", start)
+        return json.loads(html[start:end])
+
+    def test_ld_json_valid_graph_without_base(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            hb = self.client.get("/", headers={"Host": "evil.example"}).get_data(as_text=True)
+
+        data = self._ld_json_block(hb)
+        self.assertEqual(data["@context"], "https://schema.org")
+        types = [node["@type"] for node in data["@graph"]]
+        self.assertIn("WebApplication", types)
+        self.assertIn("WebSite", types)
+        self.assertIn("Organization", types)
+        # Base kosong → semua key url di-omit (fail-safe); SearchAction butuh absolut.
+        for node in data["@graph"]:
+            self.assertNotIn("url", node)
+            self.assertNotIn("potentialAction", node)
+        self.assertNotIn("evil.example", hb)
+
+    def test_ld_json_searchaction_uses_validated_base(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            hb = self.client.get("/", headers={"Host": "evil.example"}).get_data(as_text=True)
+
+        data = self._ld_json_block(hb)
+        by_type = {node["@type"]: node for node in data["@graph"]}
+        self.assertEqual(by_type["WebApplication"]["url"], "https://laumology.example")
+        self.assertEqual(by_type["Organization"]["url"], "https://laumology.example")
+        self.assertEqual(
+            by_type["Organization"]["logo"],
+            "https://laumology.example/static/icon-512.png",
+        )
+        action = by_type["WebSite"]["potentialAction"]
+        self.assertEqual(action["@type"], "SearchAction")
+        self.assertEqual(
+            action["target"]["urlTemplate"],
+            "https://laumology.example/?ticker={search_term_string}",
+        )
+        self.assertNotIn("evil.example", hb)
+
+
+class TestAboutPageSeo(unittest.TestCase):
+    """Halaman konten statis ``/tentang`` yang terindeks (W-0026).
+
+    Mengunci kriteria penerimaan: 200 ``text/html``, ada H1 + teks deskriptif,
+    canonical (absolut saat env valid, relatif bila kosong), terdaftar di
+    sitemap beserta ``lastmod``, dan ``robots.txt`` tetap Allow. Anti
+    Host-spoof: Host asing tak pernah dipantulkan.
+    """
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_about_page_absolute_when_env_set(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            resp = self.client.get("/tentang", headers={"Host": "evil.example"})
+
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.content_type.startswith("text/html"))
+        self.assertIn("<h1", html)
+        self.assertIn("Tentang LAUMOLOGY", html)
+        self.assertIn(
+            '<link rel="canonical" href="https://laumology.example/tentang">', html
+        )
+        self.assertIn(
+            '<meta property="og:url" content="https://laumology.example/tentang">', html
+        )
+        self.assertNotIn("evil.example", html)
+        # CSP wajib nempel di dokumen HTML dan tetap melarang inline script.
+        self.assertIn("script-src 'self'", resp.headers.get("Content-Security-Policy", ""))
+        self.assertNotIn("onclick=", html)
+
+    def test_about_page_relative_when_env_missing(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            resp = self.client.get("/tentang", headers={"Host": "evil.example"})
+
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('<link rel="canonical" href="/tentang">', html)
+        self.assertNotIn("evil.example", html)
+
+    def test_footer_links_to_about_so_root_not_broken(self):
+        home = self.client.get("/")
+        self.assertEqual(home.status_code, 200)
+        self.assertIn('href="/tentang"', home.get_data(as_text=True))
+
+    def test_sitemap_lists_about_with_lastmod(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            sm = self.client.get("/sitemap.xml").get_data(as_text=True)
+        self.assertIn("<loc>https://laumology.example/tentang</loc>", sm)
+        self.assertIn("<lastmod>", sm)
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            sm = self.client.get("/sitemap.xml").get_data(as_text=True)
+        self.assertIn("<loc>/tentang</loc>", sm)
+        self.assertIn("<lastmod>", sm)
+
+    def test_robots_still_allows_crawlers(self):
+        rb = self.client.get("/robots.txt").get_data(as_text=True)
+        self.assertIn("Allow: /", rb)
+
+
+class TestPanduanPageSeo(unittest.TestCase):
+    """Halaman konten statis ``/panduan`` yang terindeks (W-0026 lanjutan).
+
+    Mengunci kriteria penerimaan: 200 ``text/html``, H1 + teks panduan ada di
+    HTML mentah (tanpa JS), canonical (absolut saat env valid, relatif bila
+    kosong), terdaftar di sitemap, dan tautan internal dari ``/`` dan
+    ``/tentang``. Anti Host-spoof: Host asing tak pernah dipantulkan.
+    """
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_panduan_page_absolute_when_env_set(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            resp = self.client.get("/panduan", headers={"Host": "evil.example"})
+
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.content_type.startswith("text/html"))
+        self.assertIn("<h1", html)
+        self.assertIn("Panduan Analisis Saham IDX", html)
+        self.assertIn(
+            '<link rel="canonical" href="https://laumology.example/panduan">', html
+        )
+        self.assertIn(
+            '<meta property="og:url" content="https://laumology.example/panduan">', html
+        )
+        self.assertNotIn("evil.example", html)
+        # CSP wajib nempel di dokumen HTML dan tetap melarang inline script.
+        self.assertIn("script-src 'self'", resp.headers.get("Content-Security-Policy", ""))
+        self.assertNotIn("onclick=", html)
+
+    def test_panduan_content_present_without_js(self):
+        resp = self.client.get("/panduan")
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        # Teks panduan wajib ada di HTML mentah, bukan dirender lewat JS.
+        self.assertIn("position sizing", html)
+        self.assertIn("Uji dengan backtest", html)
+        self.assertIn('"@type": "BreadcrumbList"', html)
+        self.assertIn('"@type": "Article"', html)
+
+    def test_panduan_page_relative_when_env_missing(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            resp = self.client.get("/panduan", headers={"Host": "evil.example"})
+
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('<link rel="canonical" href="/panduan">', html)
+        self.assertNotIn("evil.example", html)
+
+    def test_internal_links_to_panduan_from_root_and_about(self):
+        home = self.client.get("/")
+        self.assertEqual(home.status_code, 200)
+        self.assertIn('href="/panduan"', home.get_data(as_text=True))
+        about = self.client.get("/tentang")
+        self.assertEqual(about.status_code, 200)
+        self.assertIn('href="/panduan"', about.get_data(as_text=True))
+
+    def test_sitemap_lists_panduan_and_is_valid_xml(self):
+        import os
+        import xml.etree.ElementTree as ET
+        from unittest import mock
+
+        ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            sm = self.client.get("/sitemap.xml").get_data(as_text=True)
+        root = ET.fromstring(sm)
+        locs = [e.text for e in root.findall("sm:url/sm:loc", ns)]
+        self.assertIn("https://laumology.example/panduan", locs)
+        self.assertIn("https://laumology.example/tentang", locs)
+        self.assertIn("https://laumology.example/", locs)
+        self.assertEqual(len(locs), 3)
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            sm = self.client.get("/sitemap.xml").get_data(as_text=True)
+        root = ET.fromstring(sm)
+        locs = [e.text for e in root.findall("sm:url/sm:loc", ns)]
+        self.assertIn("/panduan", locs)
+        self.assertIn("/tentang", locs)
+
+
+class TestBrandShareAssets(unittest.TestCase):
+    """Aset brand W-0025: kartu berbagi + ikon harus ada dan valid.
+
+    Scraper FB/X/WhatsApp/LinkedIn tak merender SVG → ``og:image`` wajib PNG
+    dan (di produksi) absolut. Uji ini mengunci keberadaan aset agar gate tak
+    lolos bila PNG tak ter-commit.
+    """
+
+    STATIC = Path(__file__).resolve().parent.parent / "static"
+    EXPECTED = {
+        "og-cover.png": (1200, 630),
+        "icon-192.png": (192, 192),
+        "icon-512.png": (512, 512),
+        "apple-touch-icon.png": (180, 180),
+    }
+    MAX_BYTES = 300 * 1024
+
+    def test_assets_exist_png_and_sized(self):
+        import struct
+
+        for name, want in self.EXPECTED.items():
+            path = self.STATIC / name
+            self.assertTrue(path.is_file(), f"{name} tidak ada (commit aset PNG)")
+            data = path.read_bytes()
+            self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n", f"{name} bukan PNG valid")
+            self.assertLess(len(data), self.MAX_BYTES, f"{name} melebihi 300 KB")
+            self.assertEqual(struct.unpack(">II", data[16:24]), want, name)
+
+    def test_head_has_absolute_share_images_and_icons(self):
+        import os
+        from unittest import mock
+
+        import webapp
+
+        client = webapp.app.test_client()
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            hb = client.get("/", headers={"Host": "evil.example"}).get_data(as_text=True)
+
+        self.assertIn('<meta name="robots" content="index, follow, max-image-preview:large">', hb)
+        self.assertIn(
+            '<meta property="og:image" content="https://laumology.example/static/og-cover.png">', hb
+        )
+        self.assertIn('<meta property="og:image:type" content="image/png">', hb)
+        self.assertIn('<meta property="og:image:width" content="1200">', hb)
+        self.assertIn('<meta property="og:image:height" content="630">', hb)
+        self.assertIn('<meta name="twitter:card" content="summary_large_image">', hb)
+        self.assertIn(
+            '<meta name="twitter:image" content="https://laumology.example/static/og-cover.png">', hb
+        )
+        self.assertIn('rel="apple-touch-icon"', hb)
+        self.assertIn('rel="icon"', hb)
+        self.assertNotIn("evil.example", hb)
+
 
 class TestNewsRssFallback(unittest.TestCase):
     """Fallback sumber berita (Google News RSS) + pelaporan kegagalan jujur."""

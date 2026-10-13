@@ -5,12 +5,16 @@
 <!-- LAUMOLOGY - IDX Trading Terminal. Developed by AKMALSEPTAIN. -->
 <meta name="author" content="AKMALSEPTAIN">
 <meta name="description" content="LAUMOLOGY - platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, portofolio.">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LAUMOLOGY · IDX Trading Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/static/laumology.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
 <meta name="theme-color" content="#16a34a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="LAUMOLOGY">
@@ -18,12 +22,37 @@
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
-  "name": "LAUMOLOGY",
-  "description": "Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.",
-  "applicationCategory": "FinanceApplication",
-  "operatingSystem": "Web"
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
+      "name": "LAUMOLOGY",
+      "description": "Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web"
+    },
+    {
+      "@type": "WebSite",
+      {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
+      "name": "LAUMOLOGY",
+      "inLanguage": "id-ID",
+      {% if canonical_base %}"potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": {{ (canonical_base ~ "/?ticker={search_term_string}")|tojson }}
+        },
+        "query-input": "required name=search_term_string"
+      },{% endif %}
+      "publisher": {"@type": "Organization", "name": "LAUMOLOGY"}
+    },
+    {
+      "@type": "Organization",
+      "name": "LAUMOLOGY",
+      {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
+      "logo": {{ ((canonical_base ~ "/static/icon-512.png") if canonical_base else "/static/icon-512.png")|tojson }}
+    }
+  ]
 }
 </script>
 <meta property="og:type" content="website">
@@ -32,10 +61,15 @@
 <meta property="og:title" content="LAUMOLOGY · IDX Trading Terminal">
 <meta property="og:description" content="Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.">
 <meta property="og:url" content="{{ canonical_base }}/">
-<meta property="og:image" content="{{ canonical_base }}/static/laumology.svg">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="LAUMOLOGY · IDX Trading Terminal">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="LAUMOLOGY · IDX Trading Terminal">
 <meta name="twitter:description" content="Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.">
+<meta name="twitter:image" content="{{ canonical_base }}/static/og-cover.png">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
@@ -527,6 +561,7 @@
       <p>Platform analisis teknikal saham IDX berbasis evidence: sinyal, rencana trade, position sizing, screener, backtest, dan portofolio dalam satu terminal.</p>
     </div>
     <div class="fmeta">
+      <p><a href="{{ url_for('meta.tentang') }}" style="color:var(--brand);text-decoration:none">Tentang</a> &middot; <a href="{{ url_for('meta.panduan') }}" style="color:var(--brand);text-decoration:none">Panduan</a></p>
       <p>&copy; <span id="yr"></span> LAUMOLOGY. All rights reserved.</p>
       <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
     </div>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<!-- LAUMOLOGY - Panduan. Developed by AKMALSEPTAIN. -->
+<meta name="author" content="AKMALSEPTAIN">
+<meta name="description" content="Panduan langkah demi langkah analisis saham IDX di LAUMOLOGY: menentukan horizon, membaca tren &amp; momentum, memetakan level kunci, menguji backtest, hingga position sizing.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Panduan Analisis Saham IDX · Langkah &amp; Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/static/laumology.svg">
+<link rel="canonical" href="{{ canonical_base }}/panduan">
+<meta name="theme-color" content="#16a34a">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="LAUMOLOGY">
+<meta property="og:locale" content="id_ID">
+<meta property="og:title" content="Panduan Analisis Saham IDX · Langkah &amp; Checklist">
+<meta property="og:description" content="Langkah teknis menganalisis saham IDX: horizon, tren &amp; momentum, level kunci, backtest, dan manajemen risiko.">
+<meta property="og:url" content="{{ canonical_base }}/panduan">
+<meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Panduan Analisis Saham IDX · Langkah &amp; Checklist">
+<meta name="twitter:description" content="Langkah teknis menganalisis saham IDX: horizon, tren &amp; momentum, level kunci, backtest, dan manajemen risiko.">
+<meta name="twitter:image" content="{{ canonical_base }}/static/og-cover.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  {% if canonical_base %}"url": {{ (canonical_base ~ "/panduan")|tojson }},{% endif %}
+  "headline": "Panduan Analisis Saham IDX",
+  "description": "Panduan langkah demi langkah analisis saham IDX di LAUMOLOGY: tren & momentum, level kunci, backtest, dan position sizing.",
+  "inLanguage": "id-ID",
+  "datePublished": "{{ content_lastmod }}",
+  "dateModified": "{{ content_lastmod }}",
+  "author": {"@type": "Organization", "name": "LAUMOLOGY"},
+  "publisher": {
+    "@type": "Organization",
+    "name": "LAUMOLOGY"{% if canonical_base %},
+    "url": {{ canonical_base|tojson }}{% endif %}
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "LAUMOLOGY"{% if canonical_base %},
+    "url": {{ canonical_base|tojson }}{% endif %}
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Beranda"{% if canonical_base %},
+      "item": {{ (canonical_base ~ "/")|tojson }}{% endif %}
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Panduan"{% if canonical_base %},
+      "item": {{ (canonical_base ~ "/panduan")|tojson }}{% endif %}
+    }
+  ]
+}
+</script>
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  .doc-wrap{max-width:840px;margin:0 auto;padding:32px 20px 8px}
+  .doc-wrap h1{font-family:var(--display-font);font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}
+  .doc-wrap h2{font-family:var(--display-font);font-size:20px;letter-spacing:-.01em;margin:30px 0 10px}
+  .doc-wrap p{color:var(--foreground);margin:0 0 12px}
+  .doc-wrap ul,.doc-wrap ol{margin:0 0 12px;padding-left:22px}
+  .doc-wrap li{margin:0 0 7px}
+  .doc-lead{font-size:16px;color:var(--muted)}
+  .doc-crumbs{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .doc-crumbs a{color:var(--brand);text-decoration:none}
+  .doc-callout{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-lg);padding:16px 18px;margin:18px 0}
+  .doc-callout h2{margin-top:0}
+  .doc-back{margin:26px 0 0}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="hwrap">
+    <a class="brand" href="/" aria-label="LAUMOLOGY">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
+    </a>
+  </div>
+</header>
+
+<main>
+  <article class="doc-wrap">
+    <nav class="doc-crumbs" aria-label="Breadcrumb"><a href="/">Beranda</a> &rsaquo; <span>Panduan</span></nav>
+    <h1>Panduan Analisis Saham IDX</h1>
+    <p class="doc-lead">Panduan teknis ini menguraikan alur analisis saham Bursa Efek Indonesia (IDX) memakai LAUMOLOGY &mdash; dari menentukan konteks hingga menyusun rencana trade yang terukur. Untuk gambaran fitur dan kebijakan data, lihat halaman <a href="/tentang">Tentang</a>.</p>
+
+    <h2>1. Tentukan konteks dan horizon</h2>
+    <p>Sebelum membuka grafik, tetapkan lebih dulu horizon waktu (harian, mingguan) dan tujuan (trading jangka pendek atau swing). Pilihan horizon menentukan interval bar dan ketajaman sinyal yang relevan, serta berapa lama posisi wajar dipertahankan.</p>
+
+    <h2>2. Baca tren dan momentum</h2>
+    <p>Mulai dari gambaran besar lalu mengecil. Tandai arah tren utama, lalu nilai momentum dan volatilitas untuk menakar apakah pergerakan sedang menguat, melemah, atau menyempit. Konfluensi indikator &mdash; bukan satu sinyal tunggal &mdash; yang dipakai sebagai dasar.</p>
+    <ul>
+      <li><b>Tren</b> &mdash; arah dan kekuatan pergerakan harga pada horizon terpilih.</li>
+      <li><b>Momentum</b> &mdash; percepatan atau pelemahan pergerakan.</li>
+      <li><b>Volatilitas</b> &mdash; rentang harga yang dipakai untuk menetapkan stop yang wajar.</li>
+    </ul>
+
+    <h2>3. Petakan level kunci</h2>
+    <p>Identifikasi level support dan resistance terdekat. Level ini menjadi acuan titik masuk, area stop, dan target, sehingga rencana bisa disusun dengan rasio imbal/risiko yang jelas sejak awal.</p>
+
+    <h2>4. Uji dengan backtest</h2>
+    <p>Jalankan aturan masuk/keluar pada data historis. Perhatikan metrik risiko seperti maximum drawdown, profit factor, dan rasio imbal/risiko. Backtest mengukur konsistensi aturan, <b>bukan</b> jaminan hasil di masa depan; bias masa depan dan perubahan rezim pasar tetap membatasi keandalannya.</p>
+
+    <h2>5. Kelola risiko dan position sizing</h2>
+    <p>Ukuran posisi ditentukan dari jarak stop dan toleransi risiko per transaksi, bukan dari keyakinan. Batasi risiko tiap posisi agar satu kesalahan tidak menggerus modal secara berlebih, dan sesuaikan ukuran dengan likuiditas saham.</p>
+
+    <h2>6. Checklist sebelum eksekusi</h2>
+    <ol>
+      <li>Horizon dan tujuan sudah jelas.</li>
+      <li>Tren, momentum, dan volatilitas saling mendukung.</li>
+      <li>Titik masuk, stop, dan target punya rasio imbal/risiko yang masuk akal.</li>
+      <li>Backtest aturan menunjukkan profil risiko yang dapat diterima.</li>
+      <li>Ukuran posisi sudah dihitung dari toleransi risiko, bukan emosi.</li>
+    </ol>
+
+    <div class="doc-callout">
+      <h2>Disclaimer</h2>
+      <p>Panduan ini bersifat edukatif, <b>BUKAN nasihat keuangan atau investasi</b>. Data dapat tertunda dan akurasi tidak dijamin. Keputusan investasi sepenuhnya tanggung jawab pengguna. Selalu kelola risiko dan konsultasikan dengan penasihat berlisensi.</p>
+    </div>
+
+    <p class="doc-back"><a href="/">&larr; Kembali ke terminal</a> &middot; <a href="/tentang">Tentang LAUMOLOGY</a></p>
+  </article>
+</main>
+
+<footer class="site-footer">
+  <div class="fwrap">
+    <div class="fbrand">
+      <p>Platform analisis teknikal saham IDX berbasis evidence: sinyal, rencana trade, position sizing, screener, backtest, dan portofolio dalam satu terminal.</p>
+    </div>
+    <div class="fmeta">
+      <p><a href="/" style="color:var(--brand);text-decoration:none">Terminal</a> &middot; <a href="/tentang" style="color:var(--brand);text-decoration:none">Tentang</a></p>
+      <p>&copy; 2026 LAUMOLOGY. All rights reserved.</p>
+      <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
