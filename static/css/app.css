@@ -382,6 +382,19 @@ body.news-sheet-open{overflow:hidden}
 .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .cols > .card,.cols3 > .card{margin-bottom:0}
 
+/* ---------------- Accordion (detail collapsible) ---------------- */
+.acc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:12px;box-shadow:var(--shadow);transition:border-color .18s;overflow:hidden}
+.acc:hover{border-color:color-mix(in srgb,var(--brand) 30%,var(--border))}
+.acc summary{display:flex;align-items:center;gap:10px;padding:14px 18px;cursor:pointer;
+  list-style:none;font-size:13.5px;font-weight:600;color:var(--foreground);user-select:none}
+.acc summary::-webkit-details-marker{display:none}
+.acc summary::before{content:"";width:3px;height:15px;border-radius:2px;background:var(--brand);flex:0 0 auto}
+.acc summary .num{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.05em}
+.acc summary .caret{margin-left:auto;color:var(--muted);font-size:11px;transition:transform .18s ease}
+.acc[open] summary .caret{transform:rotate(180deg)}
+.acc-body{padding:0 18px 16px}
+
 /* ---------------- Mobile ---------------- */
 .bottomnav{display:none}
 @media(max-width:900px){
@@ -442,6 +455,7 @@ body.news-sheet-open{overflow:hidden}
 
 @media print{
   header.topbar,.bottomnav,.nav,.disclaimer,footer.site-footer,#status,.chips{display:none!important}
-  .card{box-shadow:none;border-color:#ddd;break-inside:avoid}
+  .card,.acc{box-shadow:none;border-color:#ddd;break-inside:avoid}
+  .acc .caret{display:none}
   .panel{display:block!important}
 }

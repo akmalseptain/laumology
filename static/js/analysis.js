@@ -35,6 +35,15 @@ async function analyze(silent=false){
   finally{ $("#goBtn").disabled=false; }
 }
 
+function acc(num, title, body, open=false){
+  return `<details class="acc"${open?' open':''}>
+    <summary><span class="num">${num}</span><span class="t">${title}</span><span class="caret">▾</span></summary>
+    <div class="acc-body">${body}</div>
+  </details>`;
+}
+window.addEventListener("beforeprint", ()=>document.querySelectorAll("details.acc").forEach(d=>{ d.dataset.wasOpen = d.open?"1":"0"; d.open = true; }));
+window.addEventListener("afterprint", ()=>document.querySelectorAll("details.acc").forEach(d=>{ d.open = d.dataset.wasOpen==="1"; }));
+
 function render(d){
   const sc = signalClass(d.signal), cc = scoreColor(d.score);
   const comps = Object.entries(d.components).map(([k,v])=>{
@@ -70,11 +79,20 @@ function render(d){
       </div>
     </div>
 
+    <div class="card glass modish">
+      <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Technical Chart</span>
+        <button class="btn ghost" data-action="exportCsv" style="margin-left:auto;padding:7px 14px">Export CSV</button>
+        <button class="btn ghost" data-action="print" style="padding:7px 14px">Print</button>
+        <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(d.tv_symbol)}" target="_blank"
+           class="btn ghost" style="text-decoration:none;padding:7px 14px">TradingView</a>
+      </div>
+      <div id="liveChart" class="lwchart" style="border:0;border-radius:0"></div>
+    </div>
+
     ${(d.decision && d.decision.direction) ? decisionCard(d.decision) : ''}
     ${(d.stock && d.stock.scores) ? stockCard(d.stock, d.decision) : ''}
 
-    <div class="card glass modish">
-      <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Trade Plan</span></div>
+    ${acc("02","Trade Plan", `
       <div class="grid">
         <div class="metric hl"><div class="k">Beli Sekarang</div><div class="v v-white">${idr(d.entry)}</div></div>
         <div class="metric hl"><div class="k">Zona Beli</div><div class="v v-muted">${fmt(d.buy_zone_low)} – ${fmt(d.buy_zone_high)}</div></div>
@@ -85,22 +103,16 @@ function render(d){
         <div class="metric"><div class="k">TP1 (RR 1:${fmt(d.rr1,1)})</div><div class="v v-up">${idr(d.tp1)}</div></div>
         <div class="metric"><div class="k">TP2 (RR 1:${fmt(d.rr2,1)})</div><div class="v v-up">${idr(d.tp2)}</div></div>
         <div class="metric"><div class="k">TP3 (RR 1:${fmt(d.rr3,1)})</div><div class="v v-up">${idr(d.tp3)}</div></div>
-      </div>
-    </div>
-
-    <div class="card glass modish">
-      <div class="sec"><span class="num">02</span><div class="line"></div><span class="badge">Position Sizing</span></div>
+      </div>`)}
+    ${acc("03","Position Sizing", `
       <div class="grid">
         <div class="metric"><div class="k">Saran Lot</div><div class="v v-white">${fmt(d.lots)}</div></div>
         <div class="metric"><div class="k">Nilai Posisi</div><div class="v v-muted">${idr(Math.round(d.position_value))}</div></div>
         <div class="metric"><div class="k">Modal</div><div class="v v-muted">${idr(100000000)}</div></div>
         <div class="metric"><div class="k">Risiko (1.5%)</div><div class="v v-red">${idr(Math.round(d.risk_amount))}</div></div>
         <div class="metric"><div class="k">Maks Loss</div><div class="v v-red">${idr(Math.round(d.max_loss))}</div></div>
-      </div>
-    </div>
-
-    <div class="card glass modish">
-      <div class="sec"><span class="num">03</span><div class="line"></div><span class="badge">Indikator</span></div>
+      </div>`)}
+    ${acc("04","Indikator", `
       <div class="grid">
         <div class="metric"><div class="k">RSI (14)</div><div class="v v-muted">${fmt(d.rsi,1)}</div></div>
         <div class="metric"><div class="k">MACD Hist</div><div class="v v-muted">${fmt(d.macd_hist,2)}</div></div>
@@ -112,50 +124,25 @@ function render(d){
         <div class="metric"><div class="k">Choppiness</div><div class="v ${d.chop>=61.8?'v-red':(d.chop<38?'v-up':'v-muted')}">${fmt(d.chop,1)}</div></div>
         <div class="metric"><div class="k">MTF (D/W/M)</div><div class="v v-muted">${d.mtf||'-'}</div></div>
         <div class="metric"><div class="k">RVOL</div><div class="v ${d.rvol>=1.2?'v-up':'v-muted'}">${fmt(d.rvol,2)}x</div></div>
+      </div>`)}
+    ${acc("05","Level Kunci", `
+      <div class="grid">
+        <div class="metric"><div class="k">Support</div><div class="v v-up">${idr(d.support)}</div></div>
+        <div class="metric"><div class="k">Resistance</div><div class="v v-red">${idr(d.resistance)}</div></div>
+        <div class="metric"><div class="k">Pivot PP</div><div class="v v-muted">${idr(Math.round(d.pivot.pp))}</div></div>
+        <div class="metric"><div class="k">Pivot R1 / S1</div><div class="v v-muted">${fmt(d.pivot.r1,0)}/${fmt(d.pivot.s1,0)}</div></div>
+        <div class="metric"><div class="k">Fib 0.382</div><div class="v v-muted">${fmt(d.fib["0.382"],0)}</div></div>
+        <div class="metric"><div class="k">Fib 0.618</div><div class="v v-muted">${fmt(d.fib["0.618"],0)}</div></div>
+        <div class="metric"><div class="k">Fib Ext 1.618</div><div class="v v-up">${fmt(d.fib["ext_1.618"],0)}</div></div>
       </div>
-    </div>
-
-    <div class="cols">
-      <div class="card glass modish">
-        <div class="sec"><span class="num">04</span><div class="line"></div><span class="badge">Level Kunci</span></div>
-        <div class="grid">
-          <div class="metric"><div class="k">Support</div><div class="v v-up">${idr(d.support)}</div></div>
-          <div class="metric"><div class="k">Resistance</div><div class="v v-red">${idr(d.resistance)}</div></div>
-          <div class="metric"><div class="k">Pivot PP</div><div class="v v-muted">${idr(Math.round(d.pivot.pp))}</div></div>
-          <div class="metric"><div class="k">Pivot R1 / S1</div><div class="v v-muted">${fmt(d.pivot.r1,0)}/${fmt(d.pivot.s1,0)}</div></div>
-          <div class="metric"><div class="k">Fib 0.382</div><div class="v v-muted">${fmt(d.fib["0.382"],0)}</div></div>
-          <div class="metric"><div class="k">Fib 0.618</div><div class="v v-muted">${fmt(d.fib["0.618"],0)}</div></div>
-          <div class="metric"><div class="k">Fib Ext 1.618</div><div class="v v-up">${fmt(d.fib["ext_1.618"],0)}</div></div>
-        </div>
-        ${(d.zones && d.zones.length)?'<div class="mono" style="margin-top:12px;color:#a3a3a3;font-size:11px">Zona: ' + d.zones.slice(-4).map(z => '<span style="color:' + (z.type==='demand'?'#26a69a':'#ef5350') + '">' + (z.type==='demand'?'DEMAND':'SUPPLY') + ' ' + fmt(z.bottom) + '-' + fmt(z.top) + '</span>').join(' &middot; ') + '</div>':''}
-      </div>
-      <div class="card glass modish">
-        <div class="sec"><span class="num">05</span><div class="line"></div><span class="badge">Score Breakdown</span></div>
-        <div style="margin-top:4px">${comps}</div>
-      </div>
-    </div>
-
-    <div class="card glass modish">
-      <div class="sec"><span class="num">06</span><div class="line"></div><span class="badge">Confluence Checklist</span></div>
+      ${(d.zones && d.zones.length)?'<div class="mono" style="margin-top:12px;color:#a3a3a3;font-size:11px">Zona: ' + d.zones.slice(-4).map(z => '<span style="color:' + (z.type==='demand'?'#26a69a':'#ef5350') + '">' + (z.type==='demand'?'DEMAND':'SUPPLY') + ' ' + fmt(z.bottom) + '-' + fmt(z.top) + '</span>').join(' &middot; ') + '</div>':''}`)}
+    ${acc("06","Score Breakdown", `<div style="margin-top:4px">${comps}</div>`)}
+    ${acc("07","Confluence Checklist", `
       <div class="checks">${checks}</div>
       ${d.patterns.length?`<div class="mono" style="margin-top:14px;color:#7c8c83;font-size:12px">Pola candle: <b style="color:#0f1712">${d.patterns.join(", ")}</b></div>`:""}
-      ${d.divergences.length?`<div class="mono" style="margin-top:6px;color:#7c8c83;font-size:12px">Divergence: <b style="color:#0f1712">${d.divergences.join(", ")}</b></div>`:""}
-    </div>
-
-    <div class="cols">
-      <div class="card glass modish"><div class="sec"><span class="num">07</span><div class="line"></div><span class="badge">Bullish Factors</span></div><ul class="list">${reasons}</ul></div>
-      <div class="card glass modish"><div class="sec"><span class="num">08</span><div class="line"></div><span class="badge">Warnings</span></div><ul class="list warn">${warns}</ul></div>
-    </div>
-
-    <div class="card glass modish">
-      <div class="sec"><span class="num">09</span><div class="line"></div><span class="badge">Technical Chart</span>
-        <button class="btn ghost" data-action="exportCsv" style="margin-left:auto;padding:7px 14px">Export CSV</button>
-        <button class="btn ghost" data-action="print" style="padding:7px 14px">Print</button>
-        <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(d.tv_symbol)}" target="_blank"
-           class="btn ghost" style="text-decoration:none;padding:7px 14px">TradingView</a>
-      </div>
-      <div id="liveChart" class="lwchart" style="border:0;border-radius:0"></div>
-    </div>
+      ${d.divergences.length?`<div class="mono" style="margin-top:6px;color:#7c8c83;font-size:12px">Divergence: <b style="color:#0f1712">${d.divergences.join(", ")}</b></div>`:""}`)}
+    ${acc("08","Bullish Factors", `<ul class="list">${reasons}</ul>`)}
+    ${acc("09","Warnings", `<ul class="list warn">${warns}</ul>`)}
 
     <div id="fundCard"></div>
     <div id="mlCard"></div>
