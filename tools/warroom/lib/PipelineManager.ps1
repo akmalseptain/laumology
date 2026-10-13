@@ -110,16 +110,7 @@ WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis P
     $planCtx = Limit-WarRoomText $planText $tuning.PlanMaxChars
 
     # --- 2. INVESTIGATE (paralel, read-only) - agen ditentukan LEAD ---
-    $specMap = @{}
-    foreach ($pair in @(
-            @('quant', $quant), @('keuangan', $quant), @('finance', $quant), @('rumus', $quant), @('ml', $quant), @('kalibrasi', $quant),
-            @('qa', $qa), @('api', $qa), @('kode', $qa), @('backend', $qa), @('test', $qa), @('uji', $qa),
-            @('security', $security), @('keamanan', $security), @('input', $security), @('auth', $security),
-            @('ui', $uiux), @('ux', $uiux), @('tampilan', $uiux), @('frontend', $uiux), @('desain', $uiux), @('aksesibilitas', $uiux),
-            @('technical', $tech), @('ta', $tech), @('teknikal', $tech), @('chart', $tech), @('indikator', $tech), @('price', $tech),
-            @('fundamental', $fundamental), @('fundamentalis', $fundamental), @('valuasi', $fundamental), @('emiten', $fundamental), @('laporan', $fundamental),
-            @('seo', $seo), @('meta', $seo), @('metadata', $seo), @('robots', $seo), @('sitemap', $seo), @('serp', $seo)
-        )) { $specMap[$pair[0]] = $pair[1] }
+    $specMap = Get-WarRoomSpecialistMap
     $picked = @()
     if ($planText -match '(?im)^\s*PILIHAN_AGEN\s*:\s*(.+)$') {
         foreach ($tok in ($Matches[1] -split '[,\s]+')) {
@@ -127,7 +118,7 @@ WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis P
             if ($k -and $specMap.ContainsKey($k) -and $specMap[$k] -and ($picked -notcontains $specMap[$k])) { $picked += $specMap[$k] }
         }
     }
-    if ($picked.Count -eq 0) { $picked = @($quant, $qa) }
+    if ($picked.Count -eq 0) { $picked = @(Select-WarRoomRelevantAgents -Topic $target -NoLead -NoReviewer) }
     $investAgents = @($picked)
     Write-Host ("  Lead memilih agen: " + ($investAgents -join ', ')) -ForegroundColor DarkGray
     Write-Section -Title ("[2/4] INVESTIGATE  -  " + ($investAgents -join ' | ')) -Color 'Magenta'

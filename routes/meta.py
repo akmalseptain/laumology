@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from urllib.parse import urlsplit
@@ -60,6 +61,25 @@ def _public_base() -> str:
 # deterministik (bukan ``datetime.now()`` yang berubah tiap request/run).
 _CONTENT_LASTMOD = "2026-10-13"
 
+# Token verifikasi Google Search Console harus murni alfanumerik + ``-``/``_``.
+# Divalidasi ketat agar nilai env yang "jorok" (``"``, ``<``, dll) tak pernah
+# masuk ke atribut ``content`` di <head> (anti HTML injection). Bila absen/
+# invalid → ``""`` (fail-safe; tag tidak dirender).
+_GSC_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _gsc_token() -> str:
+    """Token verifikasi Google Search Console (env-gated, fail-closed).
+
+    Baca ``LAUM_GOOGLE_SITE_VERIFICATION``; hanya lolos bila murni
+    alfanumerik + ``-``/``_``. Nilai tak valid/absen → ``""`` sehingga
+    template melewati tag ``google-site-verification``.
+    """
+    raw = (os.environ.get("LAUM_GOOGLE_SITE_VERIFICATION") or "").strip()
+    if not raw or not _GSC_TOKEN_RE.fullmatch(raw):
+        return ""
+    return raw
+
 
 @bp.route("/")
 def index():
@@ -67,6 +87,7 @@ def index():
         "index.html",
         presets=list(WATCHLIST_PRESETS.keys()),
         canonical_base=_public_base(),
+        site_verification=_gsc_token(),
     )
 
 

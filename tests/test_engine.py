@@ -920,6 +920,51 @@ class TestPublicBaseCanonical(unittest.TestCase):
         self.assertNotIn("evil.example", hb)
 
 
+class TestGscVerificationMeta(unittest.TestCase):
+    """Meta verifikasi Google Search Console (env-gated, fail-closed).
+
+    ``LAUM_GOOGLE_SITE_VERIFICATION`` valid → tag dirender; absen/invalid →
+    tag di-skip. Nilai "jorok" (``"``, ``<``) tak pernah lolos ke atribut
+    ``content`` (anti HTML injection), berkat validasi regex + autoescape.
+    """
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_env_unset_no_tag(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_GOOGLE_SITE_VERIFICATION", None)
+            hb = self.client.get("/").get_data(as_text=True)
+        self.assertNotIn("google-site-verification", hb)
+
+    def test_env_valid_tag_rendered(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_GOOGLE_SITE_VERIFICATION": "AbC123_-xyz"}, clear=False
+        ):
+            hb = self.client.get("/").get_data(as_text=True)
+        self.assertIn(
+            '<meta name="google-site-verification" content="AbC123_-xyz">', hb
+        )
+
+    def test_env_invalid_is_ignored(self):
+        import os
+        from unittest import mock
+
+        for bad in ('a"b', "a>b", "<script>", "a b", 'a" onmouseover="x'):
+            with mock.patch.dict(
+                os.environ, {"LAUM_GOOGLE_SITE_VERIFICATION": bad}, clear=False
+            ):
+                hb = self.client.get("/").get_data(as_text=True)
+            self.assertNotIn("google-site-verification", hb, bad)
+
+
 class TestAboutPageSeo(unittest.TestCase):
     """Halaman konten statis ``/tentang`` yang terindeks (W-0026).
 
@@ -1160,7 +1205,9 @@ class TestIndikatorSahamPageSeo(unittest.TestCase):
     def test_internal_links_to_indikator_from_root(self):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
-        self.assertIn('href="/indikator-saham"', home.get_data(as_text=True))
+        html = home.get_data(as_text=True)
+        self.assertIn('href="/indikator-saham"', html)
+        self.assertIn("indikator saham", html)
 
 
 class TestBrandShareAssets(unittest.TestCase):
@@ -1217,6 +1264,47 @@ class TestBrandShareAssets(unittest.TestCase):
         self.assertIn('rel="apple-touch-icon"', hb)
         self.assertIn('rel="icon"', hb)
         self.assertNotIn("evil.example", hb)
+
+
+class TestOgImageMetaTags(unittest.TestCase):
+    """Meta ``og:image:*`` halaman konten wajib lengkap (W-0026 lanjutan).
+
+    Mengunci agar kartu berbagi WA/FB/X/LinkedIn seragam dengan ``index.html``:
+    tiga halaman konten merender ``og:image:type/width/height/alt``, dan
+    ``panduan`` (schema Article) merender ``article:published_time`` +
+    ``article:modified_time``.
+    """
+
+    PAGES = {
+        "/tentang": "LAUMOLOGY · Tentang",
+        "/panduan": "LAUMOLOGY · Panduan Analisis Saham IDX",
+        "/indikator-saham": "LAUMOLOGY · Glosarium Indikator Saham IDX",
+    }
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_all_content_pages_render_full_og_image_meta(self):
+        for path, alt in self.PAGES.items():
+            resp = self.client.get(path)
+            self.assertEqual(resp.status_code, 200, path)
+            html = resp.get_data(as_text=True)
+            self.assertIn('<meta property="og:image:type" content="image/png">', html, path)
+            self.assertIn('<meta property="og:image:width" content="1200">', html, path)
+            self.assertIn('<meta property="og:image:height" content="630">', html, path)
+            self.assertIn(
+                f'<meta property="og:image:alt" content="{alt}">', html, path
+            )
+
+    def test_panduan_renders_article_datetime_meta(self):
+        html = self.client.get("/panduan").get_data(as_text=True)
+        self.assertIn(
+            '<meta property="article:published_time" content="2026-10-13">', html
+        )
+        self.assertIn(
+            '<meta property="article:modified_time" content="2026-10-13">', html
+        )
 
 
 class TestNewsRssFallback(unittest.TestCase):

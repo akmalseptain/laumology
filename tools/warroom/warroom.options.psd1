@@ -20,11 +20,11 @@
         SEO      = 'seo-engineer'
     }
 
-    MonthlyBudgetIDR          = 50000
-    TargetAutomationBudgetIDR = 35000
-    WarningThresholdIDR       = 25000
-    ReducedModeThresholdIDR   = 30000
-    HardPauseThresholdIDR     = 35000
+    MonthlyBudgetIDR          = 100000
+    TargetAutomationBudgetIDR = 70000
+    WarningThresholdIDR       = 50000
+    ReducedModeThresholdIDR   = 60000
+    HardPauseThresholdIDR     = 70000
     PerCycleBudgetIDR         = 1000
     MaxCyclesPerDay           = 0       # 0 = TANPA batas siklus harian
     MaxDiscussionRounds       = 2

@@ -9,13 +9,9 @@ function Invoke-WarRoomChat {
     )
     $cfg = Get-WarRoomConfig
     if (@($Agents).Count -eq 0) {
-        $Agents = @($cfg.Agents.Lead, $cfg.Agents.Quant, $cfg.Agents.QA)
-        if ($cfg.Agents.ContainsKey('Security')) { $Agents += $cfg.Agents.Security }
-        if ($cfg.Agents.ContainsKey('UIUX')) { $Agents += $cfg.Agents.UIUX }
-        if ($cfg.Agents.ContainsKey('Tech')) { $Agents += $cfg.Agents.Tech }
-        if ($cfg.Agents.ContainsKey('Fundamental')) { $Agents += $cfg.Agents.Fundamental }
-        if ($cfg.Agents.ContainsKey('SEO')) { $Agents += $cfg.Agents.SEO }
-        $Agents += @($cfg.Agents.Code, $cfg.Agents.Reviewer)
+        # Rapat hanya diisi agen yang RELEVAN dengan topik (hemat biaya & fokus),
+        # bukan semua agen. Lead memimpin, spesialis yang cocok ikut, reviewer menantang.
+        $Agents = Select-WarRoomRelevantAgents -Topic $Topic
     }
     $Agents = @($Agents | Where-Object { $_ })
     if ($Rounds -le 0) { $Rounds = 1 }

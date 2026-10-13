@@ -34,6 +34,11 @@ services:
       # alias kosong. Sesuaikan bila domain kustom dipakai.
       - key: LAUM_PUBLIC_BASE_URL
         value: https://laumology.onrender.com
+      # Verifikasi Google Search Console (URL-prefix). Token publik (muncul di
+      # <head> HTML), bukan rahasia → aman inline. Kosong/invalid → tag tidak
+      # dirender (fail-safe). Isi setelah verifikasi GSC selesai.
+      # - key: LAUM_GOOGLE_SITE_VERIFICATION
+      #   value: <token-gsc-anda>
       # Batas ukuran body request (byte) untuk semua endpoint; default 1 MB.
       - key: LAUM_MAX_BODY_BYTES
         value: "1048576"

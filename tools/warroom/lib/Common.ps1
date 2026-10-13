@@ -215,6 +215,61 @@ function Get-AgentPersona {
     return ''
 }
 
+function Get-WarRoomSpecialistMap {
+    # Peta kata kunci -> nama agen spesialis (deterministik, konsisten untuk rapat & pipeline).
+    $cfg = Get-WarRoomConfig
+    $quant = $cfg.Agents.Quant
+    $qa = $cfg.Agents.QA
+    $security = if ($cfg.Agents.ContainsKey('Security')) { $cfg.Agents.Security } else { '' }
+    $uiux = if ($cfg.Agents.ContainsKey('UIUX')) { $cfg.Agents.UIUX } else { '' }
+    $tech = if ($cfg.Agents.ContainsKey('Tech')) { $cfg.Agents.Tech } else { '' }
+    $fundamental = if ($cfg.Agents.ContainsKey('Fundamental')) { $cfg.Agents.Fundamental } else { '' }
+    $seo = if ($cfg.Agents.ContainsKey('SEO')) { $cfg.Agents.SEO } else { '' }
+    $map = @{}
+    foreach ($pair in @(
+            @('quant', $quant), @('keuangan', $quant), @('finance', $quant), @('rumus', $quant), @('ml', $quant), @('kalibrasi', $quant), @('saham', $quant), @('idx', $quant), @('sinyal', $quant), @('faktor', $quant), @('backtest', $quant), @('risiko', $quant), @('metric', $quant),
+            @('qa', $qa), @('api', $qa), @('kode', $qa), @('backend', $qa), @('test', $qa), @('uji', $qa), @('bug', $qa), @('regresi', $qa),
+            @('security', $security), @('keamanan', $security), @('input', $security), @('auth', $security), @('xss', $security), @('injection', $security),
+            @('ui', $uiux), @('ux', $uiux), @('tampilan', $uiux), @('frontend', $uiux), @('desain', $uiux), @('aksesibilitas', $uiux), @('css', $uiux), @('html', $uiux),
+            @('technical', $tech), @('ta', $tech), @('teknikal', $tech), @('chart', $tech), @('indikator', $tech), @('price', $tech), @('harga', $tech), @('support', $tech), @('resistance', $tech),
+            @('fundamental', $fundamental), @('fundamentalis', $fundamental), @('valuasi', $fundamental), @('emiten', $fundamental), @('laporan', $fundamental), @('rasio', $fundamental),
+            @('seo', $seo), @('meta', $seo), @('metadata', $seo), @('robots', $seo), @('sitemap', $seo), @('serp', $seo), @('google', $seo), @('crawl', $seo)
+        )) {
+        if ($pair[1]) { $map[$pair[0]] = $pair[1] }
+    }
+    return $map
+}
+
+function Select-WarRoomRelevantAgents {
+    # Pilih agen yang RELEVAN dengan topik berdasarkan kata kunci (deterministik, tanpa
+    # panggilan model). Mengembalikan daftar nama agen (dedup, urut prioritas). Bila
+    # topik tak jelas, pakai inti kompeten default. Lead/Reviewer opsional via switch.
+    param(
+        [string]$Topic = '',
+        [switch]$NoLead,
+        [switch]$NoReviewer
+    )
+    $cfg = Get-WarRoomConfig
+    $specMap = Get-WarRoomSpecialistMap
+    $text = ($Topic -replace '[^A-Za-z0-9\s]', ' ').ToLowerInvariant()
+    $picked = @()
+    foreach ($tok in ($text -split '\s+' | Where-Object { $_ })) {
+        if ($specMap.ContainsKey($tok) -and $specMap[$tok] -and ($picked -notcontains $specMap[$tok])) {
+            $picked += $specMap[$tok]
+        }
+    }
+    if ($picked.Count -eq 0) {
+        foreach ($a in @($cfg.Agents.Quant, $cfg.Agents.QA, $cfg.Agents.Code)) {
+            if ($a -and ($picked -notcontains $a)) { $picked += $a }
+        }
+    }
+    $out = @()
+    if (-not $NoLead -and $cfg.Agents.Lead -and ($out -notcontains $cfg.Agents.Lead)) { $out += $cfg.Agents.Lead }
+    foreach ($p in $picked) { if ($p -and ($out -notcontains $p)) { $out += $p } }
+    if (-not $NoReviewer -and $cfg.Agents.Reviewer -and ($out -notcontains $cfg.Agents.Reviewer)) { $out += $cfg.Agents.Reviewer }
+    return @($out)
+}
+
 function Invoke-WarRoomBeep {
     param([ValidateSet('ok', 'info', 'warn', 'error')][string]$Kind = 'info')
     if ($env:WARROOM_NO_SOUND) { return }
