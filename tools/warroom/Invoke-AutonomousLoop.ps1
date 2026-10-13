@@ -23,6 +23,7 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libDir 'AgentRunner.ps1')
 . (Join-Path $libDir 'DiscussionManager.ps1')
 . (Join-Path $libDir 'PipelineManager.ps1')
+. (Join-Path $libDir 'LearningManager.ps1')
 
 Initialize-WarRoomState
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
@@ -210,9 +211,19 @@ $tSummary
         Set-WarRoomState -State 'REVIEWING' -Note 'diff' -Iteration $i | Out-Null
         Write-Host ("  Diff: {0}" -f ((Get-GitDiffStat) -replace "`n", ' ; '))
 
+        # LEARNING: rekam pelajaran dari hasil gate agar siklus berikutnya makin pintar.
+        if ($execute -and (Get-Command Update-WarRoomLearning -ErrorAction SilentlyContinue)) {
+            Update-WarRoomLearning -CycleId $cycleId -GateExit $tcode -GateTail $tSummary
+        }
+
         # RECORDING
         Set-WarRoomState -State 'RECORDING' -Note 'catat hasil' -Iteration $i | Out-Null
         $outcome = if ($execute -and $pipe -and -not $pipe.plan) { 'no-plan' } elseif ($tcode -eq 0) { 'ok' } else { 'test-failed' }
+        # RIWAYAT TUGAS: catat agar siklus berikutnya tidak mengulang pekerjaan ini.
+        if ($execute -and $outcome -ne 'no-plan' -and (Get-Command Add-WarRoomTaskHistory -ErrorAction SilentlyContinue)) {
+            $histTitle = if ($next) { $next.title } else { 'discovery peningkatan kecil' }
+            Add-WarRoomTaskHistory -Title $histTitle -Outcome $outcome -CycleId $cycleId
+        }
         # Hanya siklus eksekusi nyata yang dihitung terhadap batas harian.
         if ($execute) { Add-CycleRecord -CycleId $cycleId -Outcome $outcome }
         Set-WarRoomState -State 'OBSERVING_AGAIN' -Note 'siap iterasi berikut' -Iteration $i -MarkSuccess:($tcode -eq 0) | Out-Null

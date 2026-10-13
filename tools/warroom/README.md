@@ -101,6 +101,38 @@ Kurs `UsdToIdr` dan `ExchangeRateVerifiedDate` wajib disesuaikan pengguna.
 - Mode **paused**: tidak ada panggilan AI otomatis baru.
 - **Fail-closed**: bila ledger rusak/tak terbaca, semua panggilan otomatis dihentikan.
 
+## Pembelajaran (agen makin pintar, makin mengerucut, irit token)
+
+War Room memakai **loop refleksi** deterministik: tiap siklus menyaring pelajaran
+nyata (kegagalan `quality_gate`, verifikasi `REVISI/TOLAK`, pendekatan yang `TERIMA`)
+ke berkas `state/learning/<agen>.md` (+ `global.md`), lalu menyuntikkannya kembali ke
+prompt siklus berikutnya — tanpa panggilan model tambahan.
+
+- **Mengerucut:** pelajaran yang mirip digabung (kemiripan token/Jaccard
+  >= `LearningSimilarityThreshold`) menjadi satu entri kanonik berhitungan `(xN)`,
+  jadi memori jadi padat, bukan menumpuk. Saat melebihi `LearningMaxEntries`,
+  entri ber-signal terendah (hitungan kecil/tertua) yang dibuang.
+- **Irit token (thrift):** hanya sinyal terpenting yang disuntik (`(xN)` tinggi
+  lebih dulu) dan ukuran blok **menyusut otomatis** saat anggaran masuk mode
+  `warning`/`reduced` (faktor 0.75/0.5). Matikan total dengan `EnableLearning = $false`.
+- **Riwayat tugas:** tugas yang sudah dikerjakan dicatat ringkas di
+  `state/learning/history.md` dan disuntik ke Lead agar tidak mengulang pekerjaan
+  lama (bangun di atasnya), tetapi hemat karena dibatasi `LearningHistoryMaxChars`.
+
+Disuntik ke tahap PLAN (lead: memori + riwayat + global), INVESTIGATE (spesialis +
+global), IMPLEMENT (code + global), dan VERIFY (spesialis + global).
+
+Knob di `warroom.options.psd1`: `EnableLearning`, `LearningMaxEntries`,
+`LearningMemoryMaxChars`, `LearningSimilarityThreshold`, `LearningHistoryMaxEntries`,
+`LearningHistoryMaxChars`.
+
+Periksa memori yang terkumpul:
+```powershell
+Get-ChildItem tools\warroom\state\learning
+Get-Content tools\warroom\state\learning\global.md
+Get-Content tools\warroom\state\learning\history.md
+```
+
 ## Batasan (jujur)
 
 - Supervisor lokal **tidak dapat menjamin** batas penagihan mutlak di sisi provider.

@@ -127,6 +127,34 @@ function acBandVerdictHtml(band){
     +' <span class="v-muted" style="font-size:11px">('+b.n_terbukti+'/'+b.n_horizons
     +' horizon terbukti, '+b.n_significant_horizons+' signifikan)</span>';
 }
+function acOosVerdictBadge(v){
+  const map={
+    'terbukti':'<span class="v-up">lolos gerbang</span>',
+    'belum_pasti':'<span class="v-muted">belum pasti</span>',
+    'sampel_kurang':'<span class="v-red">sampel kurang</span>',
+    'tidak_ada_edge':'<span style="color:#8a9a90">tanpa edge</span>'
+  };
+  return map[v]||'<span class="v-muted">&mdash;</span>';
+}
+function acOosHtml(oos){
+  if(!oos||typeof oos!=='object'){
+    return '<div class="mono" style="color:#8a9a90;font-size:11px;margin-top:10px">Uji out-of-sample per-kandidat tak tersedia (sampel forward kurang, atau data tak cukup) &mdash; <b>bukan</b> berarti tanpa edge.</div>';
+  }
+  const num=(v)=> v==null?"-":Number(v).toFixed(3);
+  const rows=(Array.isArray(oos.candidates)?oos.candidates:[]).map(c=>'<tr>'
+    +'<td style="text-align:left">'+(c.factor||'')+(c.promote?' <span class="v-up">&#10003;</span>':'')+'</td>'
+    +'<td>'+(c.n==null?'-':c.n)+'</td><td>'+(c.n_folds==null?'-':c.n_folds)+'</td>'
+    +'<td class="'+(c.median_edge==null?'':(c.median_edge>=0?'v-up':'v-red'))+'">'+(c.median_edge==null?'-':(c.median_edge>=0?'+':'')+num(c.median_edge))+'</td>'
+    +'<td>'+(c.positive_folds==null?'-':c.positive_folds)+'</td>'
+    +'<td>'+acOosVerdictBadge(c.verdict)+'</td></tr>').join("")
+    || '<tr><td colspan="6" style="text-align:center;color:#8a9a90">data kurang</td></tr>';
+  const prom=(Array.isArray(oos.promoted)?oos.promoted:[]);
+  const promTxt=prom.length?('<span class="v-up">'+prom.join(", ")+'</span>'):'<span style="color:#8a9a90">belum ada</span>';
+  return '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Uji out-of-sample per-kandidat (K-fold, '+(oos.horizon==null?'-':oos.horizon)+' bar, ambang '+(oos.min_edge==null?'-':Number(oos.min_edge).toFixed(2))+')</div>'
+    +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kandidat</th><th>N</th><th>Fold</th><th>Median Edge</th><th>Fold +</th><th>Verdict OOS</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'<div class="mono" style="font-size:11px;margin-top:6px">Lolos gerbang OOS: '+promTxt+'</div>'
+    +'<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:6px">Gerbang OOS = mayoritas fold edge&gt;0 &amp; median edge &#8805; ambang, tanpa koreksi signifikansi &mdash; "lolos gerbang", <b>bukan</b> "pasti profit". "Sampel kurang" (n&lt;min per-fold) dibedakan dari "tanpa edge". Verdict per-kandidat ini beda dari "reliability" per-horizon. Skor/rumus tidak diubah.</div>';
+}
 async function runAccuracyMulti(t){
   const HS=[1,5,10,15];
   const r=await fetch(`/api/accuracy?ticker=${encodeURIComponent(t)}&horizons=${HS.join(",")}`);
@@ -195,6 +223,7 @@ async function runAccuracySingle(t){
       <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Faktor Setuju</th><th>N</th><th>Win Rate</th><th>Avg Fwd Ret</th></tr></thead><tbody>${agrRows}</tbody></table></div>
       <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Edge per Indikator (diurutkan)</div>
       <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Faktor</th><th>N</th><th>Win Rate</th><th>Avg Fwd Ret</th><th>Edge</th></tr></thead><tbody>${facRows}</tbody></table></div>
+      ${acOosHtml(d.oos)}
       <div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Reliabilitas horizon ini: <b class="v-up">terbukti</b> = ada faktor signifikan &amp; sampel/trade cukup; <b class="v-muted">belum pasti</b> = sinyal ada tapi bukti belum kuat (mis. timeout-dominated); <b class="v-red">sampel kurang</b> = sampel forward &lt; ${minN}; <b style="color:#8a9a90">tanpa edge</b> = sampel cukup tapi tak ada faktor signifikan. Edge titik mentah pada tabel di atas <b>bukan</b> bukti keandalan — baca verdict ini. Skor/rumus tidak diubah.</div>`;
 }
 $("#acRun").onclick = runAccuracy;

@@ -51,6 +51,20 @@
     ReactionsMaxChars         = 3000    # batas panjang reaksi silang
     RepoMapMaxChars           = 6000    # batas peta repo yang disuntik ke prompt
 
+    # --- Memori pembelajaran (loop refleksi: agen makin pintar tiap siklus) ---
+    # Pelajaran tiap siklus disaring ke state/learning/<agen>.md lalu disuntik ke
+    # prompt berikutnya. Deterministik, tanpa panggilan model tambahan.
+    EnableLearning            = $true   # matikan untuk hemat konteks
+    LearningMaxEntries        = 40      # jumlah entri pelajaran per agen (terbaru menang)
+    LearningMemoryMaxChars    = 2500    # batas memori yang disuntik ke prompt
+    LearningSimilarityThreshold = 0.75  # ambang Jaccard: pelajaran mirip digabung (mengerucut)
+    LearningMergeThreshold    = 0.5     # ambang aglomeratif saat memori penuh (makin mengerucut)
+    LearningRetrievalTopK     = 6       # hanya TopK pelajaran paling RELEVAN yang disuntik (irit)
+    LearningHistoryMaxEntries = 30      # jumlah tugas lama yang diingat
+    LearningHistoryMaxChars   = 1200    # batas riwayat tugas yang disuntik ke prompt
+    # Saat anggaran warning/reduced, suntikan memori & riwayat menyusut otomatis
+    # (thrift) agar tetap irit token.
+
     # --- Mode batch manual (tanpa VPS) ---
     # Sekali jalankan Invoke-AutonomousLoop.ps1: N siklus, lalu berhenti.
     CyclesPerRun              = 4

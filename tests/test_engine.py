@@ -35,6 +35,96 @@ class TestIndicators(unittest.TestCase):
         exp = (d["High"].iloc[i - 1] + d["Low"].iloc[i - 1] + d["Close"].iloc[i - 1]) / 3.0
         self.assertAlmostEqual(float(d["pivot_pp"].iloc[i]), float(exp), places=6)
 
+    def test_avwap_no_lookahead(self):
+        import indicators
+        df = make_df()
+        d = indicators.add_indicators(df)
+        for cut in (50, 120, 200, 260):
+            d_cut = indicators.add_indicators(df.iloc[: cut + 1])
+            full = float(d["avwap"].iloc[cut])
+            trunc = float(d_cut["avwap"].iloc[cut])
+            if np.isnan(full) and np.isnan(trunc):
+                continue
+            self.assertAlmostEqual(full, trunc, places=9, msg=f"avwap[{cut}] bocor look-ahead")
+
+    def test_avwap_last_bar_matches_legacy(self):
+        import indicators
+        df = make_df()
+        d = indicators.add_indicators(df)
+        anchor = indicators.auto_anchor_index(df["Low"], df["High"], lookback=120, order=5)
+        legacy = indicators.anchored_vwap(df["High"], df["Low"], df["Close"], df["Volume"], anchor)
+        self.assertAlmostEqual(
+            float(d["avwap"].iloc[-1]), float(legacy.iloc[-1]), places=9
+        )
+
+
+class TestIndicatorCausality(unittest.TestCase):
+    """Pagar kausalitas keluaran `add_indicators` (integritas data #1).
+
+    Setiap kolom indikator wajib *truncation-invariant*: nilai bar ke-t dari
+    ``add_indicators(df.iloc[:t+1])`` harus sama dengan ``add_indicators(df)``
+    pada bar yang sama (toleransi 1e-9; pasangan NaN-NaN dilewati). Kolom yang
+    butuh data setelah bar t (look-ahead) akan gagal di sini — pagar ini menjaga
+    backtest/ML/kalibrasi tetap jujur, bukan menambah rumus baru.
+
+    Kolom non-kausal sengaja TIDAK di-whitelist (fail-closed). Yang dikecualikan
+    hanya kolom input mentah dan ``month`` (turunan index, bukan indikator).
+    """
+
+    INPUT_COLUMNS = frozenset({"Open", "High", "Low", "Close", "Volume"})
+    NON_INDICATOR_COLUMNS = frozenset({"month"})
+    # Whitelist non-kausal harus kosong; jangan jadikan pelarian.
+    NON_CAUSAL_WHITELIST = frozenset()
+    CUTS = (60, 120, 200, 280)
+    SEEDS = (7, 42)
+    TOL = 1e-9
+
+    def _indicator_columns(self, d: pd.DataFrame) -> list[str]:
+        excluded = self.INPUT_COLUMNS | self.NON_INDICATOR_COLUMNS
+        cols = []
+        for col in d.columns:
+            if col in excluded:
+                continue
+            if pd.api.types.is_numeric_dtype(d[col]) or pd.api.types.is_bool_dtype(d[col]):
+                cols.append(col)
+        return cols
+
+    def test_whitelist_starts_empty(self):
+        self.assertEqual(self.NON_CAUSAL_WHITELIST, frozenset())
+
+    def test_exclusions_are_minimal(self):
+        import indicators
+        d = indicators.add_indicators(make_df())
+        covered = set(self._indicator_columns(d))
+        excluded = set(d.columns) - covered
+        # Bila kolom indikator ikut tergusur, pagar ini bolong diam-diam.
+        self.assertEqual(excluded, set(self.INPUT_COLUMNS) | set(self.NON_INDICATOR_COLUMNS))
+
+    def test_all_indicator_columns_truncation_invariant(self):
+        import indicators
+        for seed in self.SEEDS:
+            df = make_df(seed=seed)
+            full = indicators.add_indicators(df)
+            cols = self._indicator_columns(full)
+            self.assertTrue(cols)
+            for cut in self.CUTS:
+                trunc = indicators.add_indicators(df.iloc[: cut + 1])
+                for col in cols:
+                    full_v = full[col].iloc[cut]
+                    trunc_v = trunc[col].iloc[cut]
+                    full_nan = pd.isna(full_v)
+                    trunc_nan = pd.isna(trunc_v)
+                    if full_nan and trunc_nan:
+                        continue
+                    self.assertFalse(
+                        full_nan or trunc_nan,
+                        f"{col}[{cut}] seed={seed}: NaN tak konsisten (indikasi look-ahead)",
+                    )
+                    self.assertAlmostEqual(
+                        float(full_v), float(trunc_v), delta=self.TOL,
+                        msg=f"{col}[{cut}] seed={seed}: bocor look-ahead",
+                    )
+
 
 class TestSignals(unittest.TestCase):
     def test_analyze(self):
@@ -196,6 +286,71 @@ class TestCandidates(unittest.TestCase):
         # pernah aktif dan seluruh baris (termasuk yang tanpa hasil forward)
         # ikut terlatih. Sampel harus berkurang tepat `horizon` baris.
         self.assertEqual(res["samples"], len(d) - horizon)
+
+
+class TestCandidateOutOfSample(unittest.TestCase):
+    """Gate OOS kandidat (`candidate_out_of_sample`) — additive, tak menyentuh skor."""
+
+    def test_oos_shape_and_verdict_enum(self):
+        import validation
+        res = validation.candidate_out_of_sample(make_df(400), horizon=10, folds=5)
+        self.assertEqual(res["horizon"], 10)
+        self.assertLessEqual(res["folds"], validation.MAX_FOLDS)
+        prom = set(res["promoted"])
+        for c in res["candidates"]:
+            self.assertIn(c["factor"], __import__("signals").CANDIDATE_FACTORS)
+            self.assertIn(c["verdict"], validation.RELIABILITY_LEVELS)
+            self.assertEqual(c["promote"], c["factor"] in prom)
+
+    def test_oos_min_edge_nonfinite_falls_back(self):
+        """`min_edge` non-finite (mis. `-inf`) tak boleh mempromosikan semua."""
+        import validation
+        for bad in (float("-inf"), float("inf"), float("nan")):
+            res = validation.candidate_out_of_sample(make_df(400), horizon=10, min_edge=bad)
+            self.assertEqual(res["min_edge"], validation.MIN_EDGE)
+
+    def test_oos_caps_folds_and_horizon(self):
+        """K/horizon dibatasi agar loop K×horizon tak jadi DoS."""
+        import validation
+        res = validation.candidate_out_of_sample(make_df(400), horizon=10_000, folds=10_000)
+        self.assertEqual(res["horizon"], validation.MAX_HORIZON)
+        self.assertLessEqual(res["folds"], validation.MAX_FOLDS)
+
+    def test_oos_does_not_touch_score_frame(self):
+        import factors
+        import indicators
+        import validation
+        df = make_df(400)
+        d = indicators.add_indicators(df)
+        before = factors.score_frame(d)
+        validation.candidate_out_of_sample(df, horizon=10, d=d)
+        self.assertTrue(before.equals(factors.score_frame(d)))
+
+    def test_oos_promotes_consistent_rejects_inconsistent(self):
+        """Gate: mayoritas fold edge>0 → `terbukti`; sebaliknya ditolak."""
+        from unittest import mock
+
+        import pandas as pd
+        import validation
+        from factors import CANDIDATE_FACTORS
+
+        df = make_df(400)
+        d = validation.add_indicators(df)
+        close = d["Close"]
+        fwd = close.shift(-10) / close - 1.0
+        cf = pd.DataFrame(index=d.index)
+        for k in CANDIDATE_FACTORS:
+            cf[k] = False
+        cf["ao>0"] = (fwd > 0).fillna(False)     # menang di tiap bar naik
+        cf["cci_bull"] = (fwd < 0).fillna(False)  # selalu salah
+        with mock.patch.object(validation, "candidate_frame", return_value=cf):
+            res = validation.candidate_out_of_sample(df, horizon=10, folds=5, d=d)
+        by = {c["factor"]: c for c in res["candidates"]}
+        self.assertTrue(by["ao>0"]["promote"])
+        self.assertEqual(by["ao>0"]["verdict"], "terbukti")
+        self.assertIn("ao>0", res["promoted"])
+        self.assertFalse(by["cci_bull"]["promote"])
+        self.assertEqual(by["cci_bull"]["verdict"], "tidak_ada_edge")
 
 
 class TestCalibration(unittest.TestCase):
@@ -1956,6 +2111,85 @@ class TestAccuracyByHorizon(unittest.TestCase):
         for k in ("horizon", "calibration", "factors", "agreement", "ticker"):
             self.assertIn(k, ob)
         self.assertIsNone(ob.get("reliability"))
+
+    def test_api_accuracy_single_carries_oos(self):
+        """Gerbang OOS additif: jalur tunggal memuat `oos` (promoted + verdict_levels)."""
+        import data
+        import validation
+        import webapp
+
+        df = make_df(400)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        try:
+            client = webapp.app.test_client()
+            r = client.get("/api/accuracy?ticker=TEST&horizon=10")
+        finally:
+            data.get_ohlcv = old
+
+        self.assertEqual(r.status_code, 200)
+        ob = r.get_json()
+        # Bentuk payload lama tetap utuh (additive, bukan ganti konstruk).
+        for k in ("horizon", "calibration", "factors", "agreement", "ticker"):
+            self.assertIn(k, ob)
+        self.assertIn("oos", ob)
+        oos = ob["oos"]
+        self.assertIsNotNone(oos)
+        self.assertIn("promoted", oos)
+        self.assertEqual(oos["verdict_levels"], list(validation.RELIABILITY_LEVELS))
+        # `oos.horizon` bisa ter-clamp; di sini horizon=10 → identik.
+        self.assertEqual(oos["horizon"], 10)
+        self.assertEqual(oos["min_edge"], validation.MIN_EDGE)
+
+    def test_api_accuracy_oos_failsoft(self):
+        """Kegagalan `candidate_out_of_sample` (mis. sampel tipis) → oos None, status 200."""
+        import data
+        import validation
+        import webapp
+        from unittest import mock
+
+        df = make_df(400)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        try:
+            client = webapp.app.test_client()
+            with mock.patch.object(validation, "candidate_out_of_sample",
+                                   side_effect=ValueError("Data tidak cukup untuk uji OOS")):
+                r = client.get("/api/accuracy?ticker=TEST&horizon=10")
+        finally:
+            data.get_ohlcv = old
+
+        self.assertEqual(r.status_code, 200)
+        ob = r.get_json()
+        for k in ("horizon", "calibration", "factors", "agreement", "ticker"):
+            self.assertIn(k, ob)
+        self.assertIsNone(ob.get("oos"))
+
+    def test_oos_thin_sample_fails_closed(self):
+        """Sampel tipis (`n<80`) menolak aman (raise) sehingga endpoint fail-soft → oos None."""
+        import validation
+
+        with self.assertRaises(ValueError):
+            validation.candidate_out_of_sample(make_df(60), horizon=10)
+
+    def test_api_accuracy_multi_has_no_oos(self):
+        """Mode multi-horizon tak berubah: tak mendapat field `oos`."""
+        import data
+        import webapp
+
+        df = make_df(400)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        try:
+            client = webapp.app.test_client()
+            r = client.get("/api/accuracy?ticker=TEST&horizons=1,5")
+        finally:
+            data.get_ohlcv = old
+
+        self.assertEqual(r.status_code, 200)
+        nb = r.get_json()
+        self.assertNotIn("oos", nb)
+        self.assertEqual(nb["horizons"], [1, 5])
 
 
 class TestIndicatorStability(unittest.TestCase):

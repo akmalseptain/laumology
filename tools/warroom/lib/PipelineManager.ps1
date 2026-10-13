@@ -47,6 +47,11 @@ function Invoke-WarRoomPipeline {
         if (Test-Path -LiteralPath $rmScript) { $repoMap = ((& py -3.14 $rmScript 2>$null) -join "`n") }
     } catch { $repoMap = '' }
     $repoMap = Limit-WarRoomText $repoMap $tuning.RepoMapMaxChars
+    $learnOn = [bool]$tuning.EnableLearning -and [bool](Get-Command Get-LearningMemoryBlock -ErrorAction SilentlyContinue)
+    $leadMem = if ($learnOn) { Get-LearningMemoryBlock -Agents @($lead) -MaxChars $tuning.LearningMemoryMaxChars -Query $target } else { '' }
+    $leadMemSection = if ($leadMem) { "`nMEMORI PELAJARAN (inti pelajaran lampau; jangan ulangi kesalahan yang sama):`n$leadMem`n" } else { '' }
+    $leadHist = if ($learnOn -and (Get-Command Get-WarRoomTaskHistoryBlock -ErrorAction SilentlyContinue)) { Get-WarRoomTaskHistoryBlock } else { '' }
+    $leadHistSection = if ($leadHist) { "`nRIWAYAT TUGAS SEBELUMNYA (jangan kerjakan ulang; bangun di atasnya bila relevan):`n$leadHist`n" } else { '' }
     $chaosStyle = "Perankan dirimu NATURAL seperti ngobrol di kantor: sapa rekan dengan nama depan, boleh nyela/bercanda/berdebat ringan, kadang melantur sedikit lalu balik fokus. Sesuaikan diksi dengan asal daerah (secukupnya; jangan berlebihan/menyinggung). WAJIB tetap akurat, sertakan bukti path:line, dan keputusan tegas. (Agama/keluarga hanya latar; JANGAN jadikan bahan lelucon sensitif.)"
     $planPrompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $lead)
@@ -58,6 +63,8 @@ Ikuti AGENTS.md (jangan ubah rumus keuangan tanpa bukti, jaga uji golden).
 Ringkas (<= 12 baris).
 
 $target
+$leadMemSection
+$leadHistSection
 KONTEKS: $ExtraContext
 
 PETA REPO (ringkas, untuk orientasi):
@@ -127,13 +134,15 @@ WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis P
     $runs = @()
     foreach ($ag in $investAgents) {
         $modelInvest = Resolve-WarRoomModel -Agent $ag -Role "$ag-investigate" -Tier 'fast'
+        $agMem = if ($learnOn) { Get-LearningMemoryBlock -Agents @($ag) -MaxChars $tuning.LearningMemoryMaxChars -Query $planCtx } else { '' }
+        $agMemSection = if ($agMem) { "`nMEMORI PELAJARAN (relevan, dari siklus sebelumnya):`n$agMem`n" } else { '' }
         $investPrompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $ag)
 $chaosStyle
 
 Anda agen '$ag'. Investigasi READ-ONLY terkait rencana berikut. JANGAN mengubah berkas.
 WAJIB sertakan bukti path:line dan risiko nyata. Ringkas (<= 10 baris).
-
+$agMemSection
 RENCANA LEAD:
 $planCtx
 "@
@@ -173,6 +182,8 @@ Reaksi SINGKAT (1-2 kalimat, in-character): setuju atau keberatan? Alasan singka
     }
 
     # --- 3. IMPLEMENT (Code Engineer, satu penulis) ---
+    $codeMem = if ($learnOn) { Get-LearningMemoryBlock -Agents @($code) -MaxChars $tuning.LearningMemoryMaxChars -Query ($target + "`n" + $planCtx + "`n" + $findings) } else { '' }
+    $codeMemSection = if ($codeMem) { "`nMEMORI PELAJARAN (kesalahan/keberhasilan lampau; WAJIB dihindari/diulang yang benar):`n$codeMem`n" } else { '' }
     $implPrompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $code)
 $chaosStyle
@@ -181,7 +192,7 @@ Anda Code Engineer War Room. Implementasikan rencana berikut secara TERFOKUS (sa
 Ikuti AGENTS.md (bahasa Indonesia; jangan ubah rumus keuangan tanpa fixture; jaga uji golden).
 Jangan commit/push. Jangan operasi Git destruktif.
 Sebut berkas yang diubah + ringkasan secara natural.
-
+$codeMemSection
 RENCANA:
 $planCtx
 
@@ -209,6 +220,8 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil ny
     foreach ($ag in $verifyAgents) {
         $tier = if ($ag -eq $reviewer) { 'strong' } else { 'fast' }
         $modelVerify = Resolve-WarRoomModel -Agent $ag -Role "$ag-verify" -Tier $tier
+        $agMem = if ($learnOn) { Get-LearningMemoryBlock -Agents @($ag) -MaxChars $tuning.LearningMemoryMaxChars -Query $planCtx } else { '' }
+        $agMemSection = if ($agMem) { "`nMEMORI PELAJARAN (pola masalah yang pernah muncul):`n$agMem`n" } else { '' }
         $verifyPrompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $ag)
 $chaosStyle
@@ -216,7 +229,7 @@ $chaosStyle
 Anda agen '$ag'. Tinjau perubahan BELUM di-commit ('git --no-pager diff') terhadap rencana berikut. READ-ONLY.
 Cari regresi, masalah keamanan, klaim tanpa bukti, atau penyimpangan dari rencana. Ringkas (<= 10 baris).
 Akhiri dengan satu baris: REKOMENDASI: TERIMA atau REVISI.
-
+$agMemSection
 RENCANA:
 $planCtx
 "@
@@ -230,6 +243,12 @@ $planCtx
         }
     }
     Write-Host ("  [4/4] VERIFY: {0}/2 agen ok, rekomendasi={1}" -f $summary.verify, $summary.recommendation) -ForegroundColor Cyan
+
+    # Refleksi: rekam pelajaran dari hasil verifikasi (gate ditangani oleh loop).
+    if ($learnOn -and (Get-Command Update-WarRoomLearning -ErrorAction SilentlyContinue)) {
+        $verifyText = (@($ver) | ForEach-Object { if ($_.result) { $_.result.text } }) -join "`n"
+        Update-WarRoomLearning -CycleId $CycleId -Recommendation $summary.recommendation -Target $target -VerifyText $verifyText
+    }
 
     $rec = [ordered]@{
         cycleId = $CycleId

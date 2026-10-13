@@ -363,6 +363,64 @@ def auto_anchor_index(low: pd.Series, high: pd.Series, lookback: int = 120, orde
     return int(n - win + int(np.nanargmin(sub_low.to_numpy(dtype=float))))
 
 
+def _causal_anchor_index(low_arr: np.ndarray, start: int, end: int, order: int = 5) -> int:
+    """Anchor pada window [start, end] dengan aturan identik `auto_anchor_index`.
+
+    Hanya memakai data dalam window (<= end) sehingga bebas look-ahead.
+    """
+    sub = low_arr[start:end + 1]
+    m = sub.size
+    is_low = np.ones(m, dtype=bool)
+    for k in range(1, order + 1):
+        left = np.full(m, -np.inf)
+        right = np.full(m, -np.inf)
+        if m > k:
+            left[k:] = sub[:-k]
+            right[:-k] = sub[k:]
+        is_low &= (sub <= left) & (sub <= right)
+    cand = np.nonzero(is_low)[0]
+    if cand.size:
+        return start + int(cand[-1])
+    return start + int(np.nanargmin(sub))
+
+
+def causal_anchored_vwap(
+    high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series,
+    lookback: int = 120, order: int = 5,
+) -> pd.Series:
+    """AVWAP kausal: anchor bar t hanya dari window yang berakhir di bar t.
+
+    Bebas look-ahead untuk backtest/ML/kalibrasi. Bar terakhir identik dengan
+    `anchored_vwap(high, low, close, volume, auto_anchor_index(...))` karena
+    window tail sama. Bar awal tetap NaN (bukan 0) saat price/volume NaN.
+    """
+    tp = (high + low + close) / 3.0
+    pv = (tp * volume).to_numpy(dtype=float)
+    vol = volume.to_numpy(dtype=float)
+    lo = low.to_numpy(dtype=float)
+    n = len(close)
+    out = np.full(n, np.nan)
+    if n == 0:
+        return pd.Series(out, index=close.index)
+
+    cs_pv = np.empty(n + 1, dtype=float)
+    cs_v = np.empty(n + 1, dtype=float)
+    cs_pv[0] = 0.0
+    cs_v[0] = 0.0
+    np.cumsum(np.where(np.isfinite(pv), pv, 0.0), out=cs_pv[1:])
+    np.cumsum(np.where(np.isfinite(vol), vol, 0.0), out=cs_v[1:])
+
+    for t in range(n):
+        if not (np.isfinite(pv[t]) and np.isfinite(vol[t])):
+            continue
+        start = t + 1 - min(lookback, t + 1)
+        a = _causal_anchor_index(lo, start, t, order)
+        den = cs_v[t + 1] - cs_v[a]
+        if den:
+            out[t] = (cs_pv[t + 1] - cs_pv[a]) / den
+    return pd.Series(out, index=close.index)
+
+
 def volume_profile(
     high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series,
     bins: int = 24, lookback: int = 120,
@@ -672,8 +730,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["adr"], d["adr_pct"] = adr(high, low, close, 20)
     d["atr_pctl"] = d["atr_pct"].rolling(120, min_periods=20).rank(pct=True) * 100.0
 
-    anchor = auto_anchor_index(low, high, lookback=120, order=5)
-    d["avwap"] = anchored_vwap(high, low, close, volume, anchor)
+    d["avwap"] = causal_anchored_vwap(high, low, close, volume, lookback=120, order=5)
 
     dc_n = 20
     d["dc_upper"] = high.rolling(dc_n, min_periods=1).max()

@@ -36,6 +36,12 @@ WILSON_Z = 1.96
 #   - "tidak_ada_edge" : sampel cukup tapi tak ada faktor signifikan
 RELIABILITY_LEVELS = ("terbukti", "belum_pasti", "sampel_kurang", "tidak_ada_edge")
 
+# Batas aman uji out-of-sample (`candidate_out_of_sample`): K fold & horizon
+# dibatasi agar loop K×horizon tak jadi vektor DoS, dan `min_edge` dijaga finite.
+MIN_FOLDS = 2
+MAX_FOLDS = 8
+MAX_HORIZON = 60
+
 
 def _reliability_level(has_sig: bool, fwd_samples: int, trade_sufficient: bool,
                        timeout_dominated: bool, min_n: int) -> str:
@@ -220,6 +226,150 @@ def analyze_accuracy(df: pd.DataFrame, horizon: int | None = None, min_n: int = 
         "candidates": candidates,
         "recommendations": recommendations,
         "agreement": agreement,
+    }
+
+
+def candidate_out_of_sample(
+    df: pd.DataFrame,
+    horizon: int | None = None,
+    folds: int = 5,
+    min_n: int = 20,
+    min_edge: float = MIN_EDGE,
+    d: pd.DataFrame | None = None,
+) -> dict:
+    """Uji edge kandidat secara OUT-OF-SAMPLE (K-fold temporal) — READ-ONLY.
+
+    Latar: `analyze_accuracy`/`calibrate` menguji kandidat **in-sample pada seri
+    yang sama** (lihat `analyze_accuracy:192-195` dan `calibrate:441`) lalu
+    mengusulkan promosi hanya dari edge+Wilson, tanpa pemisahan temporal. Fungsi
+    ini adalah gate tambahan: bagi seri jadi `folds` blok temporal berurutan dan
+    hitung edge forward tiap kandidat HANYA di blok uji.
+
+    Bebas look-ahead tanpa reinvent: forward return dihitung dari irisan fold itu
+    sendiri (`close.shift(-horizon)` per fold), jadi `horizon` bar terakhir tiap
+    fold otomatis terbuang — sekaligus men-*purge* batas fold (tak memakai data
+    lewat ujung fold), sejalan `calibration.train:120-134` & `backtest.walkforward`.
+
+    Promosi (`verdict="terbukti"`) hanya bila median edge OOS >= `min_edge` ∧
+    mayoritas fold edge positif; selebihnya `belum_pasti`/`tidak_ada_edge`/
+    `sampel_kurang` (enum `RELIABILITY_LEVELS`, fail-closed). Kandidat dengan
+    sampel per-fold < `min_n` tak dihitung agar tak jadi "sampel_kurang" palsu;
+    fold pendek (`horizon` > panjang fold) dibuang fail-closed.
+
+    Murni (tanpa I/O/network), TIDAK menyentuh `score_frame`/skor produksi.
+    `min_edge` non-finite dipulihkan ke `MIN_EDGE`; `folds`/`horizon` di-clamp
+    (anti-DoS). `d` opsional: hasil `add_indicators` yang sudah dihitung.
+    """
+    from metrics import risk_metrics
+
+    horizon = settings.swing_horizon_days if horizon is None else int(horizon)
+    horizon = max(1, min(horizon, MAX_HORIZON))
+    try:
+        folds = int(folds)
+    except (TypeError, ValueError):
+        folds = 5
+    folds = max(MIN_FOLDS, min(folds, MAX_FOLDS))
+    try:
+        min_edge = float(min_edge)
+    except (TypeError, ValueError):
+        min_edge = MIN_EDGE
+    if not math.isfinite(min_edge):
+        min_edge = MIN_EDGE
+    min_edge = max(0.0, min(1.0, min_edge))
+    min_n = max(2, int(min_n))
+
+    d = add_indicators(df) if d is None else d
+    d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
+    n = len(d)
+    if n < 80:
+        raise ValueError("Data tidak cukup untuk uji OOS (min 80 bar)")
+
+    cf = candidate_frame(d)
+    close = d["Close"]
+
+    size = max(n // folds, 1)
+    per_fold: list[dict] = []
+    for k in range(folds):
+        start = k * size
+        end = n if k == folds - 1 else min((k + 1) * size, n)
+        if end <= start:
+            continue
+        seg_close = close.iloc[start:end]
+        fwd = (seg_close.shift(-horizon) / seg_close - 1.0) * 100.0
+        base = fwd.dropna()
+        if not len(base):
+            continue
+        per_fold.append({
+            "fwd": fwd,
+            "cf": cf.iloc[start:end],
+            "base_wr": float((base > 0).mean()),
+        })
+
+    rows: list[dict] = []
+    for k in CANDIDATE_FACTORS:
+        fold_edges: list[float] = []
+        pool_ret: list[float] = []
+        n_total = 0
+        for pf in per_fold:
+            fwd = pf["fwd"]
+            r = fwd[pf["cf"][k].astype(bool) & fwd.notna()].dropna()
+            if len(r) < min_n:
+                continue
+            fold_edges.append(float((r > 0).mean()) - pf["base_wr"])
+            pool_ret.extend(float(x) for x in r)
+            n_total += len(r)
+
+        n_valid = len(fold_edges)
+        if n_valid == 0 or n_total < min_n:
+            rows.append({
+                "factor": k, "n": n_total, "n_folds": n_valid,
+                "median_edge": None, "positive_folds": 0,
+                "expectancy": None, "max_dd": None, "sharpe": None,
+                "verdict": "sampel_kurang", "promote": False,
+            })
+            continue
+
+        median_edge = float(np.median(fold_edges))
+        positive = int(sum(1 for e in fold_edges if e > 0))
+        promote = bool(median_edge >= min_edge and positive * 2 > n_valid)
+
+        equity = [1.0]
+        for x in pool_ret:
+            equity.append(equity[-1] * (1.0 + x / 100.0))
+        rm = risk_metrics(equity, pool_ret)
+
+        if promote:
+            verdict = "terbukti"
+        elif median_edge > 0:
+            verdict = "belum_pasti"
+        else:
+            verdict = "tidak_ada_edge"
+
+        rows.append({
+            "factor": k,
+            "n": n_total,
+            "n_folds": n_valid,
+            "median_edge": median_edge,
+            "positive_folds": positive,
+            "expectancy": rm.get("expectancy_pct"),
+            "max_dd": rm.get("max_dd"),
+            "sharpe": rm.get("sharpe"),
+            "verdict": verdict,
+            "promote": promote,
+        })
+
+    rows.sort(
+        key=lambda x: (x["median_edge"] is not None, x["median_edge"] if x["median_edge"] is not None else 0.0),
+        reverse=True,
+    )
+    return {
+        "horizon": int(horizon),
+        "folds": len(per_fold),
+        "min_n": int(min_n),
+        "min_edge": float(min_edge),
+        "candidates": rows,
+        "promoted": [r["factor"] for r in rows if r["promote"]],
+        "verdict_levels": list(RELIABILITY_LEVELS),
     }
 
 

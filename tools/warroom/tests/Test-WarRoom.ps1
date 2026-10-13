@@ -44,6 +44,9 @@ function New-TestEnv {
     MaxConcurrentModelTasks = 2
     MaxRepairAttempts = 2
     MaxOutputTokensPerCall = 4096
+    EnableLearning = `$true
+    LearningMaxEntries = 5
+    LearningMemoryMaxChars = 2000
     NormalIdleIntervalMinutes = 30
     FailureBackoffMinutes = 60
     UsdToIdr = $usd
@@ -68,6 +71,8 @@ function New-TestEnv {
 . (Join-Path $libDir 'GitGuard.ps1')
 . (Join-Path $libDir 'BudgetManager.ps1')
 . (Join-Path $libDir 'BacklogManager.ps1')
+. (Join-Path $libDir 'ModelRouter.ps1')
+. (Join-Path $libDir 'LearningManager.ps1')
 
 Write-Host "`n== Test War Room ==`n" -ForegroundColor Cyan
 
@@ -183,6 +188,71 @@ Add-BacklogItem -Title 'A' -Severity 'low' -Confidence 'low' -Effort 'L' | Out-N
 Add-BacklogItem -Title 'B' -Severity 'critical' -Confidence 'high' -Effort 'S' | Out-Null
 $next = Get-NextBacklogItem
 Assert-Eq 'B' $next.title "item prioritas tertinggi dipilih"
+
+# --- T10: memori pembelajaran (loop refleksi yang mengerucut) ---
+Write-Host "T10 memori pembelajaran" -ForegroundColor Cyan
+New-TestEnv | Out-Null
+Initialize-WarRoomState
+Add-AgentLesson -Agent 'code-engineer' -Lesson 'Gate gagal: ImportError di foo.py' -CycleId 'c1' | Out-Null
+$mem = Get-AgentMemory -Agent 'code-engineer'
+Assert-True ($mem -match 'ImportError') "memori menyimpan pelajaran"
+# Pelajaran MIRIP (bukan identik) harus digabung -> mengerucut, bukan menumpuk.
+Add-AgentLesson -Agent 'code-engineer' -Lesson 'Gate gagal ImportError foo.py modul' -CycleId 'c2' | Out-Null
+$ce = @(Read-AgentLessonEntries -Agent 'code-engineer')
+Assert-Eq 1 $ce.Count "pelajaran mirip digabung (mengerucut)"
+Assert-True (($ce[0].count -eq 2)) "hitungan kemunculan naik (x2)"
+Add-AgentLesson -Agent 'global' -Lesson 'Aturan: jangan ubah rumus tanpa fixture' | Out-Null
+$block = Get-LearningMemoryBlock -Agents @('code-engineer')
+Assert-True ($block -match 'code-engineer') "blok memori memuat label agen"
+Assert-True ($block -match 'jangan ubah rumus') "memori global disuntik ke blok"
+# Cap: entri berbeda yang melebihi batas -> simpan yang ber-signal (hitungan tinggi).
+$distinct = @(
+    'Alpha menambah endpoint profil pengguna',
+    'Bravo memperbaiki grafik harga saham',
+    'Charlie mengoptimalkan cache laporan harian',
+    'Delta merapikan tata letak tabel data',
+    'Echo menguatkan validasi input form',
+    'Foxtrot mempercepat pemuatan halaman utama',
+    'Golf menyederhanakan alur login akun',
+    'Hotel menambah dokumentasi API publik'
+)
+foreach ($s in $distinct) { Add-AgentLesson -Agent 'qa-engineer' -Lesson $s | Out-Null }
+$entries = @(Read-AgentLessonEntries -Agent 'qa-engineer')
+Assert-True ($entries.Count -le 5) "memori dipangkas ke LearningMaxEntries (=$($entries.Count))"
+Assert-True (($entries | Where-Object { $_.text -eq 'Hotel menambah dokumentasi API publik' }).Count -eq 1) "entri terbaru ber-signal dipertahankan"
+# Konvergensi AGLOMERATIF: pelajaran bervariasi tapi mirip harus mengerucut ke <= cap.
+for ($i = 1; $i -le 30; $i++) {
+    Add-AgentLesson -Agent 'tech' -Lesson "Gate gagal (cyc-$i): ImportError di foo$i.py saat impor modul analisis" | Out-Null
+}
+$te = @(Read-AgentLessonEntries -Agent 'tech')
+Assert-True ($te.Count -le 5) "pelajaran bervariasi mengerucut ke <= cap (=$($te.Count))"
+Assert-True (($te | Where-Object { [int]$_.count -gt 1 }).Count -ge 1) "entri gabungan berhitungan >1 terbentuk"
+# Retrieval relevan: query memilih pelajaran paling cocok (irit + cerdas).
+Add-AgentLesson -Agent 'seo-engineer' -Lesson 'Gate gagal: sitemap.xml hilang' | Out-Null
+Add-AgentLesson -Agent 'seo-engineer' -Lesson 'Verifikasi REVISI: metadata og:image kosong' | Out-Null
+Add-AgentLesson -Agent 'seo-engineer' -Lesson 'Berhasil: tambah robots.txt' | Out-Null
+$rel = Get-AgentMemory -Agent 'seo-engineer' -Query 'perbaiki metadata og:image halaman' -TopEntries 1
+Assert-True ($rel -match 'og:image') "retrieval memilih pelajaran paling relevan"
+
+# --- T11: riwayat tugas + thrift anggaran ---
+Write-Host "T11 riwayat tugas & thrift" -ForegroundColor Cyan
+New-TestEnv | Out-Null
+Initialize-WarRoomState
+Add-WarRoomTaskHistory -Title 'Perbaiki indikator RSI' -Outcome 'ok' -CycleId 'c1'
+Add-WarRoomTaskHistory -Title 'Tambah endpoint screener' -Outcome 'ok' -CycleId 'c2'
+for ($n = 1; $n -le 6; $n++) {
+    Add-WarRoomTaskHistory -Title ("Peningkatan modul analisis bagian $n dengan dokumentasi lengkap dan pengujian regresi") -Outcome 'ok' -CycleId "h$n"
+}
+$hist = Get-WarRoomTaskHistoryBlock
+Assert-True ($hist -match 'RSI') "riwayat tugas memuat tugas lama"
+Assert-True ($hist -match 'screener') "riwayat tugas memuat tugas terbaru"
+$full = (Get-WarRoomTaskHistoryBlock).Length
+Assert-True ($full -gt 600) "riwayat cukup panjang untuk menguji thrift (=$full)"
+# Mode 'reduced' mengecilkan suntikan memori (irit token).
+Commit-Budget -ReservationId 'rf' -Source 'reported' -ReportedCostUSD 32 -Model 'deepseek/deepseek-flash' | Out-Null
+Assert-Eq 'reduced' (Get-BudgetStatus).mode "anggaran masuk mode reduced"
+$thrift = (Get-WarRoomTaskHistoryBlock).Length
+Assert-True ($thrift -lt $full) "suntikan menyusut saat anggaran menipis (thrift) $thrift<$full"
 
 # --- Ringkasan ---
 Write-Host "`n== Hasil: $script:Pass lulus, $script:Fail gagal ==" -ForegroundColor $(if ($script:Fail -eq 0) { 'Green' } else { 'Red' })

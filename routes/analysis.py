@@ -144,6 +144,14 @@ def api_accuracy():
                 result["reliability"] = band["rows"][0]["reliability"]
             except Exception:
                 result["reliability"] = None
+            # Lampirkan gerbang uji out-of-sample (K-fold) — ADDITIVE, read-only,
+            # tanpa menyentuh `score_frame`/rumus/bobot. Dibungkus try/except
+            # sendiri agar sampel tipis/`ValueError` `candidate_out_of_sample`
+            # tak menjatuhkan mode tunggal (fail-soft → `oos=None`, bukan 502).
+            try:
+                result["oos"] = validation.candidate_out_of_sample(df, horizon=horizon, d=d)
+            except Exception:
+                result["oos"] = None
         result["ticker"] = ticker
         return jsonify(result)
     except Exception as exc:
