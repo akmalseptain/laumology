@@ -13,9 +13,9 @@ function renderWatchlist(){
   const el = $("#wlList");
   if(!watchlist.length){ el.innerHTML = '<div class="empty" style="padding:24px">Watchlist kosong.</div>'; return; }
   el.innerHTML = watchlist.map(t => '<div class="check" style="justify-content:space-between">'
-    + '<span style="cursor:pointer" onclick="pick(\'' + t + '\')">' + t + '</span>'
-    + '<span><span class="mono" id="wl-' + t + '" style="color:#a3a3a3">' + (posQuotes[t]!=null?idr(posQuotes[t]):"-") + '</span>'
-    + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" onclick="wlRemove(\'' + t + '\')">x</button></span></div>').join("");
+    + '<span style="cursor:pointer" data-action="pick" data-arg="' + escapeHtml(t) + '">' + escapeHtml(t) + '</span>'
+    + '<span><span class="mono" id="wl-' + escapeHtml(t) + '" style="color:#a3a3a3">' + (posQuotes[t]!=null?idr(posQuotes[t]):"-") + '</span>'
+    + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" data-action="wlRemove" data-arg="' + escapeHtml(t) + '">x</button></span></div>').join("");
 }
 function wlAdd(){ const t=($("#wlInput").value||"").trim().toUpperCase(); if(!t) return;
   if(!watchlist.includes(t)){ watchlist.push(t); LS.set("sbl_watchlist", watchlist); renderWatchlist(); pollPortfolio(); }
@@ -35,13 +35,13 @@ function renderPositions(){
         const plPct = (q!=null && p.entry) ? (q/p.entry-1)*100 : null;
         const cls = pl==null ? "" : (pl>=0?"v-up":"v-red");
         return '<tr>'
-          + '<td style="font-weight:700;cursor:pointer" onclick="pick(\'' + p.ticker + '\')">' + p.ticker + '</td>'
+          + '<td style="font-weight:700;cursor:pointer" data-action="pick" data-arg="' + escapeHtml(p.ticker) + '">' + escapeHtml(p.ticker) + '</td>'
           + '<td>' + fmt(p.entry) + '</td><td>' + p.lots + '</td>'
           + '<td>' + (q!=null?idr(q):"-") + '</td>'
           + '<td class="' + cls + '">' + (pl!=null ? (pl>=0?'+':'')+idr(pl)+' ('+(plPct>=0?'+':'')+fmt(plPct,2)+'%)' : "-") + '</td>'
           + '<td style="color:#ef5350">' + (p.sl?fmt(p.sl):"-") + '</td>'
           + '<td style="color:#26a69a">' + (p.tp?fmt(p.tp):"-") + '</td>'
-          + '<td><button class="btn ghost" style="padding:3px 8px" onclick="posRemove(' + i + ')">x</button></td></tr>';
+          + '<td><button class="btn ghost" style="padding:3px 8px" data-action="posRemove" data-idx="' + i + '">x</button></td></tr>';
       }).join("") + '</tbody></table></div>';
 }
 function posAdd(){
@@ -64,7 +64,7 @@ function renderAlerts(){
     return '<div class="check" style="justify-content:space-between">'
       + '<span>' + a.ticker + ' ' + (a.dir==='above'?'&ge;':'&le;') + ' ' + fmt(a.price) + ' ' + (fired?'<b style="color:#ef4444">TRIGGERED</b>':'') + '</span>'
       + '<span><span class="mono" style="color:#a3a3a3">' + (q!=null?idr(q):"-") + '</span>'
-      + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" onclick="alRemove(' + i + ')">x</button></span></div>';
+      + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" data-action="alRemove" data-idx="' + i + '">x</button></span></div>';
   }).join("");
 }
 function alAdd(){
@@ -87,7 +87,7 @@ async function loadHistory(){
     const r = await fetch("/api/history?limit=40"); const d = await r.json();
     const rows = (d.rows||[]).map(x => '<tr>'
       + '<td>' + x.time + '</td>'
-      + '<td style="font-weight:700;cursor:pointer" onclick="pick(\'' + x.ticker + '\')">' + x.ticker + '</td>'
+      + '<td style="font-weight:700;cursor:pointer" data-action="pick" data-arg="' + escapeHtml(x.ticker) + '">' + escapeHtml(x.ticker) + '</td>'
       + '<td><span class="tag s-' + signalClass(x.signal) + '">' + x.signal + '</span></td>'
       + '<td>' + x.score + '</td><td>' + x.confidence + '</td><td>' + x.grade + '</td><td>' + fmt(x.price) + '</td></tr>').join("");
     $("#histList").innerHTML = rows ? '<div style="overflow-x:auto"><table>'
@@ -189,7 +189,7 @@ async function runMarket(){
       +'<td class="'+(s.chg_5d>=0?'v-up':'v-red')+'">'+pct(s.chg_5d)+'</td>'
       +'<td class="'+(s.chg_20d>=0?'v-up':'v-red')+'">'+pct(s.chg_20d)+'</td>'
       +'<td>'+s.breadth+'%</td></tr>').join("");
-    const rs=(d.rs_ranking||[]).map(x=>'<tr onclick="pick(\''+x.ticker+'\')" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+x.ticker+'</td><td style="text-align:left;color:#a3a3a3">'+x.sector+'</td>'
+    const rs=(d.rs_ranking||[]).map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.ticker)+'</td><td style="text-align:left;color:#a3a3a3">'+x.sector+'</td>'
       +'<td class="'+(x.chg_1d>=0?'v-up':'v-red')+'">'+pct(x.chg_1d)+'</td>'
       +'<td class="'+(x.chg_20d>=0?'v-up':'v-red')+'">'+pct(x.chg_20d)+'</td></tr>').join("");
     $("#mkResult").innerHTML =
@@ -267,7 +267,7 @@ function renderJournal(){
   const el=$("#jrList");
   if(!journal.length){ el.innerHTML='<div class="empty" style="padding:24px">Belum ada catatan.</div>'; return; }
   el.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Waktu</th><th style="text-align:left">Kode</th><th style="text-align:left">Catatan</th><th>Hasil</th><th></th></tr></thead><tbody>'
-    +journal.map((j,i)=>'<tr><td>'+j.time+'</td><td style="text-align:left;font-weight:700;cursor:pointer" onclick="pick(\''+j.ticker+'\')">'+j.ticker+'</td><td style="text-align:left;color:#a3a3a3">'+j.note+'</td><td class="'+(j.result>=0?'v-up':'v-red')+'">'+(j.result!=null?(j.result>=0?'+':'')+j.result+'%':'-')+'</td><td><button class="btn ghost" style="padding:3px 8px" onclick="jrRemove('+i+')">x</button></td></tr>').join('')
+    +journal.map((j,i)=>'<tr><td>'+j.time+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(j.ticker)+'">'+escapeHtml(j.ticker)+'</td><td style="text-align:left;color:#a3a3a3">'+j.note+'</td><td class="'+(j.result>=0?'v-up':'v-red')+'">'+(j.result!=null?(j.result>=0?'+':'')+j.result+'%':'-')+'</td><td><button class="btn ghost" style="padding:3px 8px" data-action="jrRemove" data-idx="'+i+'">x</button></td></tr>').join('')
     +'</tbody></table></div>';
 }
 function jrRemove(i){ journal.splice(i,1); LS.set("sbl_journal",journal); renderJournal(); }

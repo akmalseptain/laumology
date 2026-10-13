@@ -22,6 +22,35 @@ function safeUrl(u){
   return "";
 }
 
+/* ---------- Delegasi klik terpusat (CSP `script-src 'self'`) ----------
+   Atribut onclick diblokir CSP, jadi aksi UI dipasang sebagai `data-action`
+   (+ `data-arg` teks / `data-idx` numerik). Peta aksi TETAP (allowlist) —
+   tanpa dispatch dinamis window[...]/eval agar tidak membuka injeksi baru.
+   Dipasang SEKALI di document (container stabil) supaya re-render yang
+   berulang tidak menggandakan listener. `closest()` dipakai agar klik pada
+   anak elemen tetap kena. */
+const CLICK_ACTIONS = {
+  pick:      (el) => pick(el.dataset.arg),
+  exportCsv: () => exportCsv(),
+  print:     () => window.print(),
+  scShowAll: () => scShowAll(),
+  wlRemove:  (el) => wlRemove(el.dataset.arg),
+  posRemove: (el) => { const i = parseInt(el.dataset.idx, 10); if(!isNaN(i)) posRemove(i); },
+  alRemove:  (el) => { const i = parseInt(el.dataset.idx, 10); if(!isNaN(i)) alRemove(i); },
+  jrRemove:  (el) => { const i = parseInt(el.dataset.idx, 10); if(!isNaN(i)) jrRemove(i); },
+  ppClose:   (el) => ppClose(el.dataset.arg),
+};
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if(!t || !t.closest) return;
+  const el = t.closest("[data-action]");
+  if(!el) return;
+  const action = el.dataset.action;
+  if(!Object.prototype.hasOwnProperty.call(CLICK_ACTIONS, action)) return;
+  e.preventDefault();
+  CLICK_ACTIONS[action](el);
+});
+
 async function mapLimit(items, limit, fn){
   const ret = new Array(items.length);
   let i = 0;
@@ -61,6 +90,8 @@ async function fetchJSON(url, opts){
 const charts = { analysis: null, live: null };
 let showBench = false;
 const TV_INT = { D: "1d", "60": "1h", "15": "15m", "5": "5m", W: "1wk" };
+/* Vendor lokal WAJIB ter-deploy: CSP `script-src 'self'` memblokir fallback
+   CDN unpkg di bawah, jadi grafik mati total bila file vendor hilang. */
 const LIBSRC = [
   "/static/vendor/lightweight-charts.standalone.production.js",
   "https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js",

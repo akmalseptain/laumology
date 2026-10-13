@@ -5,7 +5,7 @@ function setAsStatus(txt){ const el=$("#asStatus"); if(el) el.textContent=txt; }
 function renderAsResult(rows){
   const top=(rows||[]).filter(x=>x.Signal==="STRONG BUY"||x.Signal==="BUY").slice(0,20);
   $("#asResult").innerHTML = top.length ? '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th>Skor</th><th>Sinyal</th><th>Aksi</th></tr></thead><tbody>'
-    + top.map(x=>'<tr onclick="pick(\''+x.Ticker+'\')" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+x.Ticker+'</td><td>'+x.Score+'</td><td><span class="tag s-'+signalClass(x.Signal)+'">'+x.Signal+'</span></td><td style="color:#a3a3a3">'+x.Action+'</td></tr>').join('')
+    + top.map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.Ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.Ticker)+'</td><td>'+x.Score+'</td><td><span class="tag s-'+signalClass(x.Signal)+'">'+x.Signal+'</span></td><td style="color:#a3a3a3">'+x.Action+'</td></tr>').join('')
     + '</tbody></table></div>' : '<div class="empty" style="padding:18px">Tidak ada sinyal beli di watchlist.</div>';
 }
 async function asScan(){
@@ -525,11 +525,11 @@ async function loadPaper(){
     el.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Kode</th><th>Entry</th><th>Lot</th><th>Harga</th><th>P/L</th><th>Status</th><th></th></tr></thead><tbody>'
       + rows.map(r=>{
           const pnl = r.pnl; const cls = pnl==null?"":(pnl>=0?"v-up":"v-red");
-          return '<tr><td style="font-weight:700;cursor:pointer" onclick="pick(\''+r.ticker+'\')">'+r.ticker+'</td>'
+          return '<tr><td style="font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(r.ticker)+'">'+escapeHtml(r.ticker)+'</td>'
             +'<td>'+fmt(r.entry)+'</td><td>'+r.lots+'</td><td>'+(r.last!=null?idr(r.last):"-")+'</td>'
             +'<td class="'+cls+'">'+(pnl!=null?(pnl>=0?'+':'')+idr(pnl)+(r.pnl_pct!=null?' ('+(r.pnl_pct>=0?'+':'')+fmt(r.pnl_pct,2)+'%)':''):'-')+'</td>'
             +'<td>'+(r.status==='OPEN'?'<span class="tag s-BUY">OPEN</span>':(r.pnl>=0?'<span class="tag s-BUY">CLOSED +</span>':'<span class="tag s-SELL">CLOSED -</span>'))+'</td>'
-            +'<td>'+(r.status==='OPEN'?'<button class="btn ghost" style="padding:3px 8px" onclick="ppClose('+r.id+')">Tutup</button>':'')+'</td></tr>';
+            +'<td>'+(r.status==='OPEN'?'<button class="btn ghost" style="padding:3px 8px" data-action="ppClose" data-arg="'+escapeHtml(r.id)+'">Tutup</button>':'')+'</td></tr>';
         }).join('')+'</tbody></table></div>';
   }catch(e){ el.innerHTML='<div class="empty">Gagal memuat.</div>'; }
 }
@@ -544,7 +544,7 @@ async function loadDb(){
   el.innerHTML='<div class="empty" style="padding:20px">Memuat...</div>';
   try{
     const [sg, sc] = await Promise.all([fetch('/api/db/signals?limit=20').then(r=>r.json()), fetch('/api/db/scans').then(r=>r.json())]);
-    const srows=(sg.rows||[]).map(x=>'<tr><td>'+x.ts.slice(5,16)+'</td><td style="text-align:left;font-weight:700;cursor:pointer" onclick="pick(\''+x.ticker+'\')">'+x.ticker+'</td><td><span class="tag s-'+signalClass(x.signal)+'">'+x.signal+'</span></td><td>'+x.score+'</td><td>'+x.source+'</td></tr>').join("");
+    const srows=(sg.rows||[]).map(x=>'<tr><td>'+x.ts.slice(5,16)+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(x.ticker)+'">'+escapeHtml(x.ticker)+'</td><td><span class="tag s-'+signalClass(x.signal)+'">'+x.signal+'</span></td><td>'+x.score+'</td><td>'+x.source+'</td></tr>').join("");
     const crows=(sc.rows||[]).map(x=>'<tr><td>'+x.ts.slice(5,16)+'</td><td style="text-align:left">'+x.universe+'</td><td>'+x.n+'</td><td>'+x.buys+'</td></tr>').join("");
     el.innerHTML = '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Sinyal tersimpan</div>'
       + (srows?'<div style="overflow-x:auto"><table><thead><tr><th>Waktu</th><th>Kode</th><th>Sinyal</th><th>Skor</th><th>Sumber</th></tr></thead><tbody>'+srows+'</tbody></table></div>':'<div class="empty" style="padding:14px">Kosong. Jalankan scheduler.py atau analisis manual.</div>')

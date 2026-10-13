@@ -185,8 +185,8 @@ function render(d){
 
     <div class="card glass modish">
       <div class="sec"><span class="num">09</span><div class="line"></div><span class="badge">Technical Chart</span>
-        <button class="btn ghost" onclick="exportCsv()" style="margin-left:auto;padding:7px 14px">Export CSV</button>
-        <button class="btn ghost" onclick="window.print()" style="padding:7px 14px">Print</button>
+        <button class="btn ghost" data-action="exportCsv" style="margin-left:auto;padding:7px 14px">Export CSV</button>
+        <button class="btn ghost" data-action="print" style="padding:7px 14px">Print</button>
         <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(d.tv_symbol)}" target="_blank"
            class="btn ghost" style="text-decoration:none;padding:7px 14px">TradingView</a>
       </div>
@@ -259,7 +259,7 @@ function renderScanRows(dataRows, totalUniverse, scanned){
   const rows = shown.map(x=>{
     const sc = signalClass(x.Signal);
     const valM = x.Value ? (x.Value/1e9).toFixed(1)+" M" : "-";
-    return `<tr onclick="pick('${x.Ticker}')">
+    return `<tr data-action="pick" data-arg="${escapeHtml(x.Ticker)}">
       <td style="font-weight:700">${x.Ticker}</td>
       <td style="color:#a3a3a3">${x.Sector||"-"}</td>
       <td>${fmt(x.Price)}</td>
@@ -279,7 +279,7 @@ function renderScanRows(dataRows, totalUniverse, scanned){
       <td>1:${fmt(x.RR,1)}</td><td>${fmt(x["ATR%"],2)}%</td>
     </tr>`;
   }).join("");
-  $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned})${dataRows.length>shown.length?' · menampilkan '+shown.length:''} &middot; klik baris untuk detail ${dataRows.length>shown.length?'<button class="btn ghost sm" onclick="scShowAll()" style="margin-left:8px">Tampilkan semua</button>':''}</div>
+  $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned})${dataRows.length>shown.length?' · menampilkan '+shown.length:''} &middot; klik baris untuk detail ${dataRows.length>shown.length?'<button class="btn ghost sm" data-action="scShowAll" style="margin-left:8px">Tampilkan semua</button>':''}</div>
     <div style="overflow-x:auto"><table>
     <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Reko</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;

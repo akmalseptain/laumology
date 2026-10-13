@@ -70,11 +70,47 @@ def _guard():
     return None
 
 
+# Allowlist CSP: script hanya 'self' (tidak ada inline script/handler),
+# style perlu 'unsafe-inline' karena template memakai atribut style= dan
+# menyuntik style via innerHTML; font hanya dari Google Fonts.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src https://fonts.gstatic.com; "
+    "img-src 'self' data: https:; "
+    "connect-src 'self'; "
+    "worker-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+
+
 @app.after_request
 def _track(resp):
     state.tick_metrics(request.path, resp.status_code)
+    # nosniff + Referrer-Policy untuk SEMUA respons (termasuk /static/*) agar
+    # aset statis (vendor JS) tidak di-MIME-sniff.
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     if not request.path.startswith("/static/"):
         resp.headers["Cache-Control"] = "no-store"
+    # Header pembatas framing/CSP HANYA untuk dokumen HTML; deteksi lewat
+    # content-type (bukan path) agar JSON/SSE (/api/screen/stream) tak rusak.
+    ctype = resp.content_type or ""
+    if ctype.startswith("text/html"):
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Content-Security-Policy", _CSP)
+        resp.headers.setdefault(
+            "Permissions-Policy", "geolocation=(), camera=(), microphone=()"
+        )
+    # HSTS hanya bila TLS di-terminate proxy dan proto benar-benar https
+    # (jangan dipaksa di dev HTTP).
+    if request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        resp.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
     return resp
 
 
@@ -110,6 +146,77 @@ def _env_int(name: str, default: int) -> int:
             name, raw, default,
         )
         return default
+
+
+# Batas ukuran body request (byte). Melindungi instance ber-RAM kecil dari
+# POST besar (OOM/DoS) tanpa perlu modul tambahan; Flask membalas 413 otomatis.
+_BODY_BYTES_DEFAULT = 1 * 1024 * 1024  # 1 MB
+_BODY_BYTES_MIN = 64 * 1024            # 64 KB
+_BODY_BYTES_MAX = 8 * 1024 * 1024      # 8 MB
+
+
+def _max_body_bytes() -> int:
+    """Batas ``MAX_CONTENT_LENGTH`` dari env ``LAUM_MAX_BODY_BYTES``.
+
+    Nilai di-parse int ketat (``_env_int``) lalu di-clamp ke rentang
+    ``[_BODY_BYTES_MIN, _BODY_BYTES_MAX]``. Nilai ``<= 0`` (termasuk ``0``)
+    atau tak valid dikembalikan ke default 1 MB agar konfigurasi salah tak
+    melumpuhkan SEMUA POST (self-DoS).
+    """
+    n = _env_int("LAUM_MAX_BODY_BYTES", _BODY_BYTES_DEFAULT)
+    if n <= 0:
+        return _BODY_BYTES_DEFAULT
+    if n < _BODY_BYTES_MIN:
+        return _BODY_BYTES_MIN
+    if n > _BODY_BYTES_MAX:
+        return _BODY_BYTES_MAX
+    return n
+
+
+# Dipasang setelah `_env_int` didefinisikan (bukan di baris `app = Flask(...)`)
+# agar impor WSGI `webapp:app` tidak melempar NameError.
+app.config["MAX_CONTENT_LENGTH"] = _max_body_bytes()
+
+
+_TRUSTED_PROXY_HOPS_MAX = 5
+
+
+def _trusted_proxy_hops() -> int:
+    """Jumlah hop proxy tepercaya dari env ``TRUSTED_PROXY_HOPS``.
+
+    Nilai di-parse int ketat (pakai ``_env_int``) lalu di-clamp ke rentang
+    ``[0, _TRUSTED_PROXY_HOPS_MAX]``. Negatif = 0 (nonaktif); terlalu besar
+    dibatasi agar konfigurasi salah tak membuka celah spoof X-Forwarded-For.
+    """
+    n = _env_int("TRUSTED_PROXY_HOPS", 0)
+    if n <= 0:
+        return 0
+    if n > _TRUSTED_PROXY_HOPS_MAX:
+        _log.warning(
+            "TRUSTED_PROXY_HOPS=%d melebihi batas aman %d; memakai %d.",
+            n, _TRUSTED_PROXY_HOPS_MAX, _TRUSTED_PROXY_HOPS_MAX,
+        )
+        return _TRUSTED_PROXY_HOPS_MAX
+    return n
+
+
+def _apply_proxy_fix(wsgi_app, hops: int):
+    """Bungkus ``wsgi_app`` dengan ``ProxyFix`` bila ``hops > 0``.
+
+    Hanya ``x_for`` yang dipercaya (bukan ``x_proto``/``x_host``) supaya
+    deteksi HSTS manual di ``_track`` tetap utuh. ``hops == 0`` mengembalikan
+    app apa adanya (perilaku lama, tanpa regresi).
+    """
+    if hops <= 0:
+        return wsgi_app
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    return ProxyFix(wsgi_app, x_for=hops)
+
+
+# Dipasang di level modul (setelah `app = Flask(...)`) agar gunicorn
+# `webapp:app` (Render) benar-benar kena -- bukan di `main()`.
+app.wsgi_app = _apply_proxy_fix(app.wsgi_app, _trusted_proxy_hops())
 
 
 def _maybe_start_scheduler() -> None:

@@ -29,6 +29,13 @@ services:
         value: "1800"
       - key: RATE_LIMIT_PER_MIN
         value: "600"
+      # Batas ukuran body request (byte) untuk semua endpoint; default 1 MB.
+      - key: LAUM_MAX_BODY_BYTES
+        value: "1048576"
+      # Render menaruh IP klien asli di ujung kanan X-Forwarded-For (1 hop LB).
+      # Aktifkan ProxyFix agar rate-limit per-klien, bukan global satu IP proxy.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       # Isi lewat dashboard (sync: false = minta input, tidak disimpan di repo)
       - key: API_KEY
         sync: false

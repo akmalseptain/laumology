@@ -59,11 +59,11 @@ _rl_lock = threading.Lock()
 # (bahkan yang sudah kena limit) tetap di-`move_to_end`, agar penyerang tak
 # bisa me-reset window-nya sendiri dengan membanjiri IP unik.
 #
-# Catatan asal IP: `webapp.py` memakai `request.remote_addr` TANPA `ProxyFix`.
-# Di belakang load balancer (mis. Render) ini bisa mengerucut ke satu IP
-# proxy -- leak jadi moot, tetapi rate-limit menjadi terbagi global. Itu
-# lubang lama di luar scope perubahan ini; didokumentasikan agar tidak
-# disalahartikan sebagai perbaikan.
+# Catatan asal IP: `webapp.py` memakai `request.remote_addr`. Di belakang
+# load balancer (mis. Render) IP bisa mengerucut ke satu IP proxy sehingga
+# rate-limit terbagi global. `webapp.py` kini memasang `ProxyFix` (env
+# `TRUSTED_PROXY_HOPS`, default 0 = nonaktif) agar IP klien asli dipulihkan
+# dari X-Forwarded-For bila memang berjalan di belakang proxy.
 _RL_MAX_IPS = 4096
 
 _scan_jobs: dict[str, dict] = {}

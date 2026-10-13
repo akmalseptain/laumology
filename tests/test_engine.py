@@ -1074,6 +1074,68 @@ class TestWiring(unittest.TestCase):
                   "/api/calibrate", "/api/news/market", "/api/scan/start", "/api/paper"]:
             self.assertIn(p, paths)
 
+    def test_security_headers_on_html(self):
+        import webapp
+        client = webapp.app.test_client()
+        resp = client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(resp.headers.get("Referrer-Policy"),
+                         "strict-origin-when-cross-origin")
+        csp = resp.headers.get("Content-Security-Policy", "")
+        self.assertIn("frame-ancestors 'none'", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("script-src 'self';", csp + ";")
+        # jangan longgarkan script dengan 'unsafe-inline'
+        script_dir = csp.split("script-src", 1)[1].split(";", 1)[0]
+        self.assertNotIn("unsafe-inline", script_dir)
+
+    def test_no_inline_onclick_attributes(self):
+        """CSP `script-src 'self'` memblokir atribut onclick; aksi UI wajib
+        lewat delegasi `data-action` (W-0022)."""
+        js_dir = Path(__file__).resolve().parent.parent / "static" / "js"
+        offenders = [js.name for js in sorted(js_dir.glob("*.js"))
+                     if 'onclick="' in js.read_text(encoding="utf-8")]
+        self.assertEqual(offenders, [], f"atribut onclick masih ada: {offenders}")
+
+    def test_click_delegation_allowlist_no_dynamic_dispatch(self):
+        """Delegasi klik tunggal di core.js: allowlist aksi tetap, tanpa
+        dispatch dinamis window[...] (cegah permukaan injeksi baru)."""
+        core = (Path(__file__).resolve().parent.parent / "static" / "js" / "core.js").read_text(encoding="utf-8")
+        self.assertIn('document.addEventListener("click"', core)
+        self.assertIn('closest("[data-action]")', core)
+        self.assertIn("hasOwnProperty.call(CLICK_ACTIONS, action)", core)
+        self.assertNotIn("window[action]", core)
+
+    def test_security_headers_nosniff_global_no_csp_json(self):
+        import webapp
+        client = webapp.app.test_client()
+        for path in ("/health", "/api/version"):
+            resp = client.get(path)
+            self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff", path)
+            self.assertIsNone(resp.headers.get("Content-Security-Policy"), path)
+            self.assertIsNone(resp.headers.get("X-Frame-Options"), path)
+
+    def test_security_headers_sse_not_html(self):
+        """Deteksi berbasis content_type: SSE tidak boleh dapat CSP."""
+        from unittest.mock import patch
+
+        import webapp
+        with patch("screener.resolve_watchlist", return_value=[]):
+            client = webapp.app.test_client()
+            resp = client.get("/api/screen/stream?list=lq45")
+        self.assertTrue(resp.content_type.startswith("text/event-stream"))
+        self.assertIsNone(resp.headers.get("Content-Security-Policy"))
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+
+    def test_hsts_only_when_forwarded_https(self):
+        import webapp
+        client = webapp.app.test_client()
+        self.assertIsNone(client.get("/").headers.get("Strict-Transport-Security"))
+        resp = client.get("/", headers={"X-Forwarded-Proto": "https"})
+        self.assertIsNotNone(resp.headers.get("Strict-Transport-Security"))
+
 
 class TestBacktest(unittest.TestCase):
     def test_backtest_fields(self):
@@ -2508,6 +2570,155 @@ class TestNewsStoreEviction(unittest.TestCase):
         src = self._source()
         self.assertIn("_newsStore.get(card.getAttribute(\"data-news-id\"))", src)
         self.assertNotIn("_newsStore[card.getAttribute", src)
+
+
+class TestTrustedProxyHops(unittest.TestCase):
+    """W-0022: ProxyFix di-gate `TRUSTED_PROXY_HOPS`; IP klien asli dipulihkan."""
+
+    def setUp(self):
+        import os
+
+        self._old = os.environ.get("TRUSTED_PROXY_HOPS")
+
+    def tearDown(self):
+        import os
+
+        if self._old is None:
+            os.environ.pop("TRUSTED_PROXY_HOPS", None)
+        else:
+            os.environ["TRUSTED_PROXY_HOPS"] = self._old
+
+    def _hops_for(self, raw):
+        import os
+
+        import webapp
+
+        if raw is None:
+            os.environ.pop("TRUSTED_PROXY_HOPS", None)
+        else:
+            os.environ["TRUSTED_PROXY_HOPS"] = raw
+        return webapp._trusted_proxy_hops()
+
+    def test_invalid_blank_and_non_positive_fall_back_to_zero(self):
+        for raw in ("abc", "", "-1", "0", "0.5", None):
+            self.assertEqual(self._hops_for(raw), 0, f"raw={raw!r}")
+
+    def test_value_within_range_is_honored(self):
+        self.assertEqual(self._hops_for("1"), 1)
+        self.assertEqual(self._hops_for("3"), 3)
+
+    def test_value_above_max_is_clamped(self):
+        import webapp
+
+        self.assertEqual(self._hops_for("99"), webapp._TRUSTED_PROXY_HOPS_MAX)
+
+    def test_hops_zero_keeps_remote_addr_and_hops_one_uses_xff(self):
+        from werkzeug.test import Client
+
+        import webapp
+
+        captured = []
+
+        def raw_app(environ, start_response):
+            captured.append(environ.get("REMOTE_ADDR"))
+            start_response("200 OK", [("Content-Type", "text/plain")])
+            return [b""]
+
+        def call(hops, xff):
+            captured.clear()
+            client = Client(webapp._apply_proxy_fix(raw_app, hops))
+            client.get(
+                "/",
+                headers={"X-Forwarded-For": xff},
+                environ_base={"REMOTE_ADDR": "10.0.0.1"},
+            )
+            return captured[-1]
+
+        self.assertEqual(call(0, "203.0.113.7"), "10.0.0.1")
+        self.assertEqual(call(1, "203.0.113.7"), "203.0.113.7")
+        self.assertEqual(
+            call(1, "198.51.100.9, 203.0.113.7"), "203.0.113.7"
+        )
+
+
+class TestMaxBodyBytes(unittest.TestCase):
+    """W-0022: ukuran body request dibatasi `MAX_CONTENT_LENGTH` (fail-closed)."""
+
+    def setUp(self):
+        import os
+
+        import webapp
+
+        self._os = os
+        self._webapp = webapp
+        self._old_env = os.environ.get("LAUM_MAX_BODY_BYTES")
+        # `app.config` level modul: simpan agar tidak bocor ke test lain.
+        self._old_cfg = webapp.app.config.get("MAX_CONTENT_LENGTH")
+
+    def tearDown(self):
+        if self._old_env is None:
+            self._os.environ.pop("LAUM_MAX_BODY_BYTES", None)
+        else:
+            self._os.environ["LAUM_MAX_BODY_BYTES"] = self._old_env
+        if self._old_cfg is None:
+            self._webapp.app.config.pop("MAX_CONTENT_LENGTH", None)
+        else:
+            self._webapp.app.config["MAX_CONTENT_LENGTH"] = self._old_cfg
+
+    def _limit_for(self, raw):
+        if raw is None:
+            self._os.environ.pop("LAUM_MAX_BODY_BYTES", None)
+        else:
+            self._os.environ["LAUM_MAX_BODY_BYTES"] = raw
+        return self._webapp._max_body_bytes()
+
+    def test_invalid_and_non_positive_fall_back_to_default(self):
+        import webapp
+
+        for raw in ("abc", "", "0", "-1", "0.5", None):
+            self.assertEqual(self._limit_for(raw), webapp._BODY_BYTES_DEFAULT,
+                             f"raw={raw!r}")
+
+    def test_value_is_clamped_to_safe_range(self):
+        import webapp
+
+        self.assertEqual(self._limit_for("1024"), webapp._BODY_BYTES_MIN)
+        self.assertEqual(self._limit_for("999999999"), webapp._BODY_BYTES_MAX)
+        self.assertEqual(self._limit_for("2097152"), 2097152)
+
+    def test_boot_app_has_positive_limit(self):
+        import webapp
+
+        limit = webapp.app.config.get("MAX_CONTENT_LENGTH")
+        self.assertIsInstance(limit, int)
+        self.assertGreater(limit, 0)
+
+    def test_oversize_post_returns_413_json_and_handler_not_run(self):
+        from unittest.mock import patch
+
+        webapp = self._webapp
+        webapp.app.config["MAX_CONTENT_LENGTH"] = 1024
+        client = webapp.app.test_client()
+        with patch("routes.screener.state.create_scan_job") as create:
+            r = client.post("/api/scan/start", data=b"x" * 5000,
+                            content_type="application/json")
+            create.assert_not_called()
+        self.assertEqual(r.status_code, 413)
+        self.assertTrue(r.content_type.startswith("application/json"),
+                        r.content_type)
+        self.assertIn("error", r.get_json())
+
+    def test_normal_post_handler_still_runs(self):
+        from unittest.mock import patch
+
+        webapp = self._webapp
+        webapp.app.config["MAX_CONTENT_LENGTH"] = webapp._BODY_BYTES_DEFAULT
+        client = webapp.app.test_client()
+        with patch("routes.screener.state.create_scan_job", return_value="job1"), \
+                patch("routes.screener.threading.Thread"):
+            r = client.post("/api/scan/start", json={"list": "lq45"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json().get("job"), "job1")
 
 
 if __name__ == "__main__":
