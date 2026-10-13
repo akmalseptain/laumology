@@ -13,7 +13,7 @@ Menggunakan agen OpenCode yang nyata, kendali anggaran API, dan pengaman Git.
 ## Struktur
 
 ```
-.opencode/agents/            # 5 agen nyata: lead-engineer, code-engineer, quant-analyst, qa-engineer, reviewer
+.opencode/agents/            # agen nyata: lead-engineer, code-engineer, quant-analyst, qa-engineer, reviewer, security-engineer, uiux-designer, technical-analyst, fundamental-analyst, seo-engineer
 opencode.jsonc               # model + permission least-privilege (deny operasi destruktif)
 tools/warroom/
   Start-WarRoom.ps1          # terminal komando
@@ -34,7 +34,7 @@ Semua dijalankan dari root repo LAUMOLOGY.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Start-WarRoom.ps1
 ```
 Perintah dalam terminal: `help, team, status, backlog, diff, test, logs, doctor, pause, resume, stop, discuss <topik>, ask <agen> <teks>, loop, exit`.
-`ask <agen> <teks>` mengirim prompt ke satu agen (`lead|code|quant|qa|reviewer`) dengan kendali anggaran + log. `ask all <teks>` mengirim ke **kelima agen**.
+`ask <agen> <teks>` mengirim prompt ke satu agen (`lead|code|quant|qa|reviewer|security|uiux|tech|fundamental|seo`) dengan kendali anggaran + log. `ask all <teks>` mengirim ke **seluruh agen**.
 
 ### Menjalankan supervisor otonom (mode batch manual)
 ```powershell
@@ -52,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-Autonom
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\warroom\Invoke-AutonomousLoop.ps1 -Once
 ```
 Bila backlog kosong, tiap siklus otomatis melakukan **discovery+implementasi** kecil.
-Setiap siklus eksekusi menjalankan **pipeline bertahap**: Lead (rencana) → investigasi paralel (quant+qa, read-only) → implementasi (code, satu penulis) → verifikasi paralel (quant+reviewer). Hasil per siklus disimpan di `state/pipeline-<cycleId>.json`.
+Setiap siklus eksekusi menjalankan **pipeline bertahap**: Lead (rencana) → investigasi paralel (2–3 spesialis pilihan Lead, read-only) → implementasi (code, satu penulis) → verifikasi paralel (spesialis + reviewer). Hasil per siklus disimpan di `state/pipeline-<cycleId>.json`.
 Sesuaikan `CyclesPerRun`, `MaxRunMinutes`, `InterCycleDelaySeconds`, `ExecuteByDefault` di `warroom.options.psd1`.
 
 ### Memeriksa status dan anggaran

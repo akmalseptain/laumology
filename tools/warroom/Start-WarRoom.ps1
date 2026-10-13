@@ -122,6 +122,8 @@ function Show-Team {
     if ($cfg.Agents.ContainsKey('Security')) { $rows += , @('Security Engineer', $cfg.Agents.Security, '(subagent, read-only)') }
     if ($cfg.Agents.ContainsKey('UIUX')) { $rows += , @('UI/UX Designer', $cfg.Agents.UIUX, '(subagent, read-only)') }
     if ($cfg.Agents.ContainsKey('Tech')) { $rows += , @('Technical Analyst', $cfg.Agents.Tech, '(subagent, read-only)') }
+    if ($cfg.Agents.ContainsKey('Fundamental')) { $rows += , @('Fundamental Analyst', $cfg.Agents.Fundamental, '(subagent, read-only)') }
+    if ($cfg.Agents.ContainsKey('SEO')) { $rows += , @('SEO Engineer', $cfg.Agents.SEO, '(subagent, read-only)') }
     foreach ($r in $rows) {
         Write-Host ("  {0,-20} -> " -f $r[0]) -NoNewline -ForegroundColor Gray
         Write-Host ("{0,-16}" -f $r[1]) -NoNewline -ForegroundColor (Get-AgentColor -Agent $r[1])
@@ -262,7 +264,7 @@ function Show-Help {
         'resume           lanjutkan',
         'stop             minta berhenti anggun',
         'discuss <topik>  jalankan diskusi multi-agen (nyata, berbiaya)',
-        'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer) atau semua',
+        'ask <agen|all> <teks> kirim prompt ke agen (lead|code|quant|qa|reviewer|security|uiux|tech|fundamental|seo) atau semua',
         'rapat <topik>    obrolan tim bergantian (interaktif, ala chat)',
         'demo             pratinjau tampilan (tanpa biaya API)',
         'replay           tampilkan notulen/debat terakhir',
@@ -275,7 +277,7 @@ function Invoke-WarRoomAsk {
     # Kirim prompt bebas ke satu agen (dengan kendali anggaran + log).
     param([string]$Text)
     if (-not $Text -or -not $Text.Trim()) {
-        Write-Host "  Gunakan: ask <agen> <instruksi>  (agen: lead|code|quant|qa|reviewer)" -ForegroundColor Yellow
+        Write-Host "  Gunakan: ask <agen> <instruksi>  (agen: lead|code|quant|qa|reviewer|security|uiux|tech|fundamental|seo)" -ForegroundColor Yellow
         return
     }
     $p = $Text.Trim() -split '\s+', 2
@@ -288,6 +290,11 @@ function Invoke-WarRoomAsk {
     $task = Join-Path (Get-WarRoomToolDir) 'Invoke-WarRoomTask.ps1'
     if ($alias -in @('all', 'semua', '*')) {
         $names = @($cfg.Agents.Lead, $cfg.Agents.Code, $cfg.Agents.Quant, $cfg.Agents.QA, $cfg.Agents.Reviewer)
+        if ($cfg.Agents.ContainsKey('Security')) { $names += $cfg.Agents.Security }
+        if ($cfg.Agents.ContainsKey('UIUX')) { $names += $cfg.Agents.UIUX }
+        if ($cfg.Agents.ContainsKey('Tech')) { $names += $cfg.Agents.Tech }
+        if ($cfg.Agents.ContainsKey('Fundamental')) { $names += $cfg.Agents.Fundamental }
+        if ($cfg.Agents.ContainsKey('SEO')) { $names += $cfg.Agents.SEO }
         Write-Host ("  Mengirim prompt ke SEMUA agen: {0}" -f ($names -join ', ')) -ForegroundColor Cyan
         foreach ($n in $names) {
             Write-Host ("  -> {0}" -f $n) -ForegroundColor DarkGray
@@ -301,6 +308,12 @@ function Invoke-WarRoomAsk {
         'quant'    { $cfg.Agents.Quant }
         'qa'       { $cfg.Agents.QA }
         'reviewer' { $cfg.Agents.Reviewer }
+        'security' { $cfg.Agents.Security }
+        'uiux'     { $cfg.Agents.UIUX }
+        'tech'     { $cfg.Agents.Tech }
+        'technical' { $cfg.Agents.Tech }
+        'fundamental' { $cfg.Agents.Fundamental }
+        'seo'      { $cfg.Agents.SEO }
         default    { $p[0] }
     }
     Write-Host ("  Menjalankan agen '{0}'..." -f $name) -ForegroundColor Cyan

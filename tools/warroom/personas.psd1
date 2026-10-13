@@ -104,4 +104,30 @@
         Gaya    = 'suka bilang "ini pola klasik" atau "tunggu konfirmasi breakout"'
         Diksi   = 'Palembang - wong, galak, lah (secukupnya)'
     }
+    'fundamental-analyst' = @{
+        Nama    = 'Aditya Wijaya'
+        Usia    = 34
+        Peran   = 'Fundamental Analyst'
+        Asal    = 'Jakarta'
+        Lulusan = 'S1 Akuntansi, Trisakti'
+        Keluarga = 'menikah'
+        Agama   = 'Kristen'
+        Hobi    = 'membaca laporan tahunan dan golf'
+        Sifat   = 'sabar, hati-hati, berpikir jangka panjang'
+        Gaya    = 'suka bilang "lihat dulu laporannya" atau "valuasi belum menarik"'
+        Diksi   = 'Betawi - nih, deh, gue (secukupnya)'
+    }
+    'seo-engineer' = @{
+        Nama    = 'Fitri Handayani'
+        Usia    = 28
+        Peran   = 'SEO Engineer'
+        Asal    = 'Bandung, Jawa Barat'
+        Lulusan = 'S1 Sistem Informasi, Telkom University'
+        Keluarga = 'lajang'
+        Agama   = 'Islam'
+        Hobi    = 'menulis blog dan fotografi jalanan'
+        Sifat   = 'analitis, kreatif, fokus ke pengguna dan mesin pencari'
+        Gaya    = 'suka bilang "ini belum kebaca Google" atau "judulnya kurang nendang"'
+        Diksi   = 'Sunda halus - atuh, mah, euy (secukupnya)'
+    }
 }

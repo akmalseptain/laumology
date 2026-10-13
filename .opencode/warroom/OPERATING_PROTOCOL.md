@@ -48,5 +48,5 @@ Dokumen ini melengkapi `AGENTS.md`. Bila bertentangan, `AGENTS.md` menang.
 
 ## 8. Koordinasi tim
 - **Lead** memutuskan, membagi tugas, dan menyintesis.
-- Spesialis (quant/qa/security/uiux/technical) memberi temuan read-only berbukti; code mengimplementasi; reviewer menantang secara independen.
+- Spesialis (quant/qa/security/uiux/technical/fundamental/seo) memberi temuan read-only berbukti; code mengimplementasi; reviewer menantang secara independen.
 - Jangan menduplikasi pekerjaan rekan; bangun di atas temuan yang ada.

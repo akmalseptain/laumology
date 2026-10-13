@@ -94,7 +94,14 @@ def api_musyawarah():
 
 @bp.route("/api/llm/status")
 def api_llm_status():
-    return jsonify(configured=llm.configured(), model=llm._model(), prompt=llm.PROMPT_PATH.exists())
+    info = llm.prompt_info()
+    return jsonify(
+        configured=llm.configured(),
+        model=llm._model(),
+        prompt=info["source"] == "file",
+        prompt_file=info["file"],
+        prompt_source=info["source"],
+    )
 
 
 @bp.route("/api/summary")

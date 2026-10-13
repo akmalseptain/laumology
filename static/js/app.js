@@ -109,13 +109,33 @@ async function loadSummary(){
 }
 
 function showOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.add("show"); }
-function hideOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.remove("show"); try{ localStorage.setItem("sbl_onboarded","1"); }catch(e){} }
+function focusHero(){ var i=document.getElementById("heroTicker"); if(!i) return; try{ i.focus(); }catch(e){} }
+function hideOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.remove("show"); try{ localStorage.setItem("sbl_onboarded","1"); }catch(e){} focusHero(); }
 (function(){
   var b=document.getElementById("onboardClose"); if(b) b.onclick=hideOnboard;
   var h=document.getElementById("helpBtn"); if(h) h.onclick=showOnboard;
   var o=document.getElementById("onboard"); if(o) o.addEventListener("click",function(e){ if(e.target.id==="onboard") hideOnboard(); });
   var seen=false; try{ seen=!!localStorage.getItem("sbl_onboarded"); }catch(e){ seen=true; }
-  if(!seen) setTimeout(showOnboard, 700);
+  if(!seen) setTimeout(showOnboard, 700); else focusHero();
+})();
+
+/* ---------- Hero search (landing, search-first) ---------- */
+(function(){
+  var form=document.getElementById("heroForm");
+  var input=document.getElementById("heroTicker");
+  var msg=document.getElementById("heroMsg");
+  if(!form||!input) return;
+  function showMsg(t){ if(!msg) return; msg.textContent=t||""; msg.hidden=!t; }
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var raw=(input.value||"").trim().toLowerCase();
+    if(!/^[a-z0-9]{1,6}$/.test(raw)){ showMsg("Masukkan kode saham 1–6 karakter (huruf/angka)."); try{ input.focus(); }catch(_e){} return; }
+    showMsg("");
+    var main=document.getElementById("ticker"); if(main) main.value=raw.toUpperCase();
+    hideOnboard();
+    analyze();
+  });
+  input.addEventListener("input", function(){ if(msg && !msg.hidden) showMsg(""); });
 })();
 
 var TAB_ORDER=["analisis","fundamental","berita","screener","live","backtest","portofolio","akurasi","pasar","musyawarah"];
@@ -158,7 +178,7 @@ document.addEventListener("keydown",function(e){
   const defer = (fn)=> (window.requestIdleCallback ? requestIdleCallback(fn) : setTimeout(fn, 400));
   defer(()=>{
     loadSummary();
-    fetch("/api/llm/status").then(r=>r.json()).then(s=>{ const el=$("#myLlmStatus"); if(el) el.textContent = "Mode LLM: " + (s.configured ? ("siap (" + s.model + ")") : "belum dikonfigurasi (set OPENAI_API_KEY / LLM_API_KEY)") + " | prompt MD: " + (s.prompt ? "ditemukan" : "default"); }).catch(()=>{});
+    fetch("/api/llm/status").then(r=>r.json()).then(s=>{ const el=$("#myLlmStatus"); if(el){ const p = s.prompt_file ? ("berkas " + s.prompt_file + " — edit berkas ini / set LLM_PROMPT_PATH") : "bawaan — set LLM_PROMPT_PATH untuk memakai berkas sendiri"; el.textContent = "Mode LLM: " + (s.configured ? ("siap (" + s.model + ")") : "belum dikonfigurasi (set OPENAI_API_KEY / LLM_API_KEY)") + " | prompt MD: " + p; } }).catch(()=>{});
     renderWatchlist(); renderPositions(); renderAlerts(); loadHistory(); pollPortfolio();
     loadPaper(); loadDb();
     setInterval(pollPortfolio, 20000);

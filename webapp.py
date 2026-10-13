@@ -39,6 +39,7 @@ _load_dotenv()
 import state  # noqa: E402
 import store  # noqa: E402
 from routes import register as register_routes  # noqa: E402
+from routes.meta import _public_base  # noqa: E402
 
 _log = logging.getLogger("laumology.webapp")
 
@@ -95,7 +96,20 @@ def _track(resp):
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     if not request.path.startswith("/static/"):
-        resp.headers["Cache-Control"] = "no-store"
+        if request.path in ("/robots.txt", "/sitemap.xml"):
+            # Primitif crawl mesin pencari. Base kanonik divalidasi ketat dan
+            # tidak pernah memantulkan header ``Host``. Bila base tak
+            # dikonfigurasi/valid, isi respons memakai lokasi relatif →
+            # jangan cache di cache bersama (fail-closed anti cache poisoning).
+            if _public_base():
+                resp.headers["Cache-Control"] = "public, max-age=3600"
+            else:
+                resp.headers["Cache-Control"] = "no-store"
+            # Sabuk pengaman: bila kelak ada varian per-Host, cache bersama
+            # tak menyilangkan respons antar Host.
+            resp.headers.setdefault("Vary", "Host")
+        else:
+            resp.headers["Cache-Control"] = "no-store"
     # Header pembatas framing/CSP HANYA untuk dokumen HTML; deteksi lewat
     # content-type (bukan path) agar JSON/SSE (/api/screen/stream) tak rusak.
     ctype = resp.content_type or ""

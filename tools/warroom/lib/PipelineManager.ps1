@@ -20,6 +20,8 @@ function Invoke-WarRoomPipeline {
     $security = if ($cfg.Agents.ContainsKey('Security')) { $cfg.Agents.Security } else { '' }
     $uiux = if ($cfg.Agents.ContainsKey('UIUX')) { $cfg.Agents.UIUX } else { '' }
     $tech = if ($cfg.Agents.ContainsKey('Tech')) { $cfg.Agents.Tech } else { '' }
+    $fundamental = if ($cfg.Agents.ContainsKey('Fundamental')) { $cfg.Agents.Fundamental } else { '' }
+    $seo = if ($cfg.Agents.ContainsKey('SEO')) { $cfg.Agents.SEO } else { '' }
     $tuning = Get-WarRoomTuning
     if ($MaxConcurrent -le 0) { $MaxConcurrent = [int]$cfg.MaxConcurrentModelTasks }
     # Mode anggaran 'reduced': matikan paralelisme + cross-talk untuk menghemat biaya.
@@ -62,7 +64,7 @@ PETA REPO (ringkas, untuk orientasi):
 $repoMap
 
 Keluarkan: (a) masalah & bukti path:line, (b) langkah implementasi, (c) berkas yang akan diubah, (d) kriteria penerimaan, (e) risiko regresi.
-WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis PALING RELEVAN untuk tugas ini (pilihan: quant, qa, security, uiux, technical). Mereka akan menginvestigasi & memverifikasi.
+WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis PALING RELEVAN untuk tugas ini (pilihan: quant, qa, security, uiux, technical, fundamental, seo). Mereka akan menginvestigasi & memverifikasi.
 "@
     Write-StageProgress -Stages @('PLAN', 'INVESTIGATE', 'IMPLEMENT', 'VERIFY') -Current 0 -Color 'Cyan'
     Write-Section -Title ("[1/4] PLAN  -  " + $lead) -Color 'Cyan'
@@ -107,7 +109,9 @@ WAJIB tulis satu baris terakhir: PILIHAN_AGEN: a, b, c  -> pilih 1-3 spesialis P
             @('qa', $qa), @('api', $qa), @('kode', $qa), @('backend', $qa), @('test', $qa), @('uji', $qa),
             @('security', $security), @('keamanan', $security), @('input', $security), @('auth', $security),
             @('ui', $uiux), @('ux', $uiux), @('tampilan', $uiux), @('frontend', $uiux), @('desain', $uiux), @('aksesibilitas', $uiux),
-            @('technical', $tech), @('ta', $tech), @('teknikal', $tech), @('chart', $tech), @('indikator', $tech), @('price', $tech)
+            @('technical', $tech), @('ta', $tech), @('teknikal', $tech), @('chart', $tech), @('indikator', $tech), @('price', $tech),
+            @('fundamental', $fundamental), @('fundamentalis', $fundamental), @('valuasi', $fundamental), @('emiten', $fundamental), @('laporan', $fundamental),
+            @('seo', $seo), @('meta', $seo), @('metadata', $seo), @('robots', $seo), @('sitemap', $seo), @('serp', $seo)
         )) { $specMap[$pair[0]] = $pair[1] }
     $picked = @()
     if ($planText -match '(?im)^\s*PILIHAN_AGEN\s*:\s*(.+)$') {

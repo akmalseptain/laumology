@@ -543,6 +543,174 @@ class TestNews(unittest.TestCase):
             self.assertIn(key, res)
 
 
+class TestLlmPromptInfo(unittest.TestCase):
+    """W-0023: prompt LLM dapat diketahui namanya & dialihkan via LLM_PROMPT_PATH.
+
+    Env dibaca lazily di dalam fungsi (bukan konstanta import) supaya override
+    lewat ``mock.patch.dict`` benar-benar berpengaruh; ``tearDown`` memulihkan
+    lingkungan agar tidak bocor antar-tes.
+    """
+
+    def test_default_prompt_info_reports_basename_or_default(self):
+        import os
+        from unittest import mock
+
+        import llm
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LLM_PROMPT_PATH", None)
+            info = llm.prompt_info()
+        if llm.PROMPT_PATH.exists():
+            self.assertEqual(info["source"], "file")
+            self.assertEqual(info["file"], llm.PROMPT_PATH.name)
+        else:
+            self.assertEqual(info, {"file": None, "source": "default"})
+        if info["file"]:
+            self.assertNotIn(os.sep, info["file"])
+            self.assertNotIn("/", info["file"])
+
+    def test_env_override_switches_file_lazily(self):
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        import llm
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "custom-prompt.md"
+            p.write_text("---\nmeta\n---\nIsi prompt kustom", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"LLM_PROMPT_PATH": str(p)}, clear=False):
+                info = llm.prompt_info()
+                text = llm.load_prompt()
+        self.assertEqual(info, {"file": "custom-prompt.md", "source": "file"})
+        self.assertEqual(text, "Isi prompt kustom")
+
+    def test_missing_env_file_reports_default_not_file(self):
+        import os
+        from unittest import mock
+
+        import llm
+        with mock.patch.dict(os.environ, {"LLM_PROMPT_PATH": "tidak-ada-xyz.md"}, clear=False):
+            info = llm.prompt_info()
+        self.assertEqual(info, {"file": None, "source": "default"})
+
+    def test_rejects_dotfile_and_foreign_extension(self):
+        import os
+        from unittest import mock
+
+        import llm
+        for bad in (".env", "llm.json", "secrets.yaml"):
+            with mock.patch.dict(os.environ, {"LLM_PROMPT_PATH": bad}, clear=False):
+                info = llm.prompt_info()
+            self.assertEqual(info, {"file": None, "source": "default"}, bad)
+
+    def test_status_endpoint_reflects_env_override_basename(self):
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        import webapp
+        client = webapp.app.test_client()
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "custom.md"
+            p.write_text("isi prompt", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"LLM_PROMPT_PATH": str(p)}, clear=False):
+                resp = client.get("/api/llm/status")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("prompt", data)  # field lama tetap ada (kompatibel)
+        self.assertEqual(data["prompt_file"], "custom.md")
+        self.assertEqual(data["prompt_source"], "file")
+        self.assertTrue(data["prompt"])
+
+
+class TestPublicBaseCanonical(unittest.TestCase):
+    """Base kanonik SEO (robots/sitemap/canonical) tak boleh tervalidasi lemah.
+
+    Regresi anti Host-spoof/cache poisoning: env tak dikonfigurasi/invalid →
+    jalur relatif (fail-safe) + ``no-store``; env valid → absolut + cache.
+    """
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_missing_env_does_not_echo_host(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            robots = self.client.get("/robots.txt", headers={"Host": "evil.example"})
+            sitemap = self.client.get("/sitemap.xml", headers={"Host": "evil.example"})
+            home = self.client.get("/", headers={"Host": "evil.example"})
+
+        rb = robots.get_data(as_text=True)
+        sm = sitemap.get_data(as_text=True)
+        self.assertEqual(robots.status_code, 200)
+        self.assertNotIn("evil.example", rb)
+        self.assertNotIn("Sitemap:", rb)
+        self.assertEqual(robots.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(robots.headers.get("Vary"), "Host")
+        self.assertNotIn("evil.example", sm)
+        self.assertIn("<loc>/</loc>", sm)
+        self.assertEqual(sitemap.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(sitemap.headers.get("Vary"), "Host")
+        self.assertEqual(home.headers.get("Cache-Control"), "no-store")
+        self.assertNotIn("evil.example", home.get_data(as_text=True))
+        hb = home.get_data(as_text=True)
+        self.assertIn("<h1", hb)
+        self.assertIn("application/ld+json", hb)
+        self.assertIn('rel="canonical" href="/"', hb)
+        self.assertNotIn('"url":', hb)  # base kosong → url di-omit (fail-safe)
+
+    def test_invalid_env_is_ignored(self):
+        import os
+        from unittest import mock
+
+        for bad in (
+            "not-a-url",
+            "ftp://evil.example",
+            "https://evil.example/path",
+            "https://evil.example/?q=1",
+            "https://evil.example#frag",
+            "https://evil.example</loc>",
+            "https://evil.example\n<loc>x</loc>",
+        ):
+            with mock.patch.dict(os.environ, {"LAUM_PUBLIC_BASE_URL": bad}, clear=False):
+                robots = self.client.get("/robots.txt", headers={"Host": "evil.example"})
+                sitemap = self.client.get("/sitemap.xml", headers={"Host": "evil.example"})
+            rb = robots.get_data(as_text=True)
+            sm = sitemap.get_data(as_text=True)
+            self.assertNotIn("evil.example", rb, bad)
+            self.assertNotIn("evil.example", sm, bad)
+            self.assertIn("<loc>/</loc>", sm, bad)
+            self.assertEqual(robots.headers.get("Cache-Control"), "no-store", bad)
+
+    def test_valid_env_used_absolute(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            robots = self.client.get("/robots.txt", headers={"Host": "evil.example"})
+            sitemap = self.client.get("/sitemap.xml", headers={"Host": "evil.example"})
+            home = self.client.get("/", headers={"Host": "evil.example"})
+
+        rb = robots.get_data(as_text=True)
+        sm = sitemap.get_data(as_text=True)
+        self.assertNotIn("evil.example", rb)
+        self.assertIn("Sitemap: https://laumology.example/sitemap.xml", rb)
+        self.assertEqual(robots.headers.get("Cache-Control"), "public, max-age=3600")
+        self.assertIn("<loc>https://laumology.example/</loc>", sm)
+        hb = home.get_data(as_text=True)
+        self.assertIn("https://laumology.example/", hb)
+        self.assertIn("<h1", hb)
+        self.assertIn("application/ld+json", hb)
+        self.assertIn('"url": "https://laumology.example"', hb)
+
+
 class TestNewsRssFallback(unittest.TestCase):
     """Fallback sumber berita (Google News RSS) + pelaporan kegagalan jujur."""
 

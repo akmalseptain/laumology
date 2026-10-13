@@ -1,10 +1,12 @@
-﻿"""Endpoint meta: UI root, health, versi, metrik, skema, disclaimer."""
+﻿"""Endpoint meta: UI root, health, versi, metrik, skema, disclaimer, SEO."""
 from __future__ import annotations
 
+import os
 import sys
 import time
+from urllib.parse import urlsplit
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, Response, jsonify, render_template, request
 
 import state
 import store
@@ -12,10 +14,85 @@ from config import WATCHLIST_PRESETS
 
 bp = Blueprint("meta", __name__)
 
+# Karakter yang dilarang di base URL: spasi, kontrol, dan char yang bisa
+# merusak XML/robots (``<``, ``>``, ``&``, kutip). Validasi sebelum dipakai.
+_BAD_BASE_CHARS = frozenset(" \t\r\n<>&\"'")
+
+
+def _validated_base(value: str | None) -> str:
+    """Validasi base URL kanonik: hanya ``http``/``https`` + host non-kosong.
+
+    Tolak path/query/fragment, karakter kontrol/XML, dan skema lain. Bila
+    tidak valid → kembalikan ``""`` (fail-safe; JANGAN memakai input mentah).
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if any(ch in _BAD_BASE_CHARS for ch in raw) or any(
+        ord(ch) < 0x20 or ord(ch) == 0x7F for ch in raw
+    ):
+        return ""
+    try:
+        parts = urlsplit(raw)
+    except ValueError:
+        return ""
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        return ""
+    # Izinkan path kosong atau "/" (base + trailing slash); tolak path/query/
+    # fragment lain agar tak menyisipkan teks ke XML/robots.
+    if parts.path not in ("", "/") or parts.query or parts.fragment:
+        return ""
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def _public_base() -> str:
+    """Base URL kanonik publik untuk canonical/sitemap/robots.
+
+    Divalidasi ketat (``_validated_base``). TIDAK PERNAH jatuh ke
+    ``request.host_url``: jalur ini tak boleh memantulkan ``Host`` request
+    (anti Host-spoof / cache poisoning). Bila ``LAUM_PUBLIC_BASE_URL``
+    absen/invalid → ``""`` dan konsumen memakai lokasi relatif (fail-safe).
+    """
+    return _validated_base(os.environ.get("LAUM_PUBLIC_BASE_URL"))
+
 
 @bp.route("/")
 def index():
-    return render_template("index.html", presets=list(WATCHLIST_PRESETS.keys()))
+    return render_template(
+        "index.html",
+        presets=list(WATCHLIST_PRESETS.keys()),
+        canonical_base=_public_base(),
+    )
+
+
+@bp.route("/robots.txt")
+def robots():
+    base = _public_base()
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "\n"
+    )
+    # Hanya tulis ``Sitemap:`` absolut bila base kanonik valid; bila tidak,
+    # lewati agar ``Host`` request tak pernah dipantulkan.
+    if base:
+        body += f"Sitemap: {base}/sitemap.xml\n"
+    return Response(body, mimetype="text/plain")
+
+
+@bp.route("/sitemap.xml")
+def sitemap():
+    base = _public_base()
+    loc = f"{base}/" if base else "/"
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"  <url><loc>{loc}</loc><changefreq>daily</changefreq>"
+        "<priority>1.0</priority></url>\n"
+        "</urlset>\n"
+    )
+    return Response(body, mimetype="application/xml")
 
 
 @bp.route("/health")

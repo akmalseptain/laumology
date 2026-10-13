@@ -16,6 +16,8 @@
         Security = 'security-engineer'
         UIUX     = 'uiux-designer'
         Tech     = 'technical-analyst'
+        Fundamental = 'fundamental-analyst'
+        SEO      = 'seo-engineer'
     }
 
     MonthlyBudgetIDR          = 50000

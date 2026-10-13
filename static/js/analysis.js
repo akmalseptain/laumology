@@ -57,7 +57,7 @@ function render(d){
       <div class="headline">
         <span class="badge-lg s-${sc}">${d.signal}</span>
         <span class="badge-lg s-HOLD" style="margin-left:6px">${d.action}</span>
-        <h1 class="glow-text">${d.ticker}</h1>
+        <h2 class="glow-text">${d.ticker}</h2>
         <div class="price"><span id="livePrice">${idr(d.price)}</span> <span id="liveChg">${chg(d.change_1d)}</span>
           <span id="liveDot" class="live-dot" style="display:${d.live?'inline-block':'none'};vertical-align:middle;margin-left:8px"></span></div>
         <div class="meta">${d.trend} &middot; W:${d.weekly_trend} &middot; ${d.regime} &middot; Pasar:${d.market_regime||'-'} &middot; ${d.last_date} &middot; ${d.bars} bar${d.model_used?' &middot; <b>SKOR OPT</b>':''}

@@ -13,6 +13,8 @@ function Invoke-WarRoomChat {
         if ($cfg.Agents.ContainsKey('Security')) { $Agents += $cfg.Agents.Security }
         if ($cfg.Agents.ContainsKey('UIUX')) { $Agents += $cfg.Agents.UIUX }
         if ($cfg.Agents.ContainsKey('Tech')) { $Agents += $cfg.Agents.Tech }
+        if ($cfg.Agents.ContainsKey('Fundamental')) { $Agents += $cfg.Agents.Fundamental }
+        if ($cfg.Agents.ContainsKey('SEO')) { $Agents += $cfg.Agents.SEO }
         $Agents += @($cfg.Agents.Code, $cfg.Agents.Reviewer)
     }
     $Agents = @($Agents | Where-Object { $_ })

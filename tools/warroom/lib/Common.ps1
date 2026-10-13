@@ -132,6 +132,8 @@ function Get-AgentColor {
         '*uiux*'    { 'DarkYellow' }
         '*design*'  { 'DarkYellow' }
         '*tech*'    { 'Red' }
+        '*fundamental*' { 'DarkCyan' }
+        '*seo*'     { 'DarkGreen' }
         default     { 'White' }
     }
 }
@@ -168,6 +170,8 @@ function Get-AgentIcon {
         '*uiux*'   { return '[D]' }
         '*design*' { return '[D]' }
         '*tech*'   { return '[T]' }
+        '*fundamental*' { return '[F]' }
+        '*seo*'    { return '[S]' }
         default    { return '[-]' }
         }
     }
@@ -180,6 +184,8 @@ function Get-AgentIcon {
         '*uiux*'   { 0x1F3A8 }
         '*design*' { 0x1F3A8 }
         '*tech*'   { 0x1F4C8 }
+        '*fundamental*' { 0x1F4D1 }
+        '*seo*'    { 0x1F310 }
         default    { 0x1F464 }
     }
     try { return [char]::ConvertFromUtf32($cp) } catch { return '[-]' }

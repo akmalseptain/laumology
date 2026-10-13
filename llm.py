@@ -8,6 +8,20 @@ from pathlib import Path
 PROMPT_PATH = Path("gemini-code-1791271032904.md")
 CFG_PATH = Path("llm.json")
 
+# Hanya nama berkas prompt yang aman dipakai/diekspos (cegah `.env`, `llm.json`,
+# atau path absolut bocor lewat /api/llm/status).
+_ALLOWED_PROMPT_SUFFIXES = (".md", ".txt")
+
+
+def _prompt_path() -> Path:
+    """Path prompt aktif; env ``LLM_PROMPT_PATH`` dibaca lazily agar dapat diuji."""
+    raw = os.environ.get("LLM_PROMPT_PATH")
+    return Path(raw) if raw else PROMPT_PATH
+
+
+def _is_safe_prompt_name(name: str) -> bool:
+    return bool(name) and not name.startswith(".") and name.lower().endswith(_ALLOWED_PROMPT_SUFFIXES)
+
 
 def _cfg() -> dict:
     if CFG_PATH.exists():
@@ -42,9 +56,10 @@ def _model() -> str:
 
 def load_prompt() -> str:
     """System prompt diambil dari file MD (jika ada), fallback ke prompt bawaan."""
-    if PROMPT_PATH.exists():
+    path = _prompt_path()
+    if _is_safe_prompt_name(path.name) and path.exists():
         try:
-            text = PROMPT_PATH.read_text(encoding="utf-8")
+            text = path.read_text(encoding="utf-8")
             if text.startswith("---"):
                 parts = text.split("---", 2)
                 if len(parts) == 3:
@@ -56,6 +71,21 @@ def load_prompt() -> str:
         "Kamu adalah Multi-Agent Consensus System untuk analisis saham IHSG: @technical, "
         "@bandarmologi, @fundamental, @sentiment, dan @risk_moderator yang punya hak veto."
     )
+
+
+def prompt_info() -> dict:
+    """Info prompt aktif tanpa membocorkan path absolut/rahasia.
+
+    Kembalikan ``{"file": <basename|null>, "source": "file"|"default"}``.
+    """
+    try:
+        path = _prompt_path()
+        name = path.name
+        if _is_safe_prompt_name(name) and path.exists():
+            return {"file": name, "source": "file"}
+    except Exception:
+        pass
+    return {"file": None, "source": "default"}
 
 
 def chat(system: str, user: str, timeout: float = 90.0) -> str:
