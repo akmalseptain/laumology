@@ -122,7 +122,13 @@ function Get-NextBacklogItem {
     $scored = foreach ($it in $open) {
         $it | Add-Member -NotePropertyName priorityScore -NotePropertyValue (Get-BacklogPriorityScore -Item $it) -Force -PassThru
     }
-    return ($scored | Sort-Object -Property priorityScore -Descending | Select-Object -First 1)
+    # Deterministik: skor tertinggi lebih dulu; bila SERI, yang TERBARU menang
+    # (createdAt lalu id) supaya topik yang baru saja dibahas (mis. hasil 'rapat')
+    # dikerjakan sebelum item lama yang berbobot sama.
+    return ($scored | Sort-Object -Property `
+        @{ Expression = { $_.priorityScore }; Descending = $true }, `
+        @{ Expression = { [string]$_.createdAt }; Descending = $true }, `
+        @{ Expression = { [string]$_.id }; Descending = $true } | Select-Object -First 1)
 }
 
 function Get-BacklogSummary {

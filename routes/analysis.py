@@ -132,7 +132,18 @@ def api_accuracy():
         if horizons is not None:
             result = validation.accuracy_by_horizon(df, horizons=horizons)
         else:
-            result = validation.analyze_accuracy(df, horizon=horizon)
+            # Hitung indikator SEKALI dan pakai ulang untuk jalur tunggal maupun
+            # pengambilan `reliability` (hindari komputasi ganda; lihat W-0021).
+            d = validation.add_indicators(df)
+            result = validation.analyze_accuracy(df, horizon=horizon, d=d)
+            # Lampirkan verdict keandalan (additive) TANPA mengubah bentuk payload
+            # lama. Dibungkus try/except sendiri agar kegagalan `backtest`/sampel
+            # tipis tak menjatuhkan seluruh mode tunggal (fail-soft, bukan 502).
+            try:
+                band = validation.accuracy_by_horizon(df, horizons=(horizon,), d=d)
+                result["reliability"] = band["rows"][0]["reliability"]
+            except Exception:
+                result["reliability"] = None
         result["ticker"] = ticker
         return jsonify(result)
     except Exception as exc:

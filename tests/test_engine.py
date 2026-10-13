@@ -1392,6 +1392,58 @@ class TestAccuracyByHorizon(unittest.TestCase):
             self.assertIn("forward", row)
             self.assertIn("trade", row)
 
+    def test_api_accuracy_single_carries_reliability(self):
+        """W-0021: jalur tunggal memuat `reliability` enum valid & identik dgn multi."""
+        import data
+        import validation
+        import webapp
+
+        df = make_df(400)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        try:
+            client = webapp.app.test_client()
+            r = client.get("/api/accuracy?ticker=TEST&horizon=10")
+            mult = validation.accuracy_by_horizon(df, horizons=(10,))
+        finally:
+            data.get_ohlcv = old
+
+        self.assertEqual(r.status_code, 200)
+        ob = r.get_json()
+        # Bentuk payload lama tetap utuh (additive, bukan ganti konstruk).
+        for k in ("horizon", "calibration", "factors", "agreement", "ticker"):
+            self.assertIn(k, ob)
+        self.assertIn("reliability", ob)
+        rel = ob["reliability"]
+        self.assertIn(rel["level"], validation.RELIABILITY_LEVELS)
+        # Konsisten by construction dengan jalur lintas-horizon.
+        self.assertEqual(rel, mult["rows"][0]["reliability"])
+
+    def test_api_accuracy_reliability_failsoft(self):
+        """W-0021: kegagalan pelampiran `reliability` TIDAK menjatuhkan mode tunggal."""
+        import data
+        import validation
+        import webapp
+        from unittest import mock
+
+        df = make_df(400)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        try:
+            client = webapp.app.test_client()
+            with mock.patch.object(validation, "accuracy_by_horizon",
+                                   side_effect=RuntimeError("boom")):
+                r = client.get("/api/accuracy?ticker=TEST&horizon=10")
+        finally:
+            data.get_ohlcv = old
+
+        self.assertEqual(r.status_code, 200)
+        ob = r.get_json()
+        # Payload dasar tetap tersaji; hanya verdict keandalan yang absen (None).
+        for k in ("horizon", "calibration", "factors", "agreement", "ticker"):
+            self.assertIn(k, ob)
+        self.assertIsNone(ob.get("reliability"))
+
 
 class TestIndicatorStability(unittest.TestCase):
     """W-0017 lanjutan: agregasi lintas horizon + signifikansi per-indikator."""
@@ -1465,6 +1517,137 @@ class TestIndicatorStability(unittest.TestCase):
             )
             if present < len(hs):
                 self.assertFalse(st["consistent"], factor)
+
+    def test_reliability_schema_and_best_factor_gate(self):
+        """W-0021: `reliability` punya skema/enum baku & `best_factor` digerbang signifikan."""
+        import validation
+
+        df = make_df(400)
+        res = validation.accuracy_by_horizon(df, horizons=(1, 5, 10, 15))
+        levels = set(validation.RELIABILITY_LEVELS)
+
+        for row in res["rows"]:
+            fwd, tr, rel = row["forward"], row["trade"], row["reliability"]
+            for k in ("level", "has_significant", "forward_samples",
+                      "trade_sufficient", "timeout_dominated"):
+                self.assertIn(k, rel, k)
+            self.assertIn(rel["level"], levels)
+            # Skema harus konsisten dengan data row (bukan angka karangan).
+            self.assertEqual(rel["forward_samples"], fwd["samples"])
+            self.assertEqual(rel["trade_sufficient"], tr["sufficient"])
+            sig = [x for x in row["factors"] + row["candidates"] if x["significant"]]
+            self.assertEqual(rel["has_significant"], bool(sig))
+            self.assertEqual(rel["timeout_dominated"],
+                             tr["n_trades"] > 0 and tr["avg_bars"] >= row["horizon"] - 1e-9)
+            # best_factor/best_edge HANYA dari faktor signifikan; None bila kosong.
+            self.assertIn("best_factor", fwd)
+            self.assertIn("best_edge", fwd)
+            if sig:
+                best = max(sig, key=lambda x: x["edge"])
+                self.assertEqual(fwd["best_factor"], best["factor"])
+                self.assertAlmostEqual(fwd["best_edge"], best["edge"])
+            else:
+                self.assertIsNone(fwd["best_factor"])
+                self.assertIsNone(fwd["best_edge"])
+
+    def test_reliability_enum_distinguishes_timeout_from_thin_sample(self):
+        """W-0021: timeout-dominated ≠ sampel kurang; PF tak hingga ≠ sampel kurang."""
+        import validation
+
+        lvl = validation._reliability_level
+        # Timeout-dominated (mis. h=1): jangan "terbukti", jangan "sampel_kurang".
+        self.assertEqual(lvl(True, 500, True, True, 20), "belum_pasti")
+        self.assertEqual(lvl(False, 500, True, True, 20), "belum_pasti")
+        # Sampel forward tipis: "sampel_kurang".
+        self.assertEqual(lvl(False, 5, False, False, 20), "sampel_kurang")
+        # PF tak hingga (trade_sufficient False) walau sampel cukup: "belum_pasti".
+        self.assertEqual(lvl(True, 500, False, False, 20), "belum_pasti")
+        # Bukti lengkap: "terbukti"; sampel cukup tanpa signifikan: "tidak_ada_edge".
+        self.assertEqual(lvl(True, 500, True, False, 20), "terbukti")
+        self.assertEqual(lvl(False, 500, True, False, 20), "tidak_ada_edge")
+
+    def test_horizon_one_reliability_never_terbukti(self):
+        """h=1 timeout-dominated ⇒ tak pernah dilabeli 'terbukti'."""
+        import validation
+
+        res = validation.accuracy_by_horizon(make_df(400), horizons=(1,))
+        rel = res["rows"][0]["reliability"]
+        self.assertTrue(rel["timeout_dominated"])
+        self.assertNotEqual(rel["level"], "terbukti")
+
+
+class TestHorizonBandVerdict(unittest.TestCase):
+    """W-0021 lanjutan: ringkasan satu band lintas-horizon dari reliabilitas."""
+
+    @staticmethod
+    def _rows(*levels):
+        return [
+            {"horizon": h, "reliability": {"level": lvl, "has_significant": lvl == "terbukti"}}
+            for h, lvl in zip((1, 5, 10, 15), levels)
+        ]
+
+    def test_all_four_levels(self):
+        import validation
+
+        hbv = validation.horizon_band_verdict
+        self.assertEqual(hbv(self._rows("terbukti", "terbukti", "terbukti", "terbukti"))["level"], "terbukti")
+        self.assertEqual(hbv(self._rows("belum_pasti", "belum_pasti"))["level"], "belum_pasti")
+        self.assertEqual(hbv(self._rows("sampel_kurang", "sampel_kurang"))["level"], "sampel_kurang")
+        self.assertEqual(hbv(self._rows("tidak_ada_edge", "tidak_ada_edge"))["level"], "tidak_ada_edge")
+
+    def test_tidak_ada_edge_vetoes_terbukti(self):
+        import validation
+
+        band = validation.horizon_band_verdict(
+            self._rows("terbukti", "terbukti", "tidak_ada_edge", "belum_pasti")
+        )
+        self.assertEqual(band["level"], "tidak_ada_edge")
+
+    def test_timeout_belum_pasti_does_not_veto_terbukti(self):
+        """h=1 selalu timeout-dominated (belum_pasti) tak boleh mengunci band."""
+        import validation
+
+        band = validation.horizon_band_verdict(
+            self._rows("belum_pasti", "terbukti", "belum_pasti", "belum_pasti")
+        )
+        self.assertEqual(band["level"], "terbukti")
+        self.assertEqual(band["n_terbukti"], 1)
+
+    def test_sampel_kurang_outranks_belum_pasti(self):
+        import validation
+
+        band = validation.horizon_band_verdict(self._rows("sampel_kurang", "belum_pasti"))
+        self.assertEqual(band["level"], "sampel_kurang")
+
+    def test_empty_and_single_horizon_safe(self):
+        import validation
+
+        hbv = validation.horizon_band_verdict
+        self.assertIsNone(hbv([])["level"])
+        self.assertIsNone(hbv(None)["level"])
+        one = hbv(self._rows("terbukti"))
+        self.assertEqual(one["level"], "terbukti")
+        self.assertEqual(one["n_horizons"], 1)
+
+    def test_balanced_counts(self):
+        import validation
+
+        band = validation.horizon_band_verdict(
+            self._rows("terbukti", "belum_pasti", "terbukti", "tidak_ada_edge")
+        )
+        self.assertEqual(band["n_horizons"], 4)
+        self.assertEqual(band["n_terbukti"], 2)
+        self.assertEqual(band["n_significant_horizons"], 2)
+        self.assertEqual(band["horizons"], [1, 5, 10, 15])
+
+    def test_accuracy_payload_carries_band_verdict(self):
+        import validation
+
+        res = validation.accuracy_by_horizon(make_df(400), horizons=(1, 5, 10, 15))
+        band = res["band_verdict"]
+        self.assertEqual(band["level"], validation.horizon_band_verdict(res["rows"])["level"])
+        self.assertEqual(band["n_horizons"], len(res["rows"]))
+        self.assertEqual(band["horizons"], [1, 5, 10, 15])
 
 
 class TestRisk(unittest.TestCase):

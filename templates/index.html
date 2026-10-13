@@ -362,12 +362,13 @@
   <section class="panel" id="panel-akurasi">
     <div class="panel-head">
       <h2>Akurasi</h2>
-      <p>Uji win-rate dan forward return historis per indikator dan tingkat skor.</p>
+      <p>Uji win-rate dan forward return historis per indikator dan tingkat skor. Mode lintas-horizon meringkas reliabilitas 1–15 bar jadi satu verdict band.</p>
     </div>
     <div class="card">
       <div class="toolbar">
         <div class="field"><label>Symbol</label><input id="acTicker" value="PTBA" style="width:140px"></div>
         <div class="field w-lg"><label>Horizon (bar)</label><input id="acHorizon" type="number" value="10"></div>
+        <label class="toggle" data-tip="Uji 1/5/10/15 bar sekali jalan; input Horizon di atas diabaikan saat aktif"><input type="checkbox" id="acMulti"> Lintas-horizon</label>
         <button class="btn" id="acRun">Uji Akurasi</button>
       </div>
       <p class="muted note">Uji statistik historis, bukan jaminan masa depan.</p>

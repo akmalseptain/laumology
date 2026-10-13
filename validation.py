@@ -28,6 +28,87 @@ MIN_EDGE = 0.03
 # Tingkat keyakinan 95% (z dua sisi) untuk batas bawah Wilson.
 WILSON_Z = 1.96
 
+# Enum keandalan (reliability) per horizon — W-0021. Sengaja dibedakan TEGAS:
+#   - "terbukti"       : ada faktor signifikan ∧ sampel forward & trade cukup ∧ tak timeout-dominated
+#   - "belum_pasti"    : ada sinyal/edge tapi bukti belum kuat (timeout-dominated,
+#                        atau trade belum cukup termasuk PF tak hingga)
+#   - "sampel_kurang"  : sampel forward < min_n (populasi kurang, BUKAN sekadar timeout)
+#   - "tidak_ada_edge" : sampel cukup tapi tak ada faktor signifikan
+RELIABILITY_LEVELS = ("terbukti", "belum_pasti", "sampel_kurang", "tidak_ada_edge")
+
+
+def _reliability_level(has_sig: bool, fwd_samples: int, trade_sufficient: bool,
+                       timeout_dominated: bool, min_n: int) -> str:
+    """Klasifikasi kejujuran bukti per horizon (W-0021).
+
+    Murni (tanpa state). `timeout_dominated` (mis. horizon=1 pada `max_hold=1`,
+    populasi trade didominasi TIMEOUT) TIDAK boleh terbaca "sampel_kurang":
+    keduanya dibedakan agar point-estimate rapuh tidak diklaim "terbukti".
+    Catatan: `profit_factor` tak hingga → `trade_sufficient=False` walau sampel
+    cukup; kondisi itu jatuh ke "belum_pasti", bukan "sampel_kurang".
+    """
+    if timeout_dominated:
+        return "belum_pasti"
+    if fwd_samples < min_n:
+        return "sampel_kurang"
+    if has_sig and trade_sufficient:
+        return "terbukti"
+    if has_sig:
+        return "belum_pasti"
+    return "tidak_ada_edge"
+
+
+def horizon_band_verdict(rows: list[dict] | None) -> dict:
+    """Ringkas reliabilitas lintas-horizon jadi SATU verdict band (W-0021 lanjutan).
+
+    Murni (tanpa state/I/O): hanya membaca `row["reliability"]["level"]` +
+    `"has_significant"`. Dipakai panel Akurasi multi-horizon (1/5/10/15 bar ⇒
+    band "harian–3 mingguan") agar headline tidak lagi memakai edge titik mentah
+    yang bisa overclaim saat tiap horizon berlabel "tanpa edge".
+
+    Aturan (dibakukan dari reaksi tim, bukan sekadar urutan naif):
+      - `tidak_ada_edge` MENVETO: satu horizon sampel-cukup-tanpa-edge sudah
+        cukup menolak klaim "terbukti" — jangan overclaim.
+      - `terbukti` bila ADA horizon `terbukti` ∧ TAK ada `tidak_ada_edge`.
+        Horizon h=1 yang selalu timeout-dominated (`belum_pasti`, artefak
+        `max_hold=1`) TIDAK memveto; kalau ia memveto, band tak akan pernah
+        "terbukti" karena default horizon selalu memuat 1.
+      - lalu `sampel_kurang` bila ada; sisanya `belum_pasti`.
+    """
+    levels: list[str] = []
+    horizons: list[int] = []
+    n_significant = 0
+    for row in rows or []:
+        rel = row.get("reliability") or {}
+        lvl = rel.get("level")
+        if lvl not in RELIABILITY_LEVELS:
+            continue
+        levels.append(lvl)
+        try:
+            horizons.append(int(row.get("horizon")))
+        except (TypeError, ValueError):
+            pass
+        if rel.get("has_significant"):
+            n_significant += 1
+    present = set(levels)
+    if not present:
+        level = None
+    elif "tidak_ada_edge" in present:
+        level = "tidak_ada_edge"
+    elif "terbukti" in present:
+        level = "terbukti"
+    elif "sampel_kurang" in present:
+        level = "sampel_kurang"
+    else:
+        level = "belum_pasti"
+    return {
+        "level": level,
+        "n_horizons": len(levels),
+        "n_terbukti": levels.count("terbukti"),
+        "n_significant_horizons": n_significant,
+        "horizons": horizons,
+    }
+
 
 def wilson_lower_bound(p: float, n: int, z: float = WILSON_Z) -> float:
     """Batas bawah interval keyakinan Wilson untuk proporsi `p` dari `n` sampel.
@@ -147,6 +228,7 @@ def accuracy_by_horizon(
     horizons: tuple[int, ...] = (1, 5, 10, 15),
     min_n: int = 20,
     min_edge: float = MIN_EDGE,
+    d: pd.DataFrame | None = None,
 ) -> dict:
     """Studi akurasi lintas horizon (W-0017) — READ-ONLY & additive.
 
@@ -160,9 +242,16 @@ def accuracy_by_horizon(
     Indikator dihitung SEKALI (`d`) lalu dipakai ulang tiap horizon/metrik.
     `trade` ditandai `sufficient=False` bila `n_trades < min_n`; `profit_factor`
     `None` bila tak hingga (tak ada trade rugi). Tiap entri `factors`/`candidates`
-    memuat `win_rate_lo` + `significant`. `indicator_stability` merangkum lintas
-    horizon (`avg_edge` dibobot `n`; `consistent` = hadir di semua `hs`, ≥2
-    horizon, edge>0 di tiap horizon). Tidak menyentuh skor/rumus.
+    memuat `win_rate_lo` + `significant`. Tiap row memuat `reliability` (enum
+    `RELIABILITY_LEVELS`, lihat `_reliability_level`): penanda "cocok/belum pasti"
+    per horizon — `best_factor`/`best_edge` HANYA dari faktor `significant`, `None`
+    bila tak ada.     `indicator_stability` merangkum lintas horizon (`avg_edge`
+    dibobot `n`; `consistent` = hadir di semua `hs`, ≥2 horizon, edge>0 di tiap
+    horizon).     `band_verdict` = ringkasan SATU band reliabilitas lintas-horizon
+    (`horizon_band_verdict`), sedangkan tabel stabilitas tetap berbasis edge
+    forward titik per-indikator — beda konstruk. Tidak menyentuh skor/rumus.
+    `d` opsional: hasil `add_indicators` yang sudah dihitung agar tidak mengulang
+    (lihat `analyze_accuracy`). Bila `None`, dihitung sendiri.
     """
     from backtest import backtest
 
@@ -170,7 +259,7 @@ def accuracy_by_horizon(
     if not hs:
         raise ValueError("horizons kosong (minimal satu horizon > 0)")
 
-    d = add_indicators(df)
+    d = add_indicators(df) if d is None else d
     rows: list[dict] = []
     for h in hs:
         acc = analyze_accuracy(df, horizon=h, min_n=min_n, min_edge=min_edge, d=d)
@@ -196,9 +285,25 @@ def accuracy_by_horizon(
              "edge": c["edge"], "candidate": True}
             for c in acc["candidates"]
         ]
-        best = max(factors + candidates, key=lambda x: x["edge"], default=None)
+        # `best` HANYA dari faktor signifikan: point-estimate tanpa gerbang
+        # signifikansi tak layak dipromosikan sebagai "yang terbaik" (W-0021).
+        best_pool = [x for x in (factors + candidates) if x["significant"]]
+        best = max(best_pool, key=lambda x: x["edge"], default=None)
         tr = bt.trades
         pf = float(bt.profit_factor) if math.isfinite(bt.profit_factor) else None
+        avg_bars = float(tr["bars"].mean()) if not tr.empty else 0.0
+        trade_sufficient = bt.n_trades >= min_n and pf is not None
+        # Timeout-dominated: trade rata-rata keluar persis di batas `max_hold`
+        # (mis. horizon=1) ⇒ populasi didominasi TIMEOUT, bukan TP/SL.
+        timeout_dominated = bool(bt.n_trades > 0 and avg_bars >= h - 1e-9)
+        has_sig = bool(best_pool)
+        reliability = _reliability_level(
+            has_sig=has_sig,
+            fwd_samples=acc["samples"],
+            trade_sufficient=trade_sufficient,
+            timeout_dominated=timeout_dominated,
+            min_n=min_n,
+        )
 
         rows.append({
             "horizon": h,
@@ -217,8 +322,15 @@ def accuracy_by_horizon(
                 "win_rate": bt.win_rate if bt.n_trades else None,
                 "profit_factor": pf,
                 "expectancy": bt.expectancy if bt.n_trades else None,
-                "avg_bars": float(tr["bars"].mean()) if not tr.empty else 0.0,
-                "sufficient": bt.n_trades >= min_n and pf is not None,
+                "avg_bars": avg_bars,
+                "sufficient": trade_sufficient,
+            },
+            "reliability": {
+                "level": reliability,
+                "has_significant": has_sig,
+                "forward_samples": int(acc["samples"]),
+                "trade_sufficient": trade_sufficient,
+                "timeout_dominated": timeout_dominated,
             },
         })
 
@@ -268,7 +380,8 @@ def accuracy_by_horizon(
     indicator_stability.sort(key=lambda x: x["avg_edge"], reverse=True)
 
     return {"horizons": hs, "min_n": int(min_n), "rows": rows,
-            "indicator_stability": indicator_stability}
+            "indicator_stability": indicator_stability,
+            "band_verdict": horizon_band_verdict(rows)}
 
 
 def calibrate(tickers: list[str], horizon: int | None = None, min_edge: float = MIN_EDGE, min_tickers: int = 5) -> dict:

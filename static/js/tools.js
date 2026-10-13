@@ -93,11 +93,85 @@ async function runBacktest(){
 }
 
 /* ---------- Accuracy / edge study ---------- */
-$("#acRun").onclick = runAccuracy;
-async function runAccuracy(){
-  const t=($("#acTicker").value||"").trim().toUpperCase(); if(!t) return;
-  showStatus("Mengukur akurasi...", true); $("#acRun").disabled=true;
-  try{
+function acHorizonLabel(h){
+  if(h===1) return "Harian (1 bar)";
+  if(h>=5 && h<=10) return "Swing ("+h+" bar)";
+  if(h>=11 && h<=20) return "3-Mingguan ("+h+" bar)";
+  return h+" bar";
+}
+function acReliabilityBadge(rel){
+  const r=rel||{}, lvl=r.level;
+  const tip='signifikan='+(r.has_significant?'ya':'tidak')
+    +'; sampel fwd='+(r.forward_samples==null?'-':r.forward_samples)
+    +'; trade cukup='+(r.trade_sufficient?'ya':'tidak')
+    +'; timeout-dominated='+(r.timeout_dominated?'ya':'tidak');
+  const map={
+    'terbukti':'<span class="v-up" title="'+tip+'">terbukti</span>',
+    'belum_pasti':'<span class="v-muted" title="'+tip+'">belum pasti</span>',
+    'sampel_kurang':'<span class="v-red" title="'+tip+'">sampel kurang</span>',
+    'tidak_ada_edge':'<span style="color:#8a9a90" title="'+tip+'">tanpa edge</span>'
+  };
+  return map[lvl]||'<span class="v-muted" title="'+tip+'">&mdash;</span>';
+}
+function acBandVerdictHtml(band){
+  const b=(band&&typeof band==='object')?band:null;
+  if(!b||!b.level||!b.n_horizons) return '<span class="v-muted">&mdash;</span>';
+  const map={
+    'terbukti':'<span class="v-up">terbukti</span>',
+    'belum_pasti':'<span class="v-muted">belum pasti</span>',
+    'sampel_kurang':'<span class="v-red">sampel kurang</span>',
+    'tidak_ada_edge':'<span style="color:#8a9a90">tanpa edge</span>'
+  };
+  const lbl=map[b.level]||'<span class="v-muted">&mdash;</span>';
+  return '<span class="v-white">Band harian–3 mingguan:</span> '+lbl
+    +' <span class="v-muted" style="font-size:11px">('+b.n_terbukti+'/'+b.n_horizons
+    +' horizon terbukti, '+b.n_significant_horizons+' signifikan)</span>';
+}
+async function runAccuracyMulti(t){
+  const HS=[1,5,10,15];
+  const r=await fetch(`/api/accuracy?ticker=${encodeURIComponent(t)}&horizons=${HS.join(",")}`);
+  const d=await r.json(); if(d.error) throw new Error(d.error);
+  const pct=(v)=> v==null?"-":(Number(v)*100).toFixed(1)+"%";
+  const num=(v)=> v==null?"-":Number(v).toFixed(2);
+  const minN=(d.min_n==null)?20:d.min_n;
+  const rowsIn=(Array.isArray(d.rows)?d.rows:[]).slice(0,4);
+  if(!rowsIn.length) throw new Error("Tidak ada data horizon");
+  const hRows=rowsIn.map(row=>{
+    try{
+      const h=Number(row.horizon), f=row.forward||{}, tr=row.trade||{};
+      const pf=tr.profit_factor==null?"~":num(tr.profit_factor);
+      const rel=acReliabilityBadge(row.reliability);
+      return '<tr><td style="text-align:left">'+acHorizonLabel(h)+'</td><td>'+h+'</td>'
+        +'<td>'+pct(f.win_rate)+'</td>'
+        +'<td class="'+((f.avg_ret==null||f.avg_ret>=0)?'v-up':'v-red')+'">'+num(f.avg_ret)+'%</td>'
+        +'<td>'+(f.samples==null?'-':f.samples)+'</td>'
+        +'<td>'+(tr.n_trades==null?'-':tr.n_trades)+'</td>'
+        +'<td>'+pct(tr.win_rate)+'</td><td>'+pf+'</td><td>'+num(tr.avg_bars)+'</td>'
+        +'<td>'+rel+'</td></tr>';
+    }catch(err){ return ''; }
+  }).filter(Boolean).join("");
+  const stab=(Array.isArray(d.indicator_stability)?d.indicator_stability:[]);
+  const verdict=acBandVerdictHtml(d.band_verdict);
+  const stabRows=stab.slice(0,12).map(x=>'<tr>'
+    +'<td style="text-align:left">'+(x.candidate?'<b>'+x.factor+'</b>':x.factor)+'</td>'
+    +'<td>'+x.n_horizons+'</td><td>'+x.n_positive_edge+'</td><td>'+x.n_significant+'</td>'
+    +'<td class="'+(x.avg_edge>=0?'v-up':'v-red')+'">'+(x.avg_edge>=0?'+':'')+pct(x.avg_edge)+'</td>'
+    +'<td>'+(x.consistent?'<span class="v-up">konsisten</span>':'<span style="color:#8a9a90">&mdash;</span>')+'</td>'
+    +'</tr>').join("") || '<tr><td colspan="6" style="text-align:center;color:#8a9a90">data kurang</td></tr>';
+  $("#acResult").innerHTML=`
+    <div class="grid">
+      <div class="metric hl"><div class="k">Horizon Diuji</div><div class="v v-white">${rowsIn.length}</div></div>
+      <div class="metric"><div class="k">Verdict Band</div><div class="v" style="font-size:12px;line-height:1.35">${verdict}</div></div>
+      <div class="metric"><div class="k">Min Sampel/Trade</div><div class="v v-muted">${minN}</div></div>
+      <div class="metric"><div class="k">Ticker</div><div class="v v-white">${d.ticker||t}</div></div>
+    </div>
+    <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Win-rate per horizon (Forward = arah return; Trade = populasi TP/SL, berbeda)</div>
+    <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Horizon</th><th>Bar</th><th>Fwd WR</th><th>Fwd Avg</th><th>Fwd N</th><th>Trade N</th><th>Trade WR</th><th>PF</th><th>Avg Bar</th><th>Reliabilitas</th></tr></thead><tbody>${hRows}</tbody></table></div>
+    <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Stabilitas indikator lintas horizon (edge forward titik per-indikator — beda konstruk dari verdict band di atas)</div>
+    <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Indikator</th><th>Hadir</th><th>Edge&gt;0</th><th>Signifikan</th><th>Avg Edge</th><th>Konsisten Edge&gt;0</th></tr></thead><tbody>${stabRows}</tbody></table></div>
+    <div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Reliabilitas per horizon: <b class="v-up">terbukti</b> = ada faktor signifikan &amp; sampel/trade cukup; <b class="v-muted">belum pasti</b> = sinyal ada tapi bukti belum kuat (mis. 1-bar timeout-dominated); <b class="v-red">sampel kurang</b> = sampel forward &lt; ${minN}; <b style="color:#8a9a90">tanpa edge</b> = sampel cukup tapi tak ada faktor signifikan. Verdict band (1–15 bar) = ringkasan reliabilitas: tanpa edge menveto; selain itu <b class="v-up">terbukti</b> bila ada horizon terbukti — horizon 1-bar yang timeout-dominated tidak memveto. Tabel stabilitas tetap <b>edge forward titik</b> per indikator (kolom "Konsisten Edge&gt;0"), jadi beda konstruk dari verdict band. Skor/rumus tidak diubah.</div>`;
+}
+async function runAccuracySingle(t){
     const r=await fetch(`/api/accuracy?ticker=${encodeURIComponent(t)}&horizon=${$("#acHorizon").value||10}`);
     const d=await r.json(); if(d.error) throw new Error(d.error);
     const pct=(v)=> v==null?"-":(Number(v)*100).toFixed(1)+"%";
@@ -105,19 +179,31 @@ async function runAccuracy(){
     const calRows=(d.calibration||[]).map(x=>'<tr><td style="text-align:left">'+x.bucket+'</td><td>'+x.n+'</td><td>'+pct(x.win_rate)+'</td><td>'+num(x.avg_ret)+'%</td><td class="'+(x.edge>=0?'v-up':'v-red')+'">'+(x.edge==null?'':(x.edge>=0?'+':'')+pct(x.edge))+'</td></tr>').join("");
     const agrRows=(d.agreement||[]).map(x=>'<tr><td style="text-align:left">'+x.bucket+'</td><td>'+x.n+'</td><td>'+pct(x.win_rate)+'</td><td>'+num(x.avg_ret)+'%</td></tr>').join("");
     const facRows=(d.factors||[]).map(x=>'<tr><td style="text-align:left">'+x.factor+'</td><td>'+x.n+'</td><td>'+pct(x.win_rate)+'</td><td>'+num(x.avg_ret)+'%</td><td class="'+(x.edge>=0?'v-up':'v-red')+'">'+(x.edge>=0?'+':'')+pct(x.edge)+'</td></tr>').join("");
+    const relBadge=acReliabilityBadge(d.reliability);
+    const minN=(d.min_n==null)?20:d.min_n;
     $("#acResult").innerHTML=`
       <div class="grid">
         <div class="metric hl"><div class="k">Base Win Rate</div><div class="v v-white">${pct(d.base_win_rate)}</div></div>
         <div class="metric"><div class="k">Base Avg Return</div><div class="v v-muted">${num(d.base_avg_ret)}%</div></div>
         <div class="metric"><div class="k">Sampel</div><div class="v v-white">${d.samples}</div></div>
         <div class="metric"><div class="k">Horizon</div><div class="v v-muted">${d.horizon} bar</div></div>
+        <div class="metric"><div class="k">Reliabilitas</div><div class="v" style="font-size:12px;line-height:1.35">${relBadge}</div></div>
       </div>
       <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Kalibrasi Skor vs Hasil (${d.horizon} bar)</div>
       <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Bucket Skor</th><th>N</th><th>Win Rate</th><th>Avg Fwd Ret</th><th>Edge</th></tr></thead><tbody>${calRows}</tbody></table></div>
       <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Konfluensi: jumlah faktor setuju vs hasil</div>
       <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Faktor Setuju</th><th>N</th><th>Win Rate</th><th>Avg Fwd Ret</th></tr></thead><tbody>${agrRows}</tbody></table></div>
       <div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Edge per Indikator (diurutkan)</div>
-      <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Faktor</th><th>N</th><th>Win Rate</th><th>Avg Fwd Ret</th><th>Edge</th></tr></thead><tbody>${facRows}</tbody></table></div>`;
+      <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Faktor</th><th>N</th><th>Win Rate</th><th>Avg Fwd Ret</th><th>Edge</th></tr></thead><tbody>${facRows}</tbody></table></div>
+      <div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Reliabilitas horizon ini: <b class="v-up">terbukti</b> = ada faktor signifikan &amp; sampel/trade cukup; <b class="v-muted">belum pasti</b> = sinyal ada tapi bukti belum kuat (mis. timeout-dominated); <b class="v-red">sampel kurang</b> = sampel forward &lt; ${minN}; <b style="color:#8a9a90">tanpa edge</b> = sampel cukup tapi tak ada faktor signifikan. Edge titik mentah pada tabel di atas <b>bukan</b> bukti keandalan — baca verdict ini. Skor/rumus tidak diubah.</div>`;
+}
+$("#acRun").onclick = runAccuracy;
+async function runAccuracy(){
+  const t=($("#acTicker").value||"").trim().toUpperCase(); if(!t) return;
+  const multi=!!(($("#acMulti")||{}).checked);
+  showStatus(multi?"Mengukur akurasi lintas-horizon...":"Mengukur akurasi...", true); $("#acRun").disabled=true;
+  try{
+    if(multi){ await runAccuracyMulti(t); } else { await runAccuracySingle(t); }
     showStatus("Selesai");
   }catch(e){ $("#acResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
   finally{ $("#acRun").disabled=false; }
