@@ -86,6 +86,16 @@ def panduan():
     )
 
 
+@bp.route("/indikator-saham")
+def indikator_saham():
+    """Glosarium indikator saham IDX (konten statis, server-rendered)."""
+    return render_template(
+        "indikator-saham.html",
+        canonical_base=_public_base(),
+        content_lastmod=_CONTENT_LASTMOD,
+    )
+
+
 @bp.route("/robots.txt")
 def robots():
     base = _public_base()
@@ -108,6 +118,7 @@ def sitemap():
     loc = f"{base}/" if base else "/"
     about_loc = f"{base}/tentang" if base else "/tentang"
     panduan_loc = f"{base}/panduan" if base else "/panduan"
+    indikator_loc = f"{base}/indikator-saham" if base else "/indikator-saham"
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -118,6 +129,9 @@ def sitemap():
         "<changefreq>weekly</changefreq>"
         "<priority>0.8</priority></url>\n"
         f"  <url><loc>{panduan_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
+        "<changefreq>weekly</changefreq>"
+        "<priority>0.7</priority></url>\n"
+        f"  <url><loc>{indikator_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
         "<changefreq>weekly</changefreq>"
         "<priority>0.7</priority></url>\n"
         "</urlset>\n"

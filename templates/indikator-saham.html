@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<!-- LAUMOLOGY - Indikator Saham. Developed by AKMALSEPTAIN. -->
+<meta name="author" content="AKMALSEPTAIN">
+<meta name="description" content="Glosarium indikator saham IDX yang dipakai LAUMOLOGY: RSI, MACD, Bollinger Bands, ADX, SuperTrend, ATR, Stochastic, OBV, MFI, Ichimoku, VWAP, dan Squeeze Momentum — definisi dan cara bacanya.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Indikator Saham IDX · Glosarium RSI, MACD, Bollinger &amp; Lainnya</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/static/laumology.svg">
+<link rel="canonical" href="{{ canonical_base }}/indikator-saham">
+<meta name="theme-color" content="#16a34a">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="LAUMOLOGY">
+<meta property="og:locale" content="id_ID">
+<meta property="og:title" content="Indikator Saham IDX · Glosarium RSI, MACD, Bollinger &amp; Lainnya">
+<meta property="og:description" content="Kenali 12 indikator saham inti LAUMOLOGY: RSI, MACD, Bollinger Bands, ADX, SuperTrend, ATR, Stochastic, OBV, MFI, Ichimoku, VWAP, dan Squeeze.">
+<meta property="og:url" content="{{ canonical_base }}/indikator-saham">
+<meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Indikator Saham IDX · Glosarium RSI, MACD, Bollinger &amp; Lainnya">
+<meta name="twitter:description" content="Kenali 12 indikator saham inti LAUMOLOGY: RSI, MACD, Bollinger Bands, ADX, SuperTrend, ATR, Stochastic, OBV, MFI, Ichimoku, VWAP, dan Squeeze.">
+<meta name="twitter:image" content="{{ canonical_base }}/static/og-cover.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "LAUMOLOGY"{% if canonical_base %},
+  "url": {{ canonical_base|tojson }},
+  "logo": {{ (canonical_base ~ "/static/laumology.svg")|tojson }}{% endif %}
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  {% if canonical_base %}"url": {{ (canonical_base ~ "/indikator-saham")|tojson }},{% endif %}
+  "inLanguage": "id-ID",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Apa itu indikator saham?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Indikator saham adalah perhitungan berbasis harga dan volume yang dipakai untuk membaca tren, momentum, volatilitas, dan volume, sehingga keputusan analisis teknikal punya dasar yang bisa diukur."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Apa perbedaan indikator tren dan momentum?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Indikator tren (mis. ADX, SuperTrend) mengukur arah dan kekuatan tren, sedangkan indikator momentum (mis. RSI, MACD, Stochastic) mengukur kecepatan perubahan harga."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Indikator saham mana yang paling akurat?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Tidak ada indikator tunggal yang selalu akurat. LAUMOLOGY memakai konfluensi beberapa indikator sekaligus agar satu sinyal dikuatkan oleh bukti dari sudut yang berbeda."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Apa itu RSI dan bagaimana cara membacanya?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "RSI (Relative Strength Index) adalah osilator momentum berskala 0-100. Nilai di atas 70 umumnya menandakan jenuh beli, di bawah 30 menandakan jenuh jual."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Apakah indikator saham menjamin keuntungan?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Tidak. Indikator adalah alat bantu analisis dan edukasi, bukan jaminan hasil. Selalu padukan dengan manajemen risiko dan riset mandiri."
+      }
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Beranda"{% if canonical_base %},
+      "item": {{ (canonical_base ~ "/")|tojson }}{% endif %}
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Indikator Saham"{% if canonical_base %},
+      "item": {{ (canonical_base ~ "/indikator-saham")|tojson }}{% endif %}
+    }
+  ]
+}
+</script>
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  .doc-wrap{max-width:840px;margin:0 auto;padding:32px 20px 8px}
+  .doc-wrap h1{font-family:var(--display-font);font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}
+  .doc-wrap h2{font-family:var(--display-font);font-size:20px;letter-spacing:-.01em;margin:30px 0 10px}
+  .doc-wrap h3{font-family:var(--display-font);font-size:16px;margin:22px 0 6px}
+  .doc-wrap p{color:var(--foreground);margin:0 0 12px}
+  .doc-wrap ul,.doc-wrap ol{margin:0 0 12px;padding-left:22px}
+  .doc-wrap li{margin:0 0 7px}
+  .doc-lead{font-size:16px;color:var(--muted)}
+  .doc-crumbs{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .doc-crumbs a{color:var(--brand);text-decoration:none}
+  .doc-callout{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-lg);padding:16px 18px;margin:18px 0}
+  .doc-callout h2{margin-top:0}
+  .doc-back{margin:26px 0 0}
+  .glos-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+  .glos-card{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-lg);padding:14px 16px}
+  .glos-card h3{margin:0 0 6px}
+  .glos-card p{margin:0;font-size:14px;color:var(--muted)}
+  @media (max-width:640px){.glos-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="hwrap">
+    <a class="brand" href="/" aria-label="LAUMOLOGY">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
+    </a>
+  </div>
+</header>
+
+<main>
+  <article class="doc-wrap">
+    <nav class="doc-crumbs" aria-label="Breadcrumb"><a href="/">Beranda</a> &rsaquo; <span>Indikator Saham</span></nav>
+    <h1>Glosarium Indikator Saham IDX</h1>
+    <p class="doc-lead">Berikut dua belas indikator saham inti yang benar-benar dihitung mesin LAUMOLOGY. Setiap definisi menjelaskan apa yang diukur indikator tersebut dan bagaimana ia dipakai dalam analisis teknikal saham Bursa Efek Indonesia. Untuk alur lengkapnya, lihat <a href="/panduan">Panduan Analisis</a>.</p>
+
+    <h2>Indikator tren</h2>
+    <div class="glos-grid">
+      <div class="glos-card">
+        <h3>ADX (Average Directional Index)</h3>
+        <p>Mengukur kekuatan tren tanpa peduli arahnya. Nilai tinggi menandakan tren kuat, nilai rendah menandakan pasar menyamping (ranging).</p>
+      </div>
+      <div class="glos-card">
+        <h3>SuperTrend</h3>
+        <p>Indikator mengikuti tren berbasis ATR. Garisnya memetakan level stop yang bergeser mengikuti arah tren; harga di atas garis berarti tren naik.</p>
+      </div>
+      <div class="glos-card">
+        <h3>Ichimoku</h3>
+        <p>Rangkaian garis (Tenkan, Kijun, dan awan) yang sekaligus menggambarkan tren, support/resistance, dan momentum dalam satu pandangan.</p>
+      </div>
+      <div class="glos-card">
+        <h3>VWAP (Volume Weighted Average Price)</h3>
+        <p>Harga rata-rata tertimbang volume dalam satu periode. Acuan apakah harga diperdagangkan di atas atau di bawah harga rata-rata pelaku pasar.</p>
+      </div>
+    </div>
+
+    <h2>Indikator momentum</h2>
+    <div class="glos-grid">
+      <div class="glos-card">
+        <h3>RSI (Relative Strength Index)</h3>
+        <p>Osilator berskala 0-100 yang membandingkan besaran kenaikan dan penurunan. Di atas 70 cenderung jenuh beli, di bawah 30 jenuh jual.</p>
+      </div>
+      <div class="glos-card">
+        <h3>MACD</h3>
+        <p>Selisih dua EMA yang disandingkan dengan garis sinyal. Persilangannya dipakai untuk membaca perubahan arah momentum.</p>
+      </div>
+      <div class="glos-card">
+        <h3>Stochastic</h3>
+        <p>Membandingkan harga penutupan dengan rentang tinggi-rendah periode tertentu. Membantu menandai kondisi jenuh beli/jual jangka pendek.</p>
+      </div>
+      <div class="glos-card">
+        <h3>Squeeze Momentum</h3>
+        <p>Mendeteksi momen volatilitas menyempit (Bollinger masuk ke dalam Keltner) sebelum pelepasan arah, lalu mengukur dorongan momentumnya.</p>
+      </div>
+    </div>
+
+    <h2>Indikator volatilitas &amp; volume</h2>
+    <div class="glos-grid">
+      <div class="glos-card">
+        <h3>Bollinger Bands</h3>
+        <p>Pita di sekitar rata-rata bergerak yang melebar saat volatilitas naik dan menyempit saat tenang. Harga menyentuh pita menandakan kondisi ekstrem.</p>
+      </div>
+      <div class="glos-card">
+        <h3>ATR (Average True Range)</h3>
+        <p>Rata-rata rentang harga sebenarnya; mengukur volatilitas, bukan arah. Umum dipakai untuk menetapkan jarak stop loss yang wajar.</p>
+      </div>
+      <div class="glos-card">
+        <h3>OBV (On-Balance Volume)</h3>
+        <p>Menjumlahkan volume pada hari naik dan menguranginya pada hari turun, untuk menakar apakah pergerakan harga didukung volume.</p>
+      </div>
+      <div class="glos-card">
+        <h3>MFI (Money Flow Index)</h3>
+        <p>Osilator 0-100 yang menimbang harga dan volume sekaligus, sering disebut RSI versi volume. Di atas 80 jenuh beli, di bawah 20 jenuh jual.</p>
+      </div>
+    </div>
+
+    <h2>Pertanyaan yang sering diajukan</h2>
+    <p>Ringkasan jawaban di bawah juga disajikan sebagai data terstruktur (<code>FAQPage</code>) agar mudah dikenali mesin pencari.</p>
+    <ul>
+      <li><b>Apa itu indikator saham?</b> &mdash; perhitungan berbasis harga dan volume untuk membaca tren, momentum, volatilitas, dan volume secara terukur.</li>
+      <li><b>Apa beda indikator tren dan momentum?</b> &mdash; tren mengukur arah/kekuatan, momentum mengukur kecepatan perubahan harga.</li>
+      <li><b>Indikator mana yang paling akurat?</b> &mdash; tidak ada yang tunggal; LAUMOLOGY memakai konfluensi beberapa indikator.</li>
+      <li><b>Bagaimana cara membaca RSI?</b> &mdash; di atas 70 jenuh beli, di bawah 30 jenuh jual.</li>
+      <li><b>Apakah indikator menjamin untung?</b> &mdash; tidak; indikator alat bantu edukasi, bukan jaminan hasil.</li>
+    </ul>
+
+    <div class="doc-callout">
+      <h2>Disclaimer</h2>
+      <p>Glosarium ini bersifat edukatif, <b>BUKAN nasihat keuangan atau investasi</b>. Data dapat tertunda dan akurasi tidak dijamin. Keputusan investasi sepenuhnya tanggung jawab pengguna. Selalu kelola risiko dan konsultasikan dengan penasihat berlisensi.</p>
+    </div>
+
+    <p class="doc-back"><a href="/">&larr; Kembali ke terminal</a> &middot; <a href="/tentang">Tentang LAUMOLOGY</a></p>
+  </article>
+</main>
+
+<footer class="site-footer">
+  <div class="fwrap">
+    <div class="fbrand">
+      <p>Glosarium indikator saham IDX: definisi RSI, MACD, Bollinger, ADX, SuperTrend, ATR, Stochastic, OBV, MFI, Ichimoku, VWAP, dan Squeeze.</p>
+    </div>
+    <div class="fmeta">
+      <p><a href="/" style="color:var(--brand);text-decoration:none">Terminal</a> &middot; <a href="/tentang" style="color:var(--brand);text-decoration:none">Tentang</a> &middot; <a href="/panduan" style="color:var(--brand);text-decoration:none">Panduan</a></p>
+      <p>&copy; 2026 LAUMOLOGY. All rights reserved.</p>
+      <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -137,6 +137,11 @@ main{max-width:1200px;margin:0 auto;padding:24px 20px 56px}
 .panel-head h2{margin:0;font-family:var(--display-font);font-size:23px;font-weight:700;letter-spacing:-.02em}
 .panel-head p{margin:5px 0 0;font-size:13.5px;line-height:1.6;color:var(--muted)}
 
+/* ---------------- Intro homepage ---------------- */
+.intro{margin-bottom:22px;min-height:120px}
+.intro h1{margin:0;font-family:var(--display-font);font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.intro p{margin:8px 0 0;max-width:780px;font-size:14px;line-height:1.65;color:var(--muted)}
+
 .card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
   padding:20px;margin-bottom:16px;box-shadow:var(--shadow);transition:border-color .18s;
@@ -398,6 +403,8 @@ body.news-sheet-open{overflow:hidden}
   .hctl{margin-left:auto;gap:12px}
   .nav{display:none}
   main{padding:16px 14px 96px}
+  .intro{min-height:0;margin-bottom:16px}
+  .intro h1{font-size:22px}
   .panel-head{margin-bottom:12px}
   .panel-head h2{font-size:20px}
   .card{padding:14px;border-radius:12px}

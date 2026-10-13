@@ -1081,8 +1081,9 @@ class TestPanduanPageSeo(unittest.TestCase):
         locs = [e.text for e in root.findall("sm:url/sm:loc", ns)]
         self.assertIn("https://laumology.example/panduan", locs)
         self.assertIn("https://laumology.example/tentang", locs)
+        self.assertIn("https://laumology.example/indikator-saham", locs)
         self.assertIn("https://laumology.example/", locs)
-        self.assertEqual(len(locs), 3)
+        self.assertEqual(len(locs), 4)
 
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
@@ -1091,6 +1092,75 @@ class TestPanduanPageSeo(unittest.TestCase):
         locs = [e.text for e in root.findall("sm:url/sm:loc", ns)]
         self.assertIn("/panduan", locs)
         self.assertIn("/tentang", locs)
+        self.assertIn("/indikator-saham", locs)
+
+
+class TestIndikatorSahamPageSeo(unittest.TestCase):
+    """Halaman konten statis ``/indikator-saham`` yang terindeks (W-0026 lanjutan).
+
+    Mengunci kriteria penerimaan: 200 ``text/html``, H1 + teks glosarium ada di
+    HTML mentah (tanpa JS), canonical (absolut saat env valid, relatif bila
+    kosong), ``FAQPage`` + ``BreadcrumbList`` valid, terdaftar di sitemap, dan
+    tautan internal dari ``/``. Anti Host-spoof: Host asing tak pernah
+    dipantulkan.
+    """
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_indikator_page_absolute_when_env_set(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            resp = self.client.get("/indikator-saham", headers={"Host": "evil.example"})
+
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.content_type.startswith("text/html"))
+        self.assertIn("<h1", html)
+        self.assertIn("Glosarium Indikator Saham IDX", html)
+        self.assertIn(
+            '<link rel="canonical" href="https://laumology.example/indikator-saham">', html
+        )
+        self.assertIn(
+            '<meta property="og:url" content="https://laumology.example/indikator-saham">', html
+        )
+        self.assertNotIn("evil.example", html)
+        self.assertIn("script-src 'self'", resp.headers.get("Content-Security-Policy", ""))
+        self.assertNotIn("onclick=", html)
+
+    def test_indikator_content_present_without_js(self):
+        resp = self.client.get("/indikator-saham")
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("indikator saham", html)
+        self.assertIn("RSI (Relative Strength Index)", html)
+        self.assertIn("MACD", html)
+        self.assertIn('"@type": "FAQPage"', html)
+        self.assertIn('"@type": "BreadcrumbList"', html)
+        self.assertIn('"@type": "Organization"', html)
+
+    def test_indikator_page_relative_when_env_missing(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            resp = self.client.get("/indikator-saham", headers={"Host": "evil.example"})
+
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('<link rel="canonical" href="/indikator-saham">', html)
+        self.assertNotIn("evil.example", html)
+
+    def test_internal_links_to_indikator_from_root(self):
+        home = self.client.get("/")
+        self.assertEqual(home.status_code, 200)
+        self.assertIn('href="/indikator-saham"', home.get_data(as_text=True))
 
 
 class TestBrandShareAssets(unittest.TestCase):

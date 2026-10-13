@@ -3,7 +3,7 @@
 # Dirancang untuk pemakaian manual (tanpa VPS): jalankan -> N siklus -> selesai dalam batas waktu.
 [CmdletBinding()]
 param(
-    [int]$MaxCycles = 0,      # 0 = pakai CyclesPerRun dari config (default 4)
+    [int]$MaxCycles = 0,      # 0 = pakai CyclesPerRun dari config; 0 di config = TAK TERBATAS
     [int]$MaxMinutes = 0,     # 0 = pakai MaxRunMinutes dari config (default 180)
     [int]$CycleTimeoutSec = 900,
     [switch]$Execute,         # paksa eksekusi nyata
@@ -114,10 +114,11 @@ if (-not (Enter-WarRoomSingleInstance)) {
 $stopReason = 'max-cycles'
 $runStart = Get-Date
 Set-WarRoomState -State 'STARTING' -Note 'supervisor mulai' | Out-Null
-Write-Host ("  LAUMOLOGY War Room mulai. Execute={0} MaxCycles={1} MaxMinutes={2}" -f [bool]$execute, $MaxCycles, $MaxMinutes) -ForegroundColor Cyan
+$maxCyclesLabel = if ($MaxCycles -gt 0) { "$MaxCycles" } else { 'tak terbatas' }
+Write-Host ("  LAUMOLOGY War Room mulai. Execute={0} MaxCycles={1} MaxMinutes={2}" -f [bool]$execute, $maxCyclesLabel, $MaxMinutes) -ForegroundColor Cyan
 
 try {
-    for ($i = 1; $i -le $MaxCycles; $i++) {
+    for ($i = 1; ($MaxCycles -le 0) -or ($i -le $MaxCycles); $i++) {
         if (Test-WarRoomStopRequested) { $stopReason = 'stop-requested'; break }
         if (Test-WarRoomPauseRequested) {
             Set-WarRoomState -State 'PAUSED' -Note 'pause diminta' | Out-Null
@@ -132,7 +133,7 @@ try {
             break
         }
         $maxDaily = [int]$cfg.MaxCyclesPerDay
-        if ((Get-CyclesToday) -ge $maxDaily) {
+        if ($maxDaily -gt 0 -and (Get-CyclesToday) -ge $maxDaily) {
             $stopReason = 'daily-cycle-limit'; Write-Host "  Batas siklus harian tercapai." -ForegroundColor Yellow; break
         }
         $b = Get-BudgetStatus
@@ -144,7 +145,8 @@ try {
 
         $cycleId = "cyc-{0:yyyyMMdd-HHmmss}" -f (Get-Date)
         Write-Host ""
-        Write-ProgressBar -Current $i -Total $MaxCycles -Label ("SIKLUS {0}/{1}   {2}   ({3:N0} menit)   |   {4}" -f $i, $MaxCycles, $cycleId, $elapsedMin, (Get-QuickStatusLine))
+        $totalForBar = if ($MaxCycles -gt 0) { $MaxCycles } else { $i }
+        Write-ProgressBar -Current $i -Total $totalForBar -Label ("SIKLUS {0}/{1}   {2}   ({3:N0} menit)   |   {4}" -f $i, $maxCyclesLabel, $cycleId, $elapsedMin, (Get-QuickStatusLine))
 
         # OBSERVING
         Set-WarRoomState -State 'OBSERVING' -Note 'snapshot git + anggaran' -Iteration $i | Out-Null
@@ -229,7 +231,7 @@ $tSummary
         Set-WarRoomState -State 'OBSERVING_AGAIN' -Note 'siap iterasi berikut' -Iteration $i -MarkSuccess:($tcode -eq 0) | Out-Null
 
         if ($Once) { $stopReason = 'once'; break }
-        if ($i -lt $MaxCycles) {
+        if ($MaxCycles -le 0 -or $i -lt $MaxCycles) {
             Write-Host ("  Jeda {0} detik sebelum siklus berikutnya..." -f $delaySec) -ForegroundColor DarkGray
             $remaining = $delaySec
             while ($remaining -gt 0) {
