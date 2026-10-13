@@ -204,9 +204,23 @@ Setelah selesai: jalankan 'py -3.14 tools/quality_gate.py' dan laporkan hasil ny
     Invoke-WarRoomBeep -Kind 'info'
 
     # --- 4. VERIFY (quant & reviewer paralel, read-only) ---
-    $verifyAgents = @($reviewer)
-    foreach ($a in $picked) { if ($a -and ($verifyAgents -notcontains $a)) { $verifyAgents += $a } }
-    Write-Section -Title ("[4/4] VERIFY  -  " + ($verifyAgents -join ' | ')) -Color 'Blue'
+    # Bila implementasi gagal/tidak diizinkan, tidak ada perubahan yang bisa ditinjau:
+    # lewati verifikasi (hemat token + latensi) dan tandai rekomendasi gagal.
+    $ver = @()
+    $verifyAgents = @()
+    if ($summary.implement) {
+        $verifyAgents = @($reviewer)
+        foreach ($a in $picked) { if ($a -and ($verifyAgents -notcontains $a)) { $verifyAgents += $a } }
+        # Batasi jumlah peninjau agar tetap tajam tanpa membengkakkan biaya/latensi.
+        if ($tuning.MaxVerifyAgents -gt 0 -and $verifyAgents.Count -gt $tuning.MaxVerifyAgents) {
+            $verifyAgents = @($verifyAgents[0..($tuning.MaxVerifyAgents - 1)])
+        }
+        Write-Section -Title ("[4/4] VERIFY  -  " + ($verifyAgents -join ' | ')) -Color 'Blue'
+    } else {
+        $summary.recommendation = 'GAGAL_IMPLEMENT'
+        Write-Host "  [4/4] VERIFY dilewati: implementasi gagal/ditolak." -ForegroundColor Yellow
+        Write-WarRoomEvent -Category 'orchestrator' -Level 'warn' -Message "pipeline $CycleId lewati verifikasi (implementasi gagal)" | Out-Null
+    }
     $vruns = @()
     foreach ($ag in $verifyAgents) {
         $tier = if ($ag -eq $reviewer) { 'strong' } else { 'fast' }
@@ -233,7 +247,7 @@ $planCtx
             $summary.recommendation = $Matches[1]
         }
     }
-    Write-Host ("  [4/4] VERIFY: {0}/2 agen ok, rekomendasi={1}" -f $summary.verify, $summary.recommendation) -ForegroundColor Cyan
+    Write-Host ("  [4/4] VERIFY: {0}/{1} agen ok, rekomendasi={2}" -f $summary.verify, $verifyAgents.Count, $summary.recommendation) -ForegroundColor Cyan
 
     # Refleksi: rekam pelajaran dari hasil verifikasi (gate ditangani oleh loop).
     if ($learnOn -and (Get-Command Update-WarRoomLearning -ErrorAction SilentlyContinue)) {

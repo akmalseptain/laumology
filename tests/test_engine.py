@@ -6,6 +6,30 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# Nilai API_KEY asli (bila ada di lingkungan) disimpan agar dipulihkan seusai tes.
+_SAVED_API_KEY = None
+
+
+def setUpModule():
+    """Isolasi tes dari `.env` lokal: kosongkan kredensial auth saat pengujian.
+
+    ``webapp`` memuat berkas ``.env`` (termasuk ``API_KEY`` pribadi) saat impor.
+    Tanpa ini, endpoint tulis yang terlindungi membalas 401 dan tes validasi
+    input gagal. Nilai asli disimpan dan dipulihkan di ``tearDownModule``.
+    """
+    global _SAVED_API_KEY
+    import os
+    _SAVED_API_KEY = os.environ.get("API_KEY")
+    os.environ["API_KEY"] = ""
+
+
+def tearDownModule():
+    import os
+    if _SAVED_API_KEY is None:
+        os.environ.pop("API_KEY", None)
+    else:
+        os.environ["API_KEY"] = _SAVED_API_KEY
+
 
 def make_df(n: int = 320, seed: int = 7) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
@@ -1185,9 +1209,16 @@ class TestIndikatorSahamPageSeo(unittest.TestCase):
         self.assertIn("indikator saham", html)
         self.assertIn("RSI (Relative Strength Index)", html)
         self.assertIn("MACD", html)
+        self.assertIn('"@type": "Article"', html)
         self.assertIn('"@type": "FAQPage"', html)
         self.assertIn('"@type": "BreadcrumbList"', html)
         self.assertIn('"@type": "Organization"', html)
+        self.assertIn(
+            '<meta property="article:published_time" content="2026-10-13">', html
+        )
+        self.assertIn(
+            '<meta property="article:modified_time" content="2026-10-13">', html
+        )
 
     def test_indikator_page_relative_when_env_missing(self):
         import os

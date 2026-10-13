@@ -345,9 +345,12 @@ async function loadNews(t){
 }
 
 /* ---------- Tab: Fundamental ---------- */
+function resetPanelTouched(){
+  ["#fuTicker","#beTicker","#btTicker","#acTicker","#myTicker","#tvSym"].forEach(sel=>{ const el=$(sel); if(el) delete el.dataset.touched; });
+}
 function syncFuInputs(){
   const src=($("#ticker").value||"").trim().toUpperCase();
-  ["#fuTicker","#beTicker"].forEach(sel=>{ const el=$(sel); if(el && !el.dataset.touched && src) el.value=src; });
+  ["#fuTicker","#beTicker","#btTicker","#acTicker","#myTicker","#tvSym"].forEach(sel=>{ const el=$(sel); if(el && !el.dataset.touched && src) el.value=src; });
 }
 function fuVerdict(f){
   const out=[];
@@ -390,8 +393,8 @@ async function loadFundamentalTab(){
     const rangePos=(f.price!=null&&f.high_52w!=null&&f.low_52w!=null&&f.high_52w>f.low_52w)?Math.round((f.price-f.low_52w)/(f.high_52w-f.low_52w)*100):null;
     el.innerHTML =
       '<div class="card">'
-      + '<div class="sec"><span class="badge">'+(f.name||t)+'</span>'+fuBadge+'</div>'
-      + '<p class="muted" style="margin:-4px 0 14px;font-size:12px">'+[f.sector,f.industry].filter(Boolean).join(' · ')+'</p>'
+      + '<div class="sec"><span class="badge">'+escapeHtml(f.name||t)+'</span>'+fuBadge+'</div>'
+      + '<p class="muted" style="margin:-4px 0 14px;font-size:12px">'+escapeHtml([f.sector,f.industry].filter(Boolean).join(' · '))+'</p>'
       + '<div class="grid">'+verdict+'</div>'
       + hd+'Valuasi</div>'
       + '<div class="grid">'
@@ -483,6 +486,9 @@ if($("#beTicker")){
   $("#beTicker").addEventListener("keydown",e=>{ if(e.key==="Enter") loadNewsTab(); });
   $("#beTicker").addEventListener("input",e=>{ e.target.dataset.touched="1"; });
 }
+["#btTicker","#acTicker","#myTicker","#tvSym"].forEach(sel=>{
+  const el=$(sel); if(el) el.addEventListener("input",e=>{ e.target.dataset.touched="1"; });
+});
 
 $("#optRun").onclick = runOptimize;
 async function runOptimize(){

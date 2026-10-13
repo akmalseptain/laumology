@@ -269,6 +269,7 @@ function Show-Help {
         'demo             pratinjau tampilan (tanpa biaya API)',
         'replay           tampilkan notulen/debat terakhir',
         'loop             jalankan supervisor otonom (Invoke-AutonomousLoop)',
+        'loops            loop SELAMANYA sampai anggaran habis (ringan & cepat)',
         'exit             keluar'
     ) | ForEach-Object { Write-Host ("  {0}" -f $_) }
 }
@@ -347,6 +348,11 @@ function Invoke-WarRoomCommand {
         'loop' {
             $loop = Join-Path (Get-WarRoomToolDir) 'Invoke-AutonomousLoop.ps1'
             & $loop
+        }
+        'loops' {
+            $loop = Join-Path (Get-WarRoomToolDir) 'Invoke-AutonomousLoop.ps1'
+            Write-Host "  Loop SELAMANYA: jalan terus sampai anggaran habis atau stop manual (Ctrl+C)." -ForegroundColor Yellow
+            & $loop -Forever -Fast
         }
         'ask'     { Invoke-WarRoomAsk -Text $arg }
         'prompt'  { Invoke-WarRoomAsk -Text $arg }

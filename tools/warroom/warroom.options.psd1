@@ -20,15 +20,18 @@
         SEO      = 'seo-engineer'
     }
 
-    MonthlyBudgetIDR          = 100000
-    TargetAutomationBudgetIDR = 70000
-    WarningThresholdIDR       = 50000
-    ReducedModeThresholdIDR   = 60000
-    HardPauseThresholdIDR     = 70000
+    # Kebijakan pengguna: loop jalan sampai TOKEN/API HABIS (bukan berhenti di plafon).
+    # Angka di bawah = backstop pengaman terakhir saja (jangan sampai kebal tanpa rem).
+    MonthlyBudgetIDR          = 1000000
+    TargetAutomationBudgetIDR = 1000000
+    WarningThresholdIDR       = 500000
+    ReducedModeThresholdIDR   = 800000
+    HardPauseThresholdIDR     = 1000000
     PerCycleBudgetIDR         = 1000
     MaxCyclesPerDay           = 0       # 0 = TANPA batas siklus harian
     MaxDiscussionRounds       = 2
-    MaxConcurrentModelTasks   = 2
+    MaxConcurrentModelTasks   = 3       # lebih banyak paralel -> siklus lebih cepat
+    MaxVerifyAgents           = 2       # batas jumlah peninjau di tahap VERIFY (hemat token/latensi)
     MaxRepairAttempts         = 2
     MaxOutputTokensPerCall    = 4096
     NormalIdleIntervalMinutes = 30
@@ -48,7 +51,7 @@
         }
         ByAgent = @{}                           # mis. @{ 'code-engineer' = 'deepseek/deepseek-v4-pro' }
     }
-    EnableCrossTalk           = $true   # reaksi silang antar-investigator (matikan utk hemat)
+    EnableCrossTalk           = $false  # reaksi silang = 1 panggilan ekstra per investigator (laten+token); mati utk cepat
     MaxAgentRetries           = 1       # ulangan otomatis saat agen gagal (transient), bukan saat anggaran ditolak
     PlanMaxChars              = 6000    # batas panjang rencana yang diteruskan antar-tahap
     FindingsMaxChars          = 8000    # batas panjang temuan yang diteruskan
@@ -63,7 +66,7 @@
     LearningMemoryMaxChars    = 2500    # batas memori yang disuntik ke prompt
     LearningSimilarityThreshold = 0.75  # ambang Jaccard: pelajaran mirip digabung (mengerucut)
     LearningMergeThreshold    = 0.5     # ambang aglomeratif saat memori penuh (makin mengerucut)
-    LearningRetrievalTopK     = 6       # hanya TopK pelajaran paling RELEVAN yang disuntik (irit)
+    LearningRetrievalTopK     = 8       # hanya TopK pelajaran paling RELEVAN yang disuntik (lebih konteks -> lebih tajam)
     LearningHistoryMaxEntries = 30      # jumlah tugas lama yang diingat
     LearningHistoryMaxChars   = 1200    # batas riwayat tugas yang disuntik ke prompt
     # Saat anggaran warning/reduced, suntikan memori & riwayat menyusut otomatis
@@ -73,7 +76,7 @@
     # Sekali jalankan Invoke-AutonomousLoop.ps1: N siklus, lalu berhenti.
     CyclesPerRun              = 4       # 0 = TANPA batas siklus per run (dibatasi MaxRunMinutes)
     MaxRunMinutes             = 180     # batas wall-clock per run (3 jam)
-    InterCycleDelaySeconds    = 20      # jeda pendek antar siklus
+    InterCycleDelaySeconds    = 10      # jeda pendek antar siklus
     ExecuteByDefault          = $true   # run biasa = eksekusi nyata; pakai -DryRun untuk aman
 
     # --- Publikasi otonom (commit + push -> deploy Render) ---

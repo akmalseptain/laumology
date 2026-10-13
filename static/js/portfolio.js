@@ -137,7 +137,7 @@ async function loadFundamental(t){
     const dy=(v)=> v==null?"-":Number(v).toFixed(2)+"%";
     const capv=(v)=> v==null?"-":(Number(v)/1e12).toFixed(2)+" T";
     el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Fundamental</span></div><div class="grid">'
-      + '<div class="metric"><div class="k">Nama</div><div class="v v-white" style="font-size:13px">' + (f.name || t) + '</div></div>'
+      + '<div class="metric"><div class="k">Nama</div><div class="v v-white" style="font-size:13px">' + escapeHtml(f.name || t) + '</div></div>'
       + '<div class="metric"><div class="k">Market Cap</div><div class="v v-muted">' + capv(f.market_cap) + '</div></div>'
       + '<div class="metric"><div class="k">PER</div><div class="v v-muted">' + num(f.pe) + '</div></div>'
       + '<div class="metric"><div class="k">PBV</div><div class="v v-muted">' + num(f.pb) + '</div></div>'
@@ -184,12 +184,16 @@ async function runMarket(){
     if(d.error) throw new Error(d.error);
     const pct=(v)=> v==null?"-":(Number(v)).toFixed(2)+"%";
     const ih=d.ihsg||{}; const br=d.breadth||{};
-    const heat=(d.sectors||[]).map(s=>'<tr><td style="text-align:left">'+s.sector+'</td><td>'+s.n+'</td>'
-      +'<td class="'+(s.chg_1d>=0?'v-up':'v-red')+'">'+pct(s.chg_1d)+'</td>'
-      +'<td class="'+(s.chg_5d>=0?'v-up':'v-red')+'">'+pct(s.chg_5d)+'</td>'
-      +'<td class="'+(s.chg_20d>=0?'v-up':'v-red')+'">'+pct(s.chg_20d)+'</td>'
+    const secs=d.sectors||[];
+    const colMax=(key)=>{ let m=0; secs.forEach(s=>{ const n=Number(s[key]); if(isFinite(n)) m=Math.max(m,Math.abs(n)); }); return m; };
+    const mx1d=colMax('chg_1d'), mx5d=colMax('chg_5d'), mx20d=colMax('chg_20d');
+    const heatCls=(v,max)=>{ const n=Number(v); if(v==null||!isFinite(n)) return ''; let c=(n>=0?'v-up':'v-red'); if(isFinite(max)&&max>0){ const lvl=Math.min(5,Math.max(1,Math.ceil(Math.abs(n)/max*5))); c+=' heat-cell '+(n>=0?'heat-pos-':'heat-neg-')+lvl; } return c; };
+    const heat=secs.map(s=>'<tr><td style="text-align:left">'+escapeHtml(s.sector)+'</td><td>'+s.n+'</td>'
+      +'<td class="'+heatCls(s.chg_1d,mx1d)+'">'+pct(s.chg_1d)+'</td>'
+      +'<td class="'+heatCls(s.chg_5d,mx5d)+'">'+pct(s.chg_5d)+'</td>'
+      +'<td class="'+heatCls(s.chg_20d,mx20d)+'">'+pct(s.chg_20d)+'</td>'
       +'<td>'+s.breadth+'%</td></tr>').join("");
-    const rs=(d.rs_ranking||[]).map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.ticker)+'</td><td style="text-align:left;color:var(--muted)">'+x.sector+'</td>'
+    const rs=(d.rs_ranking||[]).map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.ticker)+'</td><td style="text-align:left;color:var(--muted)">'+escapeHtml(x.sector)+'</td>'
       +'<td class="'+(x.chg_1d>=0?'v-up':'v-red')+'">'+pct(x.chg_1d)+'</td>'
       +'<td class="'+(x.chg_20d>=0?'v-up':'v-red')+'">'+pct(x.chg_20d)+'</td></tr>').join("");
     $("#mkResult").innerHTML =
@@ -242,7 +246,7 @@ async function runPortfolioRisk(){
     if(d.sectors && d.sectors.length){
       html += '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Konsentrasi sektor</div>'
         + '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Sektor</th><th>Nilai</th><th>Bobot</th></tr></thead><tbody>'
-        + d.sectors.map(s=>'<tr><td style="text-align:left">'+s.sector+'</td><td>'+idr(s.value)+'</td><td>'+s.weight_pct+'%</td></tr>').join('')
+        + d.sectors.map(s=>'<tr><td style="text-align:left">'+escapeHtml(s.sector)+'</td><td>'+idr(s.value)+'</td><td>'+s.weight_pct+'%</td></tr>').join('')
         + '</tbody></table></div>';
     }
     if(d.flags && d.flags.length){

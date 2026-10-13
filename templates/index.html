@@ -95,7 +95,7 @@
       <span class="logo-word">LAUMO<i>LOGY</i></span>
     </a>
     <div class="search">
-      <input id="ticker" placeholder="Kode saham" value="BBCA" autocomplete="off" spellcheck="false">
+      <input id="ticker" placeholder="Kode saham" aria-label="Kode saham" value="BBCA" autocomplete="off" spellcheck="false">
       <select id="interval" aria-label="Interval">
         <option value="1d">1D</option>
         <option value="1h">1H</option>
@@ -107,33 +107,35 @@
       <button class="btn" id="goBtn">Analisis</button>
     </div>
     <div class="hctl">
-      <label class="toggle" data-tip="Ambil harga live (delay ~10 menit) saat analisis"><input type="checkbox" id="refresh"> Live</label>
-      <label class="toggle" data-tip="Auto-refresh analisis tiap 60 detik"><input type="checkbox" id="auto"> Auto 60s</label>
+      <label class="toggle" data-tip="Ambil harga live (delay ~10 menit) saat analisis"><input type="checkbox" id="refresh" title="Ambil harga live (delay ~10 menit) saat analisis" aria-label="Ambil harga live (delay ~10 menit) saat analisis"> Live</label>
+      <label class="toggle" data-tip="Auto-refresh analisis tiap 60 detik"><input type="checkbox" id="auto" title="Auto-refresh analisis tiap 60 detik" aria-label="Auto-refresh analisis tiap 60 detik"> Auto 60s</label>
       <button class="iconbtn" id="helpBtn" title="Bantuan (?)" aria-label="Bantuan">?</button>
       <button class="iconbtn" id="themeBtn" title="Ganti tema" aria-label="Ganti tema">&#9681;</button>
     </div>
   </div>
-  <nav class="nav" aria-label="Navigasi utama">
-    <div class="tab active" data-tab="analisis">Analisis</div>
-    <div class="tab" data-tab="fundamental">Fundamental</div>
-    <div class="tab" data-tab="berita">Berita</div>
-    <div class="tab" data-tab="screener">Screener</div>
-    <div class="tab" data-tab="live">Live Chart</div>
-    <div class="tab" data-tab="backtest">Backtest</div>
-    <div class="tab" data-tab="portofolio">Portofolio</div>
-    <div class="tab" data-tab="akurasi">Akurasi</div>
-    <div class="tab" data-tab="pasar">Pasar</div>
-    <div class="tab" data-tab="musyawarah">Musyawarah</div>
+  <nav class="nav" aria-label="Navigasi utama" role="tablist">
+    <div class="tab active" role="tab" id="tab-analisis" aria-controls="panel-analisis" data-tab="analisis" aria-selected="true" tabindex="0">Analisis</div>
+    <div class="tab" role="tab" id="tab-fundamental" aria-controls="panel-fundamental" data-tab="fundamental" aria-selected="false" tabindex="-1">Fundamental</div>
+    <div class="tab" role="tab" id="tab-berita" aria-controls="panel-berita" data-tab="berita" aria-selected="false" tabindex="-1">Berita</div>
+    <div class="tab" role="tab" id="tab-screener" aria-controls="panel-screener" data-tab="screener" aria-selected="false" tabindex="-1">Screener</div>
+    <div class="tab" role="tab" id="tab-live" aria-controls="panel-live" data-tab="live" aria-selected="false" tabindex="-1">Live Chart</div>
+    <div class="tab" role="tab" id="tab-backtest" aria-controls="panel-backtest" data-tab="backtest" aria-selected="false" tabindex="-1">Backtest</div>
+    <div class="tab" role="tab" id="tab-portofolio" aria-controls="panel-portofolio" data-tab="portofolio" aria-selected="false" tabindex="-1">Portofolio</div>
+    <div class="tab" role="tab" id="tab-akurasi" aria-controls="panel-akurasi" data-tab="akurasi" aria-selected="false" tabindex="-1">Akurasi</div>
+    <div class="tab" role="tab" id="tab-pasar" aria-controls="panel-pasar" data-tab="pasar" aria-selected="false" tabindex="-1">Pasar</div>
+    <div class="tab" role="tab" id="tab-musyawarah" aria-controls="panel-musyawarah" data-tab="musyawarah" aria-selected="false" tabindex="-1">Musyawarah</div>
   </nav>
 </header>
 
 <main>
-  <section class="intro" aria-label="Ringkasan LAUMOLOGY">
-    <h1>LAUMOLOGY · Terminal Analisis Saham IDX</h1>
-    <p>Pantau analisis teknikal saham IDX dalam satu terminal: sinyal beli/jual berskor keyakinan, level support–resistance, serta konfluensi multi-indikator untuk keputusan harian.</p>
-    <p>Jelajahi fitur lengkap: screener seluruh emiten Bursa Efek Indonesia, chart candlestick real-time, backtest walk-forward, analisis fundamental, dan pelacak portofolio. Pahami 12 indikator saham yang dipakai terminal ini di <a href="{{ url_for('meta.indikator_saham') }}">glosarium indikator saham</a>.</p>
+  <section class="intro off" aria-label="Ringkasan LAUMOLOGY">
+    <div class="intro-head">
+      <h1>Analisis Saham IDX</h1>
+      <button type="button" class="intro-toggle" id="introToggle" aria-expanded="false" title="Perluas intro">▾</button>
+    </div>
+    <p>Sinyal, screener, backtest, dan pelacak portofolio dalam satu terminal. Pahami 12 indikator yang dipakai terminal ini di <a href="{{ url_for('meta.indikator_saham') }}">glosarium indikator saham</a>.</p>
   </section>
-  <section class="panel active" id="panel-analisis">
+  <section class="panel active" id="panel-analisis" role="tabpanel" aria-labelledby="tab-analisis">
     <div id="summaryBar" class="summary-bar"></div>
     <div class="panel-head">
       <h2>Analisis</h2>
@@ -159,7 +161,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-fundamental">
+  <section class="panel" id="panel-fundamental" role="tabpanel" aria-labelledby="tab-fundamental">
     <div class="panel-head">
       <h2>Fundamental</h2>
       <p>Rasio valuasi, profitabilitas, leverage, dan pertumbuhan dari laporan keuangan emiten.</p>
@@ -174,7 +176,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-berita">
+  <section class="panel" id="panel-berita" role="tabpanel" aria-labelledby="tab-berita">
     <div class="panel-head">
       <h2>Berita</h2>
       <p>Sentimen berita terkini per emiten sebagai konteks tambahan analisa.</p>
@@ -196,7 +198,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-screener">
+  <section class="panel" id="panel-screener" role="tabpanel" aria-labelledby="tab-screener">
     <div class="panel-head">
       <h2>Screener</h2>
       <p>Pindai watchlist atau seluruh emiten IDX dan urutkan berdasarkan skor.</p>
@@ -232,7 +234,7 @@
       <div class="toolbar toggles">
         <label class="toggle"><input type="checkbox" id="scBull"> Hanya bullish</label>
         <label class="toggle"><input type="checkbox" id="scSqz"> Squeeze release</label>
-        <label class="toggle" data-tip="Server memindai di belakang; hasil muncul bertahap tanpa menunggu di layar"><input type="checkbox" id="scBg"> Scan latar</label>
+        <label class="toggle" data-tip="Server memindai di belakang; hasil muncul bertahap tanpa menunggu di layar"><input type="checkbox" id="scBg" title="Server memindai di belakang; hasil muncul bertahap tanpa menunggu di layar" aria-label="Server memindai di belakang; hasil muncul bertahap tanpa menunggu di layar"> Scan latar</label>
         <label class="toggle"><input type="checkbox" id="scRefresh"> Live data</label>
       </div>
       <div id="scProgress" class="progress" style="display:none">
@@ -244,7 +246,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-live">
+  <section class="panel" id="panel-live" role="tabpanel" aria-labelledby="tab-live">
     <div class="panel-head">
       <h2>Live Chart</h2>
       <p>Chart candlestick real-time dengan overlay indikator.</p>
@@ -269,14 +271,14 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-backtest">
+  <section class="panel" id="panel-backtest" role="tabpanel" aria-labelledby="tab-backtest">
     <div class="panel-head">
       <h2>Backtest</h2>
       <p>Uji strategi pada data historis dengan biaya realistis.</p>
     </div>
     <div class="card">
       <div class="toolbar">
-        <div class="field"><label>Symbol</label><input id="btTicker" value="PTBA" style="width:140px"></div>
+        <div class="field"><label>Symbol</label><input id="btTicker" value="BBCA" style="width:140px"></div>
         <div class="field w-md"><label>Min skor</label><input id="btMin" type="number" value="65"></div>
         <div class="field w-sm"><label>TP RR</label><input id="btTp" type="number" step="0.5" value="3"></div>
         <div class="field w-sm"><label>SL x ATR</label><input id="btSl" type="number" step="0.5" value="2"></div>
@@ -308,7 +310,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-portofolio">
+  <section class="panel" id="panel-portofolio" role="tabpanel" aria-labelledby="tab-portofolio">
     <div class="panel-head">
       <h2>Portofolio</h2>
       <p>Watchlist, posisi, alert, jurnal, dan analisa risiko.</p>
@@ -421,16 +423,16 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-akurasi">
+  <section class="panel" id="panel-akurasi" role="tabpanel" aria-labelledby="tab-akurasi">
     <div class="panel-head">
       <h2>Akurasi</h2>
       <p>Uji win-rate dan forward return historis per indikator dan tingkat skor. Mode lintas-horizon meringkas reliabilitas 1–15 bar jadi satu verdict band.</p>
     </div>
     <div class="card">
       <div class="toolbar">
-        <div class="field"><label>Symbol</label><input id="acTicker" value="PTBA" style="width:140px"></div>
+        <div class="field"><label>Symbol</label><input id="acTicker" value="BBCA" style="width:140px"></div>
         <div class="field w-lg"><label>Horizon (bar)</label><input id="acHorizon" type="number" value="10"></div>
-        <label class="toggle" data-tip="Uji 1/5/10/15 bar sekali jalan; input Horizon di atas diabaikan saat aktif"><input type="checkbox" id="acMulti"> Lintas-horizon</label>
+        <label class="toggle" data-tip="Uji 1/5/10/15 bar sekali jalan; input Horizon di atas diabaikan saat aktif"><input type="checkbox" id="acMulti" title="Uji 1/5/10/15 bar sekali jalan; input Horizon di atas diabaikan saat aktif" aria-label="Uji 1/5/10/15 bar sekali jalan; input Horizon di atas diabaikan saat aktif"> Lintas-horizon</label>
         <button class="btn" id="acRun">Uji Akurasi</button>
       </div>
       <p class="muted note">Uji statistik historis, bukan jaminan masa depan.</p>
@@ -494,7 +496,7 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-pasar">
+  <section class="panel" id="panel-pasar" role="tabpanel" aria-labelledby="tab-pasar">
     <div class="panel-head">
       <h2>Pasar</h2>
       <p>Konteks pasar IHSG, breadth, heatmap, dan kualitas data.</p>
@@ -510,14 +512,14 @@
     </div>
   </section>
 
-  <section class="panel" id="panel-musyawarah">
+  <section class="panel" id="panel-musyawarah" role="tabpanel" aria-labelledby="tab-musyawarah">
     <div class="panel-head">
       <h2>Musyawarah</h2>
       <p>Konsensus 5 agen dengan aturan veto risiko.</p>
     </div>
     <div class="card">
       <div class="toolbar">
-        <div class="field"><label>Kode saham</label><input id="myTicker" value="PTBA" style="width:150px"></div>
+        <div class="field"><label>Kode saham</label><input id="myTicker" value="BBCA" style="width:150px"></div>
         <button class="btn" id="myRun">Jalankan Musyawarah</button>
         <button class="btn ghost" id="myCopy">Copy Hasil</button>
         <button class="btn ghost" id="myWeightsBtn">Setel Bobot (backtest)</button>
@@ -553,7 +555,7 @@
         </svg>
         <span class="logo-word">LAUMO<i>LOGY</i></span>
       </div>
-      <p>Analisis saham IDX dari data harga hingga rencana trade: sinyal berskor, screener ~900 emiten, backtest walk-forward, dan pelacak posisi dalam satu terminal.</p>
+      <p>Dari sinyal berskor hingga pelacak posisi — analisis saham IDX dalam satu terminal.</p>
     </div>
     <div class="fmeta">
       <p><a href="{{ url_for('meta.tentang') }}" style="color:var(--brand);text-decoration:none">Tentang</a> &middot; <a href="{{ url_for('meta.panduan') }}" style="color:var(--brand);text-decoration:none">Panduan</a> &middot; <a href="{{ url_for('meta.indikator_saham') }}" style="color:var(--brand);text-decoration:none">Indikator Saham</a></p>
@@ -573,7 +575,7 @@
 <div id="status"><span class="spinner"></span><span id="statusText">Memuat...</span></div>
 
 <div id="onboard" class="onboard">
-  <div class="onboard-card">
+  <div class="onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboardTitle" tabindex="-1">
     <div class="flogo center">
       <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
         <g stroke="currentColor" fill="currentColor">
@@ -591,8 +593,8 @@
       </svg>
       <span class="logo-word">LAUMO<i>LOGY</i></span>
     </div>
-    <h3>Selamat datang di LAUMOLOGY</h3>
-    <p>Terminal analisis saham IDX: sinyal &amp; skor, Musyawarah 5 agen, screener seluruh emiten, backtest, akurasi, dan portofolio.</p>
+    <h3 id="onboardTitle">Selamat datang di LAUMOLOGY</h3>
+    <p>Sinyal, Musyawarah 5 agen, screener, backtest, akurasi, dan portofolio — dalam satu terminal.</p>
     <div class="onboard-steps">
       <div><b>Analisis</b> — sinyal, indikator, ML.</div>
       <div><b>Fundamental</b> &amp; <b>Berita</b> — valuasi, rasio, sentimen.</div>
@@ -605,18 +607,28 @@
   </div>
 </div>
 
-<nav class="bottomnav">
-  <div class="tab active" data-tab="analisis">Analisis</div>
-  <div class="tab" data-tab="fundamental">Fundamental</div>
-  <div class="tab" data-tab="berita">Berita</div>
-  <div class="tab" data-tab="screener">Screener</div>
-  <div class="tab" data-tab="live">Live</div>
-  <div class="tab" data-tab="backtest">Backtest</div>
-  <div class="tab" data-tab="portofolio">Portofolio</div>
-  <div class="tab" data-tab="akurasi">Akurasi</div>
-  <div class="tab" data-tab="pasar">Pasar</div>
-  <div class="tab" data-tab="musyawarah">Musyawarah</div>
+<nav class="bottomnav" aria-label="Navigasi seluler" role="tablist">
+  <div class="tab active" role="tab" id="tab2-analisis" aria-controls="panel-analisis" data-tab="analisis" aria-selected="true" tabindex="0">Analisis</div>
+  <div class="tab" role="tab" id="tab2-screener" aria-controls="panel-screener" data-tab="screener" aria-selected="false" tabindex="-1">Screener</div>
+  <div class="tab" role="tab" id="tab2-live" aria-controls="panel-live" data-tab="live" aria-selected="false" tabindex="-1">Chart</div>
+  <div class="tab" role="tab" id="tab2-backtest" aria-controls="panel-backtest" data-tab="backtest" aria-selected="false" tabindex="-1">Backtest</div>
+  <div class="tab" role="tab" id="tab2-portofolio" aria-controls="panel-portofolio" data-tab="portofolio" aria-selected="false" tabindex="-1">Portofolio</div>
+  <button type="button" class="more-btn" id="moreTab" aria-haspopup="dialog" aria-controls="moreSheet">Lainnya</button>
 </nav>
+
+<div id="moreSheet" class="more-sheet" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Menu fitur lainnya">
+  <div class="more-sheet-card">
+    <button type="button" class="more-sheet-close" aria-label="Tutup menu lainnya">&times;</button>
+    <h3 class="more-sheet-title">Fitur lainnya</h3>
+    <div class="more-sheet-grid">
+      <div class="tab" role="button" tabindex="0" data-tab="fundamental">Fundamental</div>
+      <div class="tab" role="button" tabindex="0" data-tab="berita">Berita</div>
+      <div class="tab" role="button" tabindex="0" data-tab="akurasi">Akurasi</div>
+      <div class="tab" role="button" tabindex="0" data-tab="pasar">Pasar</div>
+      <div class="tab" role="button" tabindex="0" data-tab="musyawarah">Musyawarah</div>
+    </div>
+  </div>
+</div>
 
 <script src="/static/js/core.js"></script>
 <script src="/static/js/analysis.js"></script>

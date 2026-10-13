@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>War Room · Kontrol</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: #0b1220; color: #e5e7eb;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px; line-height: 1.45; -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #9ca3af; font-size: 12px; margin: 0 0 16px; }
+  .card {
+    background: #111a2e; border: 1px solid #1f2a44; border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  label.key { display: flex; align-items: center; gap: 8px; color: #9ca3af; font-size: 13px; margin-bottom: 12px; }
+  input[type=password], input[type=text], select, textarea {
+    background: #0b1220; border: 1px solid #2a3755; color: #e5e7eb;
+    border-radius: 8px; padding: 9px 10px; font-size: 15px; font-family: inherit;
+  }
+  input[type=password] { flex: 1; min-width: 0; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #38bdf8; }
+
+  .live {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    border-radius: 12px; margin-bottom: 12px; font-weight: 700; font-size: 16px;
+    border: 1px solid #1f2a44;
+  }
+  .live.on { background: #06321f; border-color: #166534; color: #4ade80; }
+  .live.off { background: #14203a; border-color: #1f2a44; color: #9ca3af; }
+  .live.k-rapat.on { background: #3a2b07; border-color: #a16207; color: #facc15; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+  .live.on .dot { animation: pulse 1s infinite; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: .25; } 100% { opacity: 1; } }
+  .live .live-sub { font-weight: 400; font-size: 12px; color: #9ca3af; margin-left: auto; text-align: right; }
+
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.green { background: #06321f; color: #4ade80; }
+  .badge.yellow { background: #3a2b07; color: #facc15; }
+  .badge.red { background: #3d0a0a; color: #f87171; }
+  .badge.gray { background: #1f2937; color: #9ca3af; }
+  .muted { color: #9ca3af; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .grid .k { color: #9ca3af; font-size: 12px; }
+  .grid .v { font-variant-numeric: tabular-nums; }
+  button {
+    background: #1d4ed8; color: #fff; border: 0; border-radius: 9px;
+    padding: 11px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button:active { transform: translateY(1px); }
+  button.danger { background: #7f1d1d; }
+  button.warn { background: #a16207; }
+  button.ok { background: #166534; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .controls { display: flex; gap: 8px; }
+  .controls button { flex: 1; }
+  .rowflex { display: flex; gap: 8px; margin-top: 8px; }
+  .rowflex input { flex: 1; }
+  .rowflex button { flex: 0 0 auto; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #9ca3af; margin: 0 0 8px; }
+  .evhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .evhead h2 { margin: 0; }
+  .chk { display: flex; gap: 6px; align-items: center; color: #9ca3af; font-size: 12px; }
+
+  /* Di balik layar */
+  .voiceline { padding: 5px 0; border-bottom: 1px solid #1a2338; font-size: 12px; }
+  .voiceline:last-child { border-bottom: 0; }
+  .voiceline .who { color: #38bdf8; font-weight: 600; }
+  .voiceline .ph { color: #64748b; }
+
+  /* Chat */
+  .chat-head { display: flex; gap: 8px; align-items: center; }
+  .chat-head select { flex: 1; }
+  #chat-log {
+    height: 220px; overflow-y: auto; margin: 10px 0; padding: 6px;
+    background: #0b1220; border: 1px solid #1f2a44; border-radius: 9px;
+  }
+  .msg { max-width: 88%; padding: 8px 11px; border-radius: 11px; margin: 5px 0; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; }
+  .msg.me { background: #1d4ed8; color: #fff; margin-left: auto; }
+  .msg.bot { background: #1b2540; color: #e5e7eb; }
+  .msg.sys { background: transparent; color: #9ca3af; font-size: 12px; text-align: center; max-width: 100%; }
+  .chat-send { display: flex; gap: 8px; }
+  .chat-send textarea { flex: 1; resize: none; height: 46px; }
+
+  #events .ev { padding: 5px 0; border-bottom: 1px solid #1a2338; font-size: 12px; }
+  #events .ev:last-child { border-bottom: 0; }
+  #events .ts { color: #64748b; }
+  #toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: #1f2937; color: #e5e7eb; padding: 10px 16px; border-radius: 10px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LAUMOLOGY War Room</h1>
+  <p class="sub">Kontrol jarak jauh via Tailscale</p>
+</header>
+
+<label class="key">Kunci <input id="api-key" type="password" placeholder="X-API-Key" autocomplete="off"></label>
+
+<div id="activity" class="live off">
+  <span class="dot"></span>
+  <span id="activity-text">Memuat…</span>
+  <span id="activity-sub" class="live-sub"></span>
+</div>
+
+<section class="card controls">
+  <button id="btn-pause" class="warn">Jeda</button>
+  <button id="btn-resume" class="ok">Lanjut</button>
+  <button id="btn-stop" class="danger">Berhenti</button>
+</section>
+
+<section class="card">
+  <h2>Loop &amp; Rapat</h2>
+  <div class="controls">
+    <button id="btn-loop">Mulai Loop</button>
+    <button id="btn-loops" class="danger">Loop Selamanya</button>
+  </div>
+  <div class="rowflex">
+    <input id="topic" type="text" placeholder="Topik rapat...">
+    <button id="btn-discuss" class="warn">Rapat</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Di balik layar <span class="muted" id="voice-count"></span></h2>
+  <div id="voice"><div class="muted">Belum ada aktivitas agen.</div></div>
+</section>
+
+<section class="card">
+  <h2>Chat dengan Agen</h2>
+  <div class="chat-head">
+    <select id="chat-agent">
+      <option value="lead">Lead Engineer</option>
+      <option value="code">Code Engineer</option>
+      <option value="quant">Quant Analyst</option>
+      <option value="qa">QA Engineer</option>
+      <option value="reviewer">Reviewer</option>
+      <option value="security">Security</option>
+      <option value="uiux">UI/UX</option>
+      <option value="tech">Technical Analyst</option>
+      <option value="fundamental">Fundamental</option>
+      <option value="seo">SEO</option>
+    </select>
+    <button id="chat-clear" class="warn">Bersihkan</button>
+  </div>
+  <div id="chat-log"></div>
+  <div class="chat-send">
+    <textarea id="chat-input" placeholder="Tulis pesan…"></textarea>
+    <button id="chat-send">Kirim</button>
+  </div>
+</section>
+
+<section class="card">
+  <div class="row"><span id="state-badge" class="badge gray">—</span><span id="iteration" class="muted"></span></div>
+  <div class="grid" id="budget"></div>
+</section>
+
+<section class="card" id="backlog"></section>
+
+<section class="card" id="events">
+  <div class="evhead">
+    <h2>Kejadian terakhir</h2>
+    <label class="chk"><input type="checkbox" id="ev-detail"> detail teknis</label>
+  </div>
+  <div id="events-list"></div>
+</section>
+
+<div id="toast"></div>
+<script src="/static/js/warroom.js"></script>
+</body>
+</html>

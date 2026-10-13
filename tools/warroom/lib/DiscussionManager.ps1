@@ -123,6 +123,7 @@ function Invoke-WarRoomDiscussion {
     if ($Agents.Count -eq 0) {
         $Agents = @($cfg.Agents.Quant, $cfg.Agents.Code, $cfg.Agents.QA)
     }
+    Write-WarRoomEvent -Category 'review' -Message "diskusi mulai topic='$Topic' rounds=$MaxRounds agen=$($Agents -join ',')" | Out-Null
 
     $messages = @()
     $rounds = 0

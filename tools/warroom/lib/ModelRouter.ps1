@@ -9,6 +9,7 @@ function Get-WarRoomTuning {
     $t = [pscustomobject]@{
         EnableCrossTalk  = [bool](__get 'EnableCrossTalk' $true)
         MaxAgentRetries  = [int](__get 'MaxAgentRetries' 1)
+        MaxVerifyAgents  = [int](__get 'MaxVerifyAgents' 2)
         PlanMaxChars     = [int](__get 'PlanMaxChars' 6000)
         FindingsMaxChars = [int](__get 'FindingsMaxChars' 8000)
         ReactionsMaxChars = [int](__get 'ReactionsMaxChars' 3000)

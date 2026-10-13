@@ -399,6 +399,14 @@ function Write-AgentVoice {
     if ([string]::IsNullOrWhiteSpace($Text)) { return }
     $color = Get-AgentColor -Agent $Agent
     $plainText = ConvertTo-WarRoomPlainText -Text $Text
+    # Rekam "suara" agen ke voice.jsonl agar panel web (HP) bisa menampilkan
+    # apa yang agen kerjakan/pikirkan di belakang layar saat loop/rapat berjalan.
+    try {
+        $vtext = $plainText
+        if ($vtext.Length -gt 800) { $vtext = $vtext.Substring(0, 800) }
+        $vrec = [ordered]@{ ts = (Get-WarRoomUtcNow); agent = $Agent; phase = $Phase; text = (Protect-WarRoomSecret $vtext) }
+        Add-ContentSafe -Path (Join-Path (Get-WarRoomStateDir) 'voice.jsonl') -Value ($vrec | ConvertTo-Json -Depth 6 -Compress)
+    } catch { }
     $name = Get-AgentName -Agent $Agent
     $time = (Get-Date).ToString('HH:mm')
     if ($Plain) {

@@ -110,32 +110,60 @@ async function loadSummary(){
   }catch(e){ el.innerHTML=''; }
 }
 
-function showOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.add("show"); }
+var _onboardLastFocus=null;
+function isOnboardOpen(){ var el=document.getElementById("onboard"); return !!(el && el.classList.contains("show")); }
+function showOnboard(moveFocus){
+  var el=document.getElementById("onboard"); if(!el) return;
+  if(!isOnboardOpen()){ try{ _onboardLastFocus=document.activeElement; }catch(e){ _onboardLastFocus=null; } }
+  el.classList.add("show");
+  if(moveFocus){ var c=el.querySelector(".onboard-card"); if(c && c.focus){ try{ c.focus(); }catch(e){} } }
+}
 function focusHero(){ var i=document.getElementById("ticker"); if(!i) return; try{ i.focus(); }catch(e){} }
 function hideOnboard(){ var el=document.getElementById("onboard"); if(el) el.classList.remove("show"); try{ localStorage.setItem("sbl_onboarded","1"); }catch(e){} focusHero(); }
+function _onboardFocusables(el){
+  return el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+}
 (function(){
   var b=document.getElementById("onboardClose"); if(b) b.onclick=hideOnboard;
-  var h=document.getElementById("helpBtn"); if(h) h.onclick=showOnboard;
+  var h=document.getElementById("helpBtn"); if(h) h.onclick=function(){ showOnboard(true); };
   var o=document.getElementById("onboard"); if(o) o.addEventListener("click",function(e){ if(e.target.id==="onboard") hideOnboard(); });
   var seen=false; try{ seen=!!localStorage.getItem("sbl_onboarded"); }catch(e){ seen=true; }
-  if(!seen) setTimeout(showOnboard, 700); else focusHero();
+  if(!seen) setTimeout(function(){ showOnboard(true); }, 700); else focusHero();
 })();
+document.addEventListener("keydown", function(e){
+  if(!isOnboardOpen()) return;
+  if(e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); hideOnboard(); return; }
+  if(e.key==="Tab"){
+    var el=document.getElementById("onboard"); if(!el) return;
+    var f=_onboardFocusables(el);
+    if(!f.length){ e.preventDefault(); return; }
+    var first=f[0], last=f[f.length-1], active=document.activeElement;
+    if(el.contains(active)){
+      if(e.shiftKey && active===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && active===last){ e.preventDefault(); first.focus(); }
+    } else {
+      e.preventDefault(); first.focus();
+    }
+  }
+}, true);
 
 var TAB_ORDER=["analisis","fundamental","berita","screener","live","backtest","portofolio","akurasi","pasar","musyawarah"];
 function gotoTabByIndex(i){ var name=TAB_ORDER[i]; if(!name) return; var t=document.querySelector('.tab[data-tab="'+name+'"]'); if(t) t.click(); }
 document.addEventListener("keydown",function(e){
+  if(isOnboardOpen()) return;
   if(typeof isNewsSheetOpen === "function" && isNewsSheetOpen()) return;
   var tag=(e.target.tagName||"").toLowerCase();
   if(tag==="input"||tag==="select"||tag==="textarea") return;
   if(e.key>="1"&&e.key<="9"){ gotoTabByIndex(Number(e.key)-1); }
   else if(e.key==="0"){ gotoTabByIndex(9); }
   else if(e.key==="/"){ e.preventDefault(); var inp=document.getElementById("ticker"); if(inp){ inp.focus(); if(inp.select) inp.select(); } }
-  else if(e.key==="?"){ showOnboard(); }
+  else if(e.key==="?"){ showOnboard(true); }
   else if(e.key==="t"||e.key==="T"){ var tb=document.getElementById("themeBtn"); if(tb) tb.click(); }
 });
 
 (function init(){
   try{ applyTheme(localStorage.getItem("sbl_theme") || "light"); }catch(e){}
+  try{ if(typeof setIntro === "function") setIntro("analisis"); }catch(e){}
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/static/sw.js", {updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}); }
   const yr = document.getElementById("yr"); if(yr) yr.textContent = new Date().getFullYear();
   const q = new URLSearchParams(location.search);
@@ -165,6 +193,7 @@ document.addEventListener("keydown",function(e){
     renderWatchlist(); renderPositions(); renderAlerts(); loadHistory(); pollPortfolio();
     loadPaper(); loadDb();
     setInterval(pollPortfolio, 20000);
+    setInterval(loadSummary, 60000);
   });
 })();
 analyze();

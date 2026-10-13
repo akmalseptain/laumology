@@ -25,6 +25,8 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="LAUMOLOGY · Glosarium Indikator Saham IDX">
+<meta property="article:published_time" content="{{ content_lastmod }}">
+<meta property="article:modified_time" content="{{ content_lastmod }}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Indikator Saham IDX · Glosarium RSI, MACD, Bollinger &amp; Lainnya">
 <meta name="twitter:description" content="Kenali 12 indikator saham inti LAUMOLOGY: RSI, MACD, Bollinger Bands, ADX, SuperTrend, ATR, Stochastic, OBV, MFI, Ichimoku, VWAP, dan Squeeze.">
@@ -36,6 +38,29 @@
   "name": "LAUMOLOGY"{% if canonical_base %},
   "url": {{ canonical_base|tojson }},
   "logo": {{ (canonical_base ~ "/static/laumology.svg")|tojson }}{% endif %}
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  {% if canonical_base %}"url": {{ (canonical_base ~ "/indikator-saham")|tojson }},{% endif %}
+  "headline": "Indikator Saham IDX · Glosarium RSI, MACD, Bollinger & Lainnya",
+  "description": "Glosarium indikator saham IDX yang dipakai LAUMOLOGY: RSI, MACD, Bollinger Bands, ADX, SuperTrend, ATR, Stochastic, OBV, MFI, Ichimoku, VWAP, dan Squeeze Momentum.",
+  "inLanguage": "id-ID",
+  "datePublished": "{{ content_lastmod }}",
+  "dateModified": "{{ content_lastmod }}",
+  "author": {"@type": "Organization", "name": "LAUMOLOGY"},
+  "publisher": {
+    "@type": "Organization",
+    "name": "LAUMOLOGY"{% if canonical_base %},
+    "url": {{ canonical_base|tojson }}{% endif %}
+  },
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "LAUMOLOGY"{% if canonical_base %},
+    "url": {{ canonical_base|tojson }}{% endif %}
+  }
 }
 </script>
 <script type="application/ld+json">

@@ -8,7 +8,9 @@ param(
     [int]$CycleTimeoutSec = 900,
     [switch]$Execute,         # paksa eksekusi nyata
     [switch]$DryRun,          # paksa tanpa panggilan model
-    [switch]$Once             # satu siklus saja (abaikan jeda)
+    [switch]$Once,            # satu siklus saja (abaikan jeda)
+    [switch]$Forever,         # loop TAK TERBATAS: berhenti saat anggaran habis / stop manual
+    [switch]$Fast             # jeda antar-siklus dipangkas (ringan & cepat)
 )
 
 $ErrorActionPreference = 'Continue'
@@ -36,8 +38,15 @@ $autoCommit = if ($cfg.ContainsKey('AutoCommit')) { [bool]$cfg.AutoCommit } else
 $autoPush = if ($cfg.ContainsKey('AutoPush')) { [bool]$cfg.AutoPush } else { $false }
 $publishPaths = if ($cfg.ContainsKey('PublishPaths')) { @($cfg.PublishPaths) } else { @('.opencode', 'tools', 'routes', 'tests') }
 
-if ($MaxCycles -le 0) { $MaxCycles = $cyclesPerRun }
-if ($MaxMinutes -le 0) { $MaxMinutes = $maxRunMinutes }
+if ($Forever) {
+    # Tak terbatas: berjalan sampai anggaran habis (mode paused) atau stop manual.
+    $MaxCycles = 0
+    $MaxMinutes = 0
+} else {
+    if ($MaxCycles -le 0) { $MaxCycles = $cyclesPerRun }
+    if ($MaxMinutes -le 0) { $MaxMinutes = $maxRunMinutes }
+}
+if ($Fast -and $delaySec -gt 3) { $delaySec = 3 }
 $execute = (-not $DryRun) -and ($Execute -or $executeDefault)
 
 function Publish-WarRoomChanges {
@@ -113,8 +122,9 @@ if (-not (Enter-WarRoomSingleInstance)) {
 
 $stopReason = 'max-cycles'
 $runStart = Get-Date
+$consecNoPlan = 0   # siklus berturut tanpa rencana (indikasi token/API/anggaran habis)
 Set-WarRoomState -State 'STARTING' -Note 'supervisor mulai' | Out-Null
-$maxCyclesLabel = if ($MaxCycles -gt 0) { "$MaxCycles" } else { 'tak terbatas' }
+$maxCyclesLabel = if ($Forever) { 'SELAMANYA' } elseif ($MaxCycles -gt 0) { "$MaxCycles" } else { 'tak terbatas' }
 Write-Host ("  LAUMOLOGY War Room mulai. Execute={0} MaxCycles={1} MaxMinutes={2}" -f [bool]$execute, $maxCyclesLabel, $MaxMinutes) -ForegroundColor Cyan
 
 try {
@@ -127,7 +137,7 @@ try {
             if (Test-WarRoomStopRequested) { $stopReason = 'stop-requested'; break }
         }
         $elapsedMin = ((Get-Date) - $runStart).TotalMinutes
-        if ($elapsedMin -ge $MaxMinutes) {
+        if ($MaxMinutes -gt 0 -and $elapsedMin -ge $MaxMinutes) {
             $stopReason = 'run-time-limit'
             Write-Host ("  Batas waktu run tercapai ({0:N1} menit >= {1}). Berhenti." -f $elapsedMin, $MaxMinutes) -ForegroundColor Yellow
             break
@@ -230,13 +240,26 @@ $tSummary
         if ($execute) { Add-CycleRecord -CycleId $cycleId -Outcome $outcome }
         Set-WarRoomState -State 'OBSERVING_AGAIN' -Note 'siap iterasi berikut' -Iteration $i -MarkSuccess:($tcode -eq 0) | Out-Null
 
+        # Pengaman loop selamanya: bila beberapa siklus berturut-turut tidak menghasilkan
+        # rencana (mis. token/kuota/anggaran habis, API error), berhenti dengan rapi
+        # daripada berputar tanpa guna. Satu siklus sukses mereset penghitung.
+        if ($execute) {
+            if ($outcome -eq 'no-plan') { $consecNoPlan++ } else { $consecNoPlan = 0 }
+            if ($consecNoPlan -ge 3) {
+                $stopReason = 'no-plan-berulang (kemungkinan token/API habis)'
+                Write-Host "  Berhenti: 3 siklus berturut tanpa rencana - kemungkinan token/API habis." -ForegroundColor Yellow
+                Write-WarRoomEvent -Category 'orchestrator' -Level 'warn' -Message "run berhenti: no-plan berulang ($consecNoPlan)" | Out-Null
+                break
+            }
+        }
+
         if ($Once) { $stopReason = 'once'; break }
         if ($MaxCycles -le 0 -or $i -lt $MaxCycles) {
             Write-Host ("  Jeda {0} detik sebelum siklus berikutnya..." -f $delaySec) -ForegroundColor DarkGray
             $remaining = $delaySec
             while ($remaining -gt 0) {
                 if (Test-WarRoomStopRequested) { $stopReason = 'stop-requested'; break }
-                if (((Get-Date) - $runStart).TotalMinutes -ge $MaxMinutes) { $stopReason = 'run-time-limit'; break }
+                if ($MaxMinutes -gt 0 -and ((Get-Date) - $runStart).TotalMinutes -ge $MaxMinutes) { $stopReason = 'run-time-limit'; break }
                 Start-Sleep -Seconds ([math]::Min(5, $remaining))
                 $remaining -= 5
             }

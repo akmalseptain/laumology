@@ -17,7 +17,15 @@ _log = logging.getLogger("laumology.state")
 VERSION = "1.0.0"
 START = time.time()
 
-PROTECTED = {"/api/paper/open", "/api/paper/close", "/api/notify"}
+PROTECTED = {
+    "/api/paper/open",
+    "/api/paper/close",
+    "/api/notify",
+    "/api/warroom/control",
+    "/api/warroom/loop",
+    "/api/warroom/discuss",
+    "/api/warroom/chat",
+}
 
 
 def api_key() -> str:

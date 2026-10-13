@@ -1,14 +1,126 @@
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
-  const name = t.dataset.tab;
+function introOpenFlag(){
+  try{ return localStorage.getItem("sbl_intro_open")==="1"; }catch(e){ return false; }
+}
+function syncIntroToggle(){
+  const btn = document.getElementById("introToggle");
+  if(!btn) return;
+  const intro = document.querySelector(".intro");
+  const collapsed = !!intro && intro.classList.contains("off");
+  btn.textContent = collapsed ? "▾" : "▴";
+  btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  btn.title = collapsed ? "Perluas intro" : "Lipat intro";
+}
+function setIntro(name){
+  const intro = document.querySelector(".intro");
+  if(!intro) return;
+  const collapsed = name!=="analisis" || !introOpenFlag();
+  intro.classList.toggle("off", collapsed);
+  syncIntroToggle();
+}
+function setIntroCollapsed(v){
+  try{ if(v) localStorage.removeItem("sbl_intro_open"); else localStorage.setItem("sbl_intro_open","1"); }catch(e){}
+  const intro = document.querySelector(".intro");
+  if(intro) intro.classList.toggle("off", v);
+  syncIntroToggle();
+}
+(function(){
+  const btn = document.getElementById("introToggle");
+  if(!btn) return;
+  btn.onclick = () => {
+    const intro = document.querySelector(".intro");
+    setIntroCollapsed(!(intro && intro.classList.contains("off")));
+  };
+})();
+function moreSheetEl(){ return document.getElementById("moreSheet"); }
+function _moreFocusables(el){
+  return el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+}
+function openMoreSheet(){
+  const sheet = moreSheetEl(); if(!sheet) return;
+  sheet.classList.add("show");
+  sheet.setAttribute("aria-hidden","false");
+  document.body.classList.add("more-sheet-open");
+  const c = sheet.querySelector(".more-sheet-close");
+  if(c) c.focus();
+}
+function closeMoreSheet(){
+  const sheet = moreSheetEl(); if(!sheet) return;
+  sheet.classList.remove("show");
+  sheet.setAttribute("aria-hidden","true");
+  document.body.classList.remove("more-sheet-open");
+  const btn = document.getElementById("moreTab");
+  if(btn){ try{ btn.focus(); }catch(e){} }
+}
+(function(){
+  const btn = document.getElementById("moreTab");
+  if(btn) btn.onclick = openMoreSheet;
+  document.addEventListener("click", function(e){
+    const t = e.target;
+    if(!t || !t.closest) return;
+    if(t.closest(".more-sheet-close")){ closeMoreSheet(); return; }
+    const sheet = moreSheetEl();
+    if(sheet && t === sheet) closeMoreSheet();
+  });
+  document.addEventListener("keydown", function(e){
+    const sheet = moreSheetEl();
+    if(!sheet || !sheet.classList.contains("show")) return;
+    if(e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); closeMoreSheet(); return; }
+    if(e.key === "Tab"){
+      e.stopPropagation();
+      const f = _moreFocusables(sheet);
+      if(!f.length){ e.preventDefault(); return; }
+      const first = f[0], last = f[f.length-1], active = document.activeElement;
+      if(!sheet.contains(active)){ e.preventDefault(); first.focus(); }
+      else if(e.shiftKey && active === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && active === last){ e.preventDefault(); first.focus(); }
+    }
+  }, true);
+})();
+function activateTab(name, source){
+  if(!name) return;
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab===name));
+  document.querySelectorAll(".tab[role=tab]").forEach(x=>{
+    const sel = x.dataset.tab===name;
+    x.setAttribute("aria-selected", sel ? "true" : "false");
+    x.setAttribute("tabindex", sel ? "0" : "-1");
+  });
   document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
   const panel = $("#panel-"+name); if(panel) panel.classList.add("active");
-  if(name==="live") loadLiveChart();
+  setIntro(name);
+  if(name==="live"){ syncFuInputs(); loadLiveChart(); }
   if(name==="portofolio") refreshPortfolio();
   if(name==="fundamental"){ syncFuInputs(); loadFundamentalTab(); }
   if(name==="berita"){ syncFuInputs(); loadNewsTab(); }
+  if(name==="backtest" || name==="akurasi" || name==="musyawarah") syncFuInputs();
   if(name==="analisis" && charts.analysis) setTimeout(()=>ChartKit.resize(charts.analysis), 80);
+  const sel = source || document.querySelector('.tab[data-tab="'+name+'"]');
+  if(sel){
+    sel.scrollIntoView({inline:"center", block:"nearest", behavior:"smooth"});
+    if(sel.closest("#moreSheet")) closeMoreSheet();
+  }
   if(window.matchMedia("(max-width:900px)").matches) window.scrollTo({top:0, behavior:"smooth"});
+}
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>activateTab(t.dataset.tab, t);
+  t.addEventListener("keydown", function(e){
+    if(e.key==="Enter" || e.key===" "){
+      e.preventDefault();
+      activateTab(t.dataset.tab, t);
+      t.focus();
+      return;
+    }
+    if(t.getAttribute("role")!=="tab") return;
+    let dir = 0;
+    if(e.key==="ArrowRight" || e.key==="ArrowDown") dir = 1;
+    else if(e.key==="ArrowLeft" || e.key==="ArrowUp") dir = -1;
+    if(!dir) return;
+    e.preventDefault();
+    const group = t.closest('[role="tablist"]');
+    if(!group) return;
+    const tabs = Array.from(group.querySelectorAll('.tab[role="tab"]'));
+    const next = tabs[(tabs.indexOf(t) + dir + tabs.length) % tabs.length];
+    if(next){ activateTab(next.dataset.tab, next); next.focus(); }
+  });
 });
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ $("#ticker").value=c.dataset.t; document.querySelectorAll(".chip").forEach(x=>x.classList.remove("active")); c.classList.add("active"); analyze(); });
 $("#goBtn").onclick = () => analyze();
@@ -22,6 +134,7 @@ $("#auto").onchange = (e) => {
 async function analyze(silent=false){
   const ticker = ($("#ticker").value||"").trim().toUpperCase();
   if(!ticker) return;
+  if(!silent){ activateTab("analisis"); resetPanelTouched(); syncFuInputs(); }
   const interval = $("#interval").value;
   current = { ticker, interval };
   if(!silent) showStatus("Mengambil " + ticker + " (" + interval + ")...", true);
@@ -29,7 +142,7 @@ async function analyze(silent=false){
   try{
     const d = await fetchJSON(`/api/analyze?ticker=${encodeURIComponent(ticker)}&interval=${interval}&refresh=${$("#refresh").checked?1:0}&log=${silent?0:1}`, {retries:2});
     if(d.error) throw new Error(d.error);
-    render(d);
+    render(d, {silent});
     if(!silent) showStatus("Selesai");
   }catch(e){ if(!silent){ $("#result").innerHTML = `<div class="card empty">Gagal: ${e.message}</div>`; showStatus("Gagal"); } }
   finally{ $("#goBtn").disabled=false; }
@@ -44,40 +157,63 @@ function acc(num, title, body, open=false){
 window.addEventListener("beforeprint", ()=>document.querySelectorAll("details.acc").forEach(d=>{ d.dataset.wasOpen = d.open?"1":"0"; d.open = true; }));
 window.addEventListener("afterprint", ()=>document.querySelectorAll("details.acc").forEach(d=>{ d.open = d.dataset.wasOpen==="1"; }));
 
-function render(d){
+function recoLine(d, cc){
+  const buyish = ["STRONG BUY","BUY","ACCUMULATE"].includes(d.signal);
+  const zone = `${fmt(d.buy_zone_low)}–${fmt(d.buy_zone_high)}`;
+  const body = buyish
+    ? `${d.action} — entry ${zone}, SL ${idr(d.stop_loss)}, TP1 ${idr(d.tp1)}.`
+    : `${d.action} — jangan entry baru dulu.`;
+  return `<div class="hero-reco" style="color:${cc}">Rekomendasi ${d.signal}: ${body}</div>`;
+}
+
+function render(d, opts={}){
+  const silent = !!opts.silent;
+  const openAcc = {};
+  document.querySelectorAll("#result details.acc").forEach(el=>{
+    const n = el.querySelector(".num");
+    if(n) openAcc[n.textContent] = el.open;
+  });
   const sc = signalClass(d.signal), cc = scoreColor(d.score);
   const comps = Object.entries(d.components).map(([k,v])=>{
     const max = {"tren":20,"momentum":20,"kekuatan":15,"volume":15,"setup":15,"risiko":15,"konfluensi":15}[k]||20;
     return `<div class="comp"><span class="name">${k}</span><span class="bar"><i style="width:${Math.min(100,v/max*100)}%"></i></span><span class="num">${fmt(v,0)}</span></div>`;
   }).join("");
   const checks = (d.checklist||[]).map(c=>`<div class="check ${c.pass?'ok':'no'}"><span class="ic">${c.pass?'✓':'✗'}</span>${c.label}</div>`).join("");
-  const reasons = d.reasons.length? d.reasons.map(x=>`<li>${x}</li>`).join("") : "<li style='color:var(--muted);border-left-color:rgba(255,255,255,.15)'>Tidak ada faktor bullish kuat.</li>";
-  const warns = d.warnings.length? d.warnings.map(x=>`<li>${x}</li>`).join("") : "<li style='color:var(--muted);border-left-color:rgba(255,255,255,.15)'>Tidak ada peringatan.</li>";
+  const reasons = d.reasons.length? d.reasons.map(x=>`<li>${x}</li>`).join("") : "<li style='color:var(--muted);border-left-color:var(--border)'>Tidak ada faktor bullish kuat.</li>";
+  const warns = d.warnings.length? d.warnings.map(x=>`<li>${x}</li>`).join("") : "<li style='color:var(--muted);border-left-color:var(--border)'>Tidak ada peringatan.</li>";
   const stCls = d.st_dir_up ? "v-up" : "v-red";
   const passed = (d.checklist||[]).filter(c=>c.pass).length;
 
   $("#result").innerHTML = `
     <div class="card hero">
-      <div class="ring" style="background:conic-gradient(${cc} ${d.score*3.6}deg, rgba(255,255,255,.06) 0)">
+      <div class="ring" style="background:conic-gradient(${cc} ${d.score*3.6}deg, var(--border) 0)">
         <div class="val"><b style="color:${cc}">${d.score}</b><span>/100</span></div>
       </div>
       <div class="headline">
         <span class="badge-lg s-${sc}">${d.signal}</span>
-        <span class="badge-lg s-HOLD" style="margin-left:6px">${d.action}</span>
+        <span class="badge-lg s-${sc}" style="margin-left:6px">${d.action}</span>
         <h2>${d.ticker}</h2>
         <div class="price"><span id="livePrice">${idr(d.price)}</span> <span id="liveChg">${chg(d.change_1d)}</span>
           <span id="liveDot" class="live-dot" style="display:${d.live?'inline-block':'none'};vertical-align:middle;margin-left:8px"></span></div>
         <div class="meta">${d.trend} &middot; W:${d.weekly_trend} &middot; ${d.regime} &middot; Pasar:${d.market_regime||'-'} &middot; ${d.last_date} &middot; ${d.bars} bar${d.model_used?' &middot; <b>SKOR OPT</b>':''}
           <span id="liveStamp" class="mono" style="color:var(--muted)">${d.live?("· LIVE "+(d.quote_source||"")):""}</span></div>
-      </div>
-      <div style="text-align:center;min-width:150px">
-        <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:.16em">CONFIDENCE</div>
-        <div class="grade" style="color:${cc};margin-top:2px">${d.grade}</div>
-        <div class="mono" style="font-size:20px;font-weight:900;margin-top:2px">${d.confidence}%</div>
-        <div class="mono" style="font-size:9px;color:var(--muted);margin-top:4px">${passed}/${d.checklist.length} faktor</div>
-        ${(d.model_used && d.prob_up!=null)?`<div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px">Prob ML ${fmt(d.prob_up*100,0)}%${d.score_opt!=null?' · opt '+fmt(d.score_opt,0):''}</div>`:''}
+        <div class="hero-sub">Keyakinan Faktor ${d.confidence}% &middot; Grade <b style="color:${cc}">${d.grade}</b> &middot; ${passed}/${d.checklist.length} faktor${(d.model_used && d.prob_up!=null)?` &middot; Prob ML ${fmt(d.prob_up*100,0)}%${d.score_opt!=null?' · opt '+fmt(d.score_opt,0):''}`:''}</div>
+        ${recoLine(d, cc)}
       </div>
     </div>
+
+    ${acc("02","Trade Plan", `
+      <div class="grid">
+        <div class="metric hl"><div class="k">Beli Sekarang</div><div class="v v-white">${idr(d.entry)}</div></div>
+        <div class="metric hl"><div class="k">Zona Beli</div><div class="v v-muted">${fmt(d.buy_zone_low)} – ${fmt(d.buy_zone_high)}</div></div>
+        <div class="metric"><div class="k">Beli Breakout</div><div class="v v-up">${idr(d.entry_breakout)}</div></div>
+        <div class="metric"><div class="k">Stop Loss</div><div class="v v-red">${idr(d.stop_loss)}</div></div>
+        <div class="metric"><div class="k">Trailing Stop</div><div class="v v-red">${idr(d.stop_trail)}</div></div>
+        <div class="metric"><div class="k">Risiko / Trade</div><div class="v v-muted">${fmt(d.risk_pct,2)}%</div></div>
+        <div class="metric"><div class="k">TP1 (RR 1:${fmt(d.rr1,1)})</div><div class="v v-up">${idr(d.tp1)}</div></div>
+        <div class="metric"><div class="k">TP2 (RR 1:${fmt(d.rr2,1)})</div><div class="v v-up">${idr(d.tp2)}</div></div>
+        <div class="metric"><div class="k">TP3 (RR 1:${fmt(d.rr3,1)})</div><div class="v v-up">${idr(d.tp3)}</div></div>
+      </div>`, true)}
 
     <div class="card">
       <div class="sec"><span class="badge">Technical Chart</span>
@@ -92,18 +228,6 @@ function render(d){
     ${(d.decision && d.decision.direction) ? decisionCard(d.decision) : ''}
     ${(d.stock && d.stock.scores) ? stockCard(d.stock, d.decision) : ''}
 
-    ${acc("02","Trade Plan", `
-      <div class="grid">
-        <div class="metric hl"><div class="k">Beli Sekarang</div><div class="v v-white">${idr(d.entry)}</div></div>
-        <div class="metric hl"><div class="k">Zona Beli</div><div class="v v-muted">${fmt(d.buy_zone_low)} – ${fmt(d.buy_zone_high)}</div></div>
-        <div class="metric"><div class="k">Beli Breakout</div><div class="v v-up">${idr(d.entry_breakout)}</div></div>
-        <div class="metric"><div class="k">Stop Loss</div><div class="v v-red">${idr(d.stop_loss)}</div></div>
-        <div class="metric"><div class="k">Trailing Stop</div><div class="v v-red">${idr(d.stop_trail)}</div></div>
-        <div class="metric"><div class="k">Risiko / Trade</div><div class="v v-muted">${fmt(d.risk_pct,2)}%</div></div>
-        <div class="metric"><div class="k">TP1 (RR 1:${fmt(d.rr1,1)})</div><div class="v v-up">${idr(d.tp1)}</div></div>
-        <div class="metric"><div class="k">TP2 (RR 1:${fmt(d.rr2,1)})</div><div class="v v-up">${idr(d.tp2)}</div></div>
-        <div class="metric"><div class="k">TP3 (RR 1:${fmt(d.rr3,1)})</div><div class="v v-up">${idr(d.tp3)}</div></div>
-      </div>`)}
     ${acc("03","Position Sizing", `
       <div class="grid">
         <div class="metric"><div class="k">Saran Lot</div><div class="v v-white">${fmt(d.lots)}</div></div>
@@ -147,11 +271,15 @@ function render(d){
     <div id="fundCard"></div>
     <div id="mlCard"></div>
     <div id="newsCard"></div>`;
+  document.querySelectorAll("#result details.acc").forEach(el=>{
+    const n = el.querySelector(".num");
+    if(n) el.open = !!openAcc[n.textContent];
+  });
   lastAnalysis = d;
   loadFundamental(d.ticker);
   loadMl(d.ticker);
   loadNews(d.ticker);
-  document.querySelector("#panel-analisis").scrollIntoView({behavior:"smooth", block:"start"});
+  if(!silent) document.querySelector("#panel-analisis").scrollIntoView({behavior:"smooth", block:"start"});
   quoteTicker = d.ticker;
   pollQuote();
   loadChart("analysis", "#liveChart", d.ticker, current.interval, $("#refresh").checked);
@@ -353,9 +481,8 @@ async function runScreenBackground(list){
 
 function pick(t){
   $("#ticker").value = t;
-  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab==="analisis"));
-  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
-  $("#panel-analisis").classList.add("active");
+  const atab = document.querySelector('.bottomnav .tab[data-tab="analisis"]') || document.querySelector('.tab[data-tab="analisis"]');
+  activateTab("analisis", atab);
   analyze();
 }
 
@@ -398,8 +525,8 @@ function decisionCard(dec){
       <div class="sec"><span class="badge">Market Decision</span></div>
       <div class="grid">
         <div class="metric hl"><div class="k">Keputusan</div><div class="v ${cls}" style="font-size:18px">${dir}</div></div>
-        <div class="metric"><div class="k">Confidence</div><div class="v ${cls}">${dec.confidence}%</div></div>
-        <div class="metric"><div class="k">Signal Score</div><div class="v v-muted">${dec.signal_score}/100</div></div>
+        <div class="metric"><div class="k">Keyakinan Keputusan</div><div class="v ${cls}">${dec.confidence}%</div></div>
+        <div class="metric"><div class="k">Signal Score (net)</div><div class="v v-muted">${dec.signal_score}/100</div></div>
         <div class="metric"><div class="k">Market Regime</div><div class="v v-muted">${dec.regime}</div></div>
         <div class="metric"><div class="k">Struktur</div><div class="v ${st.bias==='bullish'?'v-up':(st.bias==='bearish'?'v-red':'v-muted')}">${st.label||'-'}${st.bos&&st.bos!=='none'?' (BOS '+st.bos+')':''}${st.choch?' + CHoCH':''}</div></div>
         <div class="metric"><div class="k">IHSG</div><div class="v v-muted">${dec.market||'-'}</div></div>
