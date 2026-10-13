@@ -375,6 +375,10 @@ async function loadFundamentalTab(){
   try{
     const f=await (await fetch('/api/fundamental?ticker='+encodeURIComponent(t))).json();
     if(f.error) throw new Error(f.error);
+    const unavailable = f.available === false;
+    const priceOnly = f.available === true && f.has_financials === false;
+    const fuBadge = unavailable ? ' <span class="badge" style="color:var(--down)">Data fundamental tidak tersedia</span>'
+      : (priceOnly ? ' <span class="badge" style="color:var(--muted)">Hanya harga tersedia; rasio fundamental kosong</span>' : '');
     const num=(v,d=2)=> v==null?"-":Number(v).toFixed(d);
     const pct=(v)=> v==null?"-":(Number(v)*100).toFixed(2)+"%";
     const dy=(v)=> v==null?"-":Number(v).toFixed(2)+"%";
@@ -386,7 +390,7 @@ async function loadFundamentalTab(){
     const rangePos=(f.price!=null&&f.high_52w!=null&&f.low_52w!=null&&f.high_52w>f.low_52w)?Math.round((f.price-f.low_52w)/(f.high_52w-f.low_52w)*100):null;
     el.innerHTML =
       '<div class="card">'
-      + '<div class="sec"><span class="badge">'+(f.name||t)+'</span></div>'
+      + '<div class="sec"><span class="badge">'+(f.name||t)+'</span>'+fuBadge+'</div>'
       + '<p class="muted" style="margin:-4px 0 14px;font-size:12px">'+[f.sector,f.industry].filter(Boolean).join(' · ')+'</p>'
       + '<div class="grid">'+verdict+'</div>'
       + hd+'Valuasi</div>'
@@ -432,7 +436,7 @@ async function loadFundamentalTab(){
       + m("52w Low", rp(f.low_52w), "v-up")
       + m("Posisi 52w", rangePos==null?"-":rangePos+"%")
       + '</div>'
-      + '<p class="note">Penilaian bersifat heuristik dari rasio, bukan rekomendasi. Angka "-" berarti data tidak tersedia di yfinance.</p>'
+      + '<p class="note">'+(unavailable?'Data fundamental tidak tersedia dari sumber (kosong/rate-limit); angka "-" bukan berarti nol. ':(priceOnly?'Hanya harga tersedia dari sumber; rasio fundamental (PER/PBV/ROE) kosong. ':''))+'Penilaian bersifat heuristik dari rasio, bukan rekomendasi. Angka "-" berarti data tidak tersedia di yfinance.</p>'
       + '</div>';
     showStatus("Selesai");
   }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }

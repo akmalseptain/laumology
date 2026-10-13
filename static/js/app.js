@@ -11,6 +11,8 @@ async function runMusyawarah(){
     const p=d.perspectives||{};
     const bstat=(p.bandarmologi||{}).status||"-";
     const v=d.votes||{};
+    const wu=d.weights_used||{};
+    const wlabel=Object.keys(wu).length?Object.keys(wu).map(k=>k[0].toUpperCase()+k.slice(1)+' '+(wu[k]*100).toFixed(0)+'%').join(' · '):'bobot 40/30/15/15';
     const vrow=(label,val)=>'<div class="check" style="justify-content:space-between"><span>'+label+'</span><span class="mono '+(val>0?'v-up':(val<0?'v-red':'v-muted'))+'">'+(val>0?'+':'')+Number(val).toFixed(2)+'</span></div>';
     window.__myText = d.text;
     $("#myResult").innerHTML =
@@ -24,7 +26,7 @@ async function runMusyawarah(){
       +'<div class="metric"><div class="k">Entry</div><div class="v v-white">'+idr(d.entry)+'</div></div>'
       +'<div class="metric"><div class="k">Target</div><div class="v v-up">'+idr(d.target)+'</div></div>'
       +'</div>'
-      + '<div class="mono" style="color:#7c8c83;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Voting agen (bobot 40/30/15/15)</div>'
+      + '<div class="mono" style="color:#7c8c83;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Voting agen ('+wlabel+')'+(d.has_financials===false?' <span class="badge" style="color:var(--muted)">fundamental dikecualikan: rasio tidak tersedia</span>':'')+'</div>'
       + '<div class="checks" style="grid-template-columns:1fr 1fr">'+vrow('@technical',v.technical||0)+vrow('@bandarmologi',v.bandarmologi||0)+vrow('@fundamental',v.fundamental||0)+vrow('@sentiment',v.sentiment||0)+'</div>'
       + '<div class="mono" style="background:var(--surface);border:1px solid var(--border);color:var(--foreground);border-radius:12px;padding:16px;margin-top:16px;white-space:pre-wrap;font-size:12px;line-height:1.7;overflow-x:auto">'+String(d.text).replace(/</g,"&lt;")+'</div>'
       + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:8px">Engine: '+d.engine+'</div>';

@@ -116,6 +116,32 @@ def _fundamental(f: dict) -> dict:
     }
 
 
+def _fund_tech_alignment(tech_bias: str, fund: dict, available: bool) -> dict:
+    """Penilaian konfluensi deterministik teknikal x fundamental (additive).
+
+    Murni metadata transparansi: TIDAK mengubah bobot/voting/konsensus/
+    conviction maupun keputusan. Penalti DIVERGEN sempat dikaji (W-0024) namun
+    ditahan karena fundamental belum point-in-time (lihat catatan di
+    ``consensus_backtest.py``) dan klasifikasi valuasi masih absolut
+    (sector-blind) -> berisiko double-count dengan ``fund_vote``.
+    """
+    if not available:
+        return {"status": "n/a", "note": "Data fundamental tidak tersedia."}
+    category = fund.get("category") or ""
+    valuation = fund.get("valuation") or ""
+    strong = ("Kualitas Baik" in category) or ("Murah" in valuation)
+    weak = ("Rugi" in category) or ("Mahal" in valuation)
+    if tech_bias == "BULLISH" and strong:
+        status, note = "SEARAH", "Teknikal bullish didukung fundamental kuat/murah."
+    elif tech_bias == "BEARISH" and weak:
+        status, note = "SEARAH", "Teknikal bearish sejalan fundamental lemah/mahal."
+    elif (tech_bias == "BULLISH" and weak) or (tech_bias == "BEARISH" and strong):
+        status, note = "DIVERGEN", "Sinyal teknikal dan fundamental bertentangan (informasional; tidak mengubah konsensus)."
+    else:
+        status, note = "NETRAL", "Tidak ada konfirmasi/pertentangan berarti."
+    return {"status": status, "note": note}
+
+
 def reconcile_vetoes(base: str, decision_engine: dict, market_regime: str | None) -> list[str]:
     """Veto Risk Moderator agar Musyawarah konsisten dengan Decision Engine & regime IHSG."""
     out: list[str] = []
@@ -129,6 +155,25 @@ def reconcile_vetoes(base: str, decision_engine: dict, market_regime: str | None
     if market_regime == "downtrend":
         out.append("Regime IHSG downtrend -> tahan BUY.")
     return out
+
+
+def _agent_weights(fund_has_financials: bool) -> dict:
+    """Bobot konsensus Musyawarah, dengan agen fundamental dinormalisasi ulang.
+
+    Saat rasio fundamental benar-benar absen (``has_financials=False``),
+    ``fund_vote`` selalu 0 sehingga bobot 15% fundamental hanya mendilusi
+    konsensus ke arah netral tanpa informasi. Agen itu dikeluarkan lalu bobot
+    tersisa direnormalisasi agar total tetap 1 (deterministik, urutan tetap).
+    Agen fundamental dengan data ada (meski verdict Wajar/Sedang -> vote 0)
+    TIDAK dikeluarkan. Ini tidak menyentuh rumus skor/vote apa pun.
+    """
+    weights = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
+    if not fund_has_financials:
+        weights.pop("fundamental", None)
+        total = sum(weights.values())
+        if total > 0:
+            weights = {k: v / total for k, v in weights.items()}
+    return weights
 
 
 def musyawarah(ticker: str, use_llm: bool = False) -> dict:
@@ -167,6 +212,9 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     except Exception:
         f = {}
     fund = _fundamental(f)
+    fund_available = bool(f.get("available"))
+    fund_has_financials = bool(f.get("has_financials"))
+    tech_fund_alignment = _fund_tech_alignment(tech_bias, fund, fund_available)
     fund_summary = (f"{fund['category']}. {fund['valuation']} "
                     f"(PER {f.get('pe') if f.get('pe') is not None else '-'}, "
                     f"PBV {f.get('pb') if f.get('pb') is not None else '-'}, "
@@ -223,14 +271,14 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     elif sent.get("ihsg_regime") == "Bearish":
         sent_vote = max(-1.0, sent_vote - 0.3)
 
-    weights = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
+    weights = _agent_weights(fund_has_financials)
     votes = {
         "technical": round(tech_vote, 2),
         "bandarmologi": round(bandar_vote, 2),
         "fundamental": round(fund_vote, 2),
         "sentiment": round(sent_vote, 2),
     }
-    consensus = round(sum(weights[k] * votes[k] for k in votes), 3)
+    consensus = round(sum(weights[k] * votes[k] for k in weights), 3)
     conviction = int(round(abs(consensus) * 100))
 
     # --- Perspective 5: Risk Manager & Moderator ---
@@ -273,6 +321,12 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     ml_line = (f"• @ml_model    : Probabilitas naik {round(ml_prob * 100, 1)}% "
                f"(model logistic, out-of-sample).\n") if ml_prob is not None else ""
 
+    order = ("technical", "bandarmologi", "fundamental", "sentiment")
+    weights_used = {k: round(weights[k], 4) for k in order if k in weights}
+    vote_line = " | ".join(f"{k} {votes[k]:+.2f}" for k in order if k in weights)
+    weight_line = "/".join(str(int(round(weights[k] * 100))) for k in order if k in weights)
+    fund_note = "" if fund_has_financials else " [fundamental dikecualikan: rasio tidak tersedia]"
+
     text = (
         "===================================================\n"
         f"      HASIL MUSYAWARAH AGENT SAHAM: {ticker}\n"
@@ -285,9 +339,8 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         + ml_line +
         "\n[2. CATATAN VETO & SINTESIS MODERATOR]\n"
         f"• {synthesis}\n"
-        f"• Voting: technical {votes['technical']:+.2f} | bandarmologi {votes['bandarmologi']:+.2f} | "
-        f"fundamental {votes['fundamental']:+.2f} | sentiment {votes['sentiment']:+.2f} "
-        f"(bobot 40/30/15/15) -> konsensus {consensus:+.3f}\n\n"
+        f"• Voting: {vote_line} "
+        f"(bobot {weight_line}) -> konsensus {consensus:+.3f}{fund_note}\n\n"
         "[3. KEPUTUSAN FINAL]\n"
         f"• DECISION     : {decision}\n"
         f"• ENTRY AREA   : Rp {_fmt(entry)}\n"
@@ -308,9 +361,13 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
                       "adx": a.adx, "support": a.support, "resistance": a.resistance},
         "bandarmologi": bandar,
         "fundamental": fund,
+        "fund_tech_alignment": tech_fund_alignment,
         "sentiment": sent,
         "ml_prob_up": ml_prob,
         "votes": votes,
+        "weights_used": weights_used,
+        "fundamental_available": fund_available,
+        "has_financials": fund_has_financials,
         "consensus": consensus,
         "conviction": conviction,
         "vetoes": vetoes,
@@ -347,6 +404,9 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         "conviction": conviction,
         "consensus": consensus,
         "votes": votes,
+        "weights_used": weights_used,
+        "fundamental_available": fund_available,
+        "has_financials": fund_has_financials,
         "ml_prob_up": ml_prob,
         "vetoes": vetoes,
         "engine": engine,
@@ -362,6 +422,7 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
             "fundamental": {"category": fund["category"], "text": fund_summary},
             "sentiment": {"label": sent.get("label"), "text": sentiment_summary},
         },
+        "fund_tech_alignment": tech_fund_alignment,
         "synthesis": synthesis,
         "reason": reason,
         "text": text,

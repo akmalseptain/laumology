@@ -2179,7 +2179,9 @@ class TestFundamentalsCacheBound(unittest.TestCase):
         total = fundamentals._CACHE_MAX + 300
         fake = {"longName": "PT Test", "sector": "Financials"}
         try:
-            with patch("fundamentals.yf.Ticker") as mock_ticker:
+            with patch("fundamentals.yf.Ticker") as mock_ticker, \
+                 patch("data.get_quote", return_value=None), \
+                 patch("data.get_ohlcv", return_value=None):
                 mock_ticker.return_value.info = fake
                 for i in range(total):
                     self.assertIsNotNone(fundamentals.get_fundamentals(f"T{i}"))
@@ -2203,6 +2205,283 @@ class TestFundamentalsCacheBound(unittest.TestCase):
             self.assertIn("error", res)
         finally:
             fundamentals._cache.clear()
+
+
+class TestFundamentalsSanitize(unittest.TestCase):
+    """Sanitasi rasio + flag `available`/`suspect` (bukan truthiness `info` mentah)."""
+
+    def setUp(self):
+        import fundamentals
+
+        self.fundamentals = fundamentals
+        fundamentals._cache.clear()
+
+    def tearDown(self):
+        self.fundamentals._cache.clear()
+
+    def test_clean_rejects_non_numeric_and_non_finite(self):
+        c = self.fundamentals._clean
+        self.assertIsNone(c("N/A"))
+        self.assertIsNone(c(None))
+        self.assertIsNone(c("abc"))
+        self.assertIsNone(c(float("inf")))
+        self.assertIsNone(c(float("-inf")))
+        self.assertIsNone(c(float("nan")))
+        self.assertEqual(c("12.5"), 12.5)
+
+    def test_impossible_ratios_dropped_extreme_flagged(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fake = {
+            "currentPrice": 100.0,
+            "trailingPE": -5.0,
+            "priceToBook": 41.249,
+            "debtToEquity": -3.0,
+            "beta": float("inf"),
+        }
+        with patch("fundamentals.yf.Ticker") as mock_ticker:
+            mock_ticker.return_value.info = fake
+            out = fundamentals.get_fundamentals("BUMI")
+        self.assertIsNone(out["pe"])
+        self.assertIsNone(out["der"])
+        self.assertIsNone(out["beta"])
+        # Nilai ekstrem tapi sah dipertahankan dan ditandai suspect.
+        self.assertEqual(out["pb"], 41.249)
+        self.assertIn("pb", out["suspect"])
+        self.assertTrue(out["available"])
+
+    def test_partial_info_not_available_and_short_ttl(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fake = {"longName": "PT Test", "sector": "Financials"}
+        with patch("fundamentals.yf.Ticker") as mock_ticker, \
+             patch("data.get_quote", return_value=None), \
+             patch("data.get_ohlcv", return_value=None):
+            mock_ticker.return_value.info = fake
+            out = fundamentals.get_fundamentals("MINOR")
+        self.assertFalse(out["available"])
+        self.assertFalse(out["has_financials"])
+        entry = fundamentals._cache[fundamentals.to_yahoo("MINOR")]
+        self.assertEqual(entry[2], fundamentals._NEGATIVE_TTL)
+
+    def test_available_uses_key_fields_full_ttl(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fake = {"currentPrice": 1234.0}
+        with patch("fundamentals.yf.Ticker") as mock_ticker:
+            mock_ticker.return_value.info = fake
+            out = fundamentals.get_fundamentals("BBCA")
+        self.assertTrue(out["available"])
+        entry = fundamentals._cache[fundamentals.to_yahoo("BBCA")]
+        self.assertEqual(entry[2], fundamentals._TTL)
+
+    def test_price_fallback_available_without_financials(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fake = {"longName": "PT Rugi", "sector": "Industrials"}
+        hist = pd.DataFrame({"Close": [100.0, 250.0]})
+        with patch("fundamentals.yf.Ticker") as mock_ticker, \
+             patch("data.get_quote", return_value={"last": 250.0}), \
+             patch("data.get_ohlcv", return_value=hist):
+            mock_ticker.return_value.info = fake
+            out = fundamentals.get_fundamentals("RUGIX")
+        self.assertTrue(out["available"])
+        self.assertFalse(out["has_financials"])
+        self.assertEqual(out["price"], 250.0)
+        self.assertEqual(out["reason"], "ok")
+        entry = fundamentals._cache[fundamentals.to_yahoo("RUGIX")]
+        self.assertEqual(entry[2], fundamentals._TTL)
+
+    def test_price_fallback_uses_history_when_quote_missing(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        fake = {"longName": "PT Rugi", "sector": "Industrials"}
+        hist = pd.DataFrame({"Close": [100.0, 275.0]})
+        with patch("fundamentals.yf.Ticker") as mock_ticker, \
+             patch("data.get_quote", return_value=None), \
+             patch("data.get_ohlcv", return_value=hist):
+            mock_ticker.return_value.info = fake
+            out = fundamentals.get_fundamentals("RUGIY")
+        self.assertEqual(out["price"], 275.0)
+        self.assertTrue(out["available"])
+        self.assertFalse(out["has_financials"])
+
+    def test_fetch_error_distinguished_from_empty(self):
+        from unittest.mock import patch
+
+        import fundamentals
+
+        with patch("fundamentals.yf.Ticker", side_effect=RuntimeError("net")), \
+             patch("data.get_quote", return_value=None), \
+             patch("data.get_ohlcv", return_value=None):
+            out = fundamentals.get_fundamentals("ERRX")
+        self.assertFalse(out["available"])
+        self.assertEqual(out["reason"], "error")
+        entry = fundamentals._cache[fundamentals.to_yahoo("ERRX")]
+        self.assertEqual(entry[2], fundamentals._NEGATIVE_TTL)
+
+        with patch("fundamentals.yf.Ticker") as mock_ticker, \
+             patch("data.get_quote", return_value=None), \
+             patch("data.get_ohlcv", return_value=None):
+            mock_ticker.return_value.info = {}
+            out = fundamentals.get_fundamentals("EMPTYX")
+        self.assertFalse(out["available"])
+        self.assertEqual(out["reason"], "empty")
+
+
+class TestFundTechAlignment(unittest.TestCase):
+    """Konfluensi deterministik teknikal x fundamental bersifat additive.
+
+    Output WAJIB hanya metadata (``status``/``note``) dan tidak boleh memuat
+    bobot/delta numerik apa pun, agar penalti DIVERGEN tidak diam-diam masuk ke
+    voting/konsensus tanpa bukti out-of-sample (W-0024).
+    """
+
+    def test_alignment_states(self):
+        import musyawarah
+
+        good = {"category": "Big Cap · Kualitas Baik", "valuation": "Valuasi Murah"}
+        weak = {"category": "Small Cap · Rugi", "valuation": "Valuasi Mahal"}
+        self.assertEqual(musyawarah._fund_tech_alignment("BULLISH", good, True)["status"], "SEARAH")
+        self.assertEqual(musyawarah._fund_tech_alignment("BEARISH", weak, True)["status"], "SEARAH")
+        self.assertEqual(musyawarah._fund_tech_alignment("BULLISH", weak, True)["status"], "DIVERGEN")
+        self.assertEqual(musyawarah._fund_tech_alignment("BEARISH", good, True)["status"], "DIVERGEN")
+        self.assertEqual(musyawarah._fund_tech_alignment("NETRAL", good, True)["status"], "NETRAL")
+        self.assertEqual(musyawarah._fund_tech_alignment("BULLISH", {}, False)["status"], "n/a")
+
+    def test_alignment_is_metadata_only(self):
+        import musyawarah
+
+        good = {"category": "Big Cap · Kualitas Baik", "valuation": "Valuasi Murah"}
+        weak = {"category": "Small Cap · Rugi", "valuation": "Valuasi Mahal"}
+        cases = (
+            ("BULLISH", good, True), ("BULLISH", weak, True),
+            ("BEARISH", good, True), ("BEARISH", weak, True),
+            ("NETRAL", good, True), ("BULLISH", {}, False),
+        )
+        for bias, fund, avail in cases:
+            out = musyawarah._fund_tech_alignment(bias, fund, avail)
+            self.assertEqual(set(out), {"status", "note"})
+            for value in out.values():
+                self.assertIsInstance(value, str)
+                self.assertNotIn("conviction", value.lower())
+                self.assertNotIn("kurangi", value.lower())
+
+
+class TestMusyawarahConsensusWeights(unittest.TestCase):
+    """Konsensus Musyawarah tak boleh ter-dilusi saat rasio fundamental absen (W-0024).
+
+    Pemicu WAJIB ``has_financials=False`` (data rasio benar-benar kosong),
+    bukan ``available`` (harga selalu di-backfill sehingga hampir selalu True).
+    Bobot agen fundamental dikeluarkan lalu sisa bobot direnormalisasi; agen
+    fundamental dengan data ada (walau verdict netral) TIDAK dikeluarkan.
+    """
+
+    def test_agent_weights_full(self):
+        import musyawarah
+
+        w = musyawarah._agent_weights(True)
+        self.assertEqual(w, {"technical": 0.40, "bandarmologi": 0.30,
+                             "fundamental": 0.15, "sentiment": 0.15})
+
+    def test_agent_weights_renormalized_when_absent(self):
+        import musyawarah
+
+        w = musyawarah._agent_weights(False)
+        self.assertNotIn("fundamental", w)
+        self.assertAlmostEqual(sum(w.values()), 1.0, places=9)
+        self.assertAlmostEqual(w["technical"], 0.40 / 0.85, places=9)
+        self.assertAlmostEqual(w["bandarmologi"], 0.30 / 0.85, places=9)
+        self.assertAlmostEqual(w["sentiment"], 0.15 / 0.85, places=9)
+
+    def _fake_analysis(self):
+        class _A:
+            pass
+
+        a = _A()
+        a.signal, a.price = "BUY", 1000.0
+        a.trend = a.weekly_trend = a.monthly_trend = "uptrend"
+        a.regime, a.rsi, a.adx, a.macd_hist = "normal", 55.0, 25.0, 0.5
+        a.support, a.resistance = 950.0, 1100.0
+        a.score, a.grade = 70, "B"
+        a.entry_breakout, a.rr2 = 1000.0, 3.0
+        a.buy_zone_high, a.entry, a.tp2, a.stop_loss = 1010.0, 1000.0, 1200.0, 950.0
+        a.decision, a.market_regime = {}, "uptrend"
+        return a
+
+    def _run(self, fund):
+        from unittest.mock import patch
+
+        import musyawarah
+
+        df = make_df()
+        a = self._fake_analysis()
+        with patch("musyawarah.data.get_ohlcv", return_value=df), \
+             patch("musyawarah.data.get_quote", return_value={}), \
+             patch("musyawarah.data.apply_live_quote", return_value=(df, None)), \
+             patch("musyawarah.analyze", return_value=a), \
+             patch("musyawarah.fundamentals.get_fundamentals", return_value=fund), \
+             patch("musyawarah.news.get_news", return_value={"label": "Netral", "avg_sentiment": 0, "count": 0}), \
+             patch("musyawarah.market.ihsg", return_value={}), \
+             patch("musyawarah.ml.predict", side_effect=RuntimeError("no ml")):
+            return musyawarah.musyawarah("TEST")
+
+    def _full(self):
+        return {"available": True, "has_financials": True, "name": "TEST",
+                "pe": 10.0, "pb": 1.5, "roe": 0.20, "der": 50.0,
+                "market_cap": 1e14, "dividend_yield": 0.02}
+
+    def test_full_fundamental_keeps_original_weights(self):
+        d = self._run(self._full())
+        self.assertTrue(d["has_financials"])
+        self.assertTrue(d["fundamental_available"])
+        self.assertEqual(set(d["weights_used"]), {"technical", "bandarmologi",
+                                                  "fundamental", "sentiment"})
+        self.assertAlmostEqual(d["weights_used"]["fundamental"], 0.15, places=4)
+        w = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
+        exp = round(sum(w[k] * d["votes"][k] for k in w), 3)
+        self.assertEqual(d["consensus"], exp)
+        self.assertIn("fundamental", d["votes"])
+
+    def test_price_only_excluded_and_not_diluted(self):
+        fund = {"available": True, "has_financials": False, "name": "TEST",
+                "pe": None, "pb": None, "roe": None, "der": None, "market_cap": None}
+        d = self._run(fund)
+        self.assertTrue(d["fundamental_available"])
+        self.assertFalse(d["has_financials"])
+        self.assertNotIn("fundamental", d["weights_used"])
+        self.assertAlmostEqual(sum(d["weights_used"].values()), 1.0, places=3)
+
+    def test_unavailable_and_price_only_share_weights(self):
+        unavailable = {"available": False, "has_financials": False, "name": "TEST",
+                       "pe": None, "pb": None, "roe": None, "der": None, "market_cap": None}
+        price_only = {"available": True, "has_financials": False, "name": "TEST",
+                      "pe": None, "pb": None, "roe": None, "der": None, "market_cap": None}
+        d1 = self._run(unavailable)
+        d2 = self._run(price_only)
+        self.assertFalse(d1["fundamental_available"])
+        self.assertTrue(d2["fundamental_available"])
+        self.assertEqual(d1["weights_used"], d2["weights_used"])
+        self.assertEqual(d1["consensus"], d2["consensus"])
+
+    def test_neutral_fundamental_not_excluded(self):
+        fund = {"available": True, "has_financials": True, "name": "TEST",
+                "pe": 15.0, "pb": 1.0, "roe": 0.10, "der": 50.0, "market_cap": 1e13}
+        d = self._run(fund)
+        self.assertIn("fundamental", d["weights_used"])
+        w = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
+        exp = round(sum(w[k] * d["votes"][k] for k in w), 3)
+        self.assertEqual(d["consensus"], exp)
 
 
 class TestRateLimitEnvRobustness(unittest.TestCase):
