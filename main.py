@@ -157,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("ticker")
     pb.add_argument("--period", default=None)
     pb.add_argument("--min-score", type=int, default=None)
-    pb.add_argument("--max-hold", type=int, default=20)
+    pb.add_argument("--max-hold", type=int, default=None)
     pb.add_argument("--tp-rr", type=float, default=None)
     pb.add_argument("--sl-mult", type=float, default=None)
     pb.add_argument("--trades", action="store_true", help="Tampilkan rincian trade")

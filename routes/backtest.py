@@ -12,6 +12,7 @@ import data
 import metrics
 import screener
 import ttlcache
+from config import settings
 from payloads import INTERVAL_PERIOD
 
 bp = Blueprint("backtest", __name__)
@@ -31,14 +32,14 @@ def api_backtest():
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
         min_score = int(request.args.get("min_score", 65))
-        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        max_hold = max(2, min(int(request.args.get("max_hold", settings.swing_horizon_days)), 120))
         tp_rr = float(request.args.get("tp_rr", 3.0))
         sl_mult = float(request.args.get("sl_mult", 2.0))
         fee_buy = float(request.args.get("fee_b", 0.15)) / 100.0
         fee_sell = float(request.args.get("fee_s", 0.25)) / 100.0
         slip = float(request.args.get("slip", 0.10)) / 100.0
     except ValueError:
-        min_score, max_hold, tp_rr, sl_mult = 65, 20, 3.0, 2.0
+        min_score, max_hold, tp_rr, sl_mult = 65, settings.swing_horizon_days, 3.0, 2.0
         fee_buy, fee_sell, slip = 0.0015, 0.0025, 0.001
     try:
         df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
@@ -85,11 +86,11 @@ def api_walkforward():
     try:
         folds = max(2, min(int(request.args.get("folds", 4)), 8))
         min_score = int(request.args.get("min_score", 65))
-        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        max_hold = max(2, min(int(request.args.get("max_hold", settings.swing_horizon_days)), 120))
         tp_rr = float(request.args.get("tp_rr", 3.0))
         sl_mult = float(request.args.get("sl_mult", 2.0))
     except ValueError:
-        folds, min_score, max_hold, tp_rr, sl_mult = 4, 65, 20, 3.0, 2.0
+        folds, min_score, max_hold, tp_rr, sl_mult = 4, 65, settings.swing_horizon_days, 3.0, 2.0
     try:
         df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
         rows = backtest_mod.walkforward(
@@ -111,11 +112,11 @@ def api_compare_backtest():
     period = INTERVAL_PERIOD.get(interval, "1y")
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
-        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        max_hold = max(2, min(int(request.args.get("max_hold", settings.swing_horizon_days)), 120))
         tp_rr = float(request.args.get("tp_rr", 3.0))
         sl_mult = float(request.args.get("sl_mult", 2.0))
     except ValueError:
-        max_hold, tp_rr, sl_mult = 20, 3.0, 2.0
+        max_hold, tp_rr, sl_mult = settings.swing_horizon_days, 3.0, 2.0
     try:
         df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
         return jsonify(backtest_mod.compare_backtest(df, ticker, max_hold=max_hold, tp_rr=tp_rr, sl_mult=sl_mult))
@@ -128,11 +129,11 @@ def api_compare_universe():
     name = (request.args.get("list") or "idx30").strip()
     refresh = request.args.get("refresh") in ("1", "true", "yes")
     try:
-        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        max_hold = max(2, min(int(request.args.get("max_hold", settings.swing_horizon_days)), 120))
         tp_rr = float(request.args.get("tp_rr", 3.0))
         sl_mult = float(request.args.get("sl_mult", 2.0))
     except ValueError:
-        max_hold, tp_rr, sl_mult = 20, 3.0, 2.0
+        max_hold, tp_rr, sl_mult = settings.swing_horizon_days, 3.0, 2.0
     key = f"cmpuni:{name}:{tp_rr}:{sl_mult}:{max_hold}"
     if not refresh:
         hit = ttlcache.get(key)
@@ -172,9 +173,9 @@ def api_optimize_weights():
     try:
         tp_rr = float(request.args.get("tp_rr", 3.0))
         sl_mult = float(request.args.get("sl_mult", 2.0))
-        max_hold = max(2, min(int(request.args.get("max_hold", 20)), 120))
+        max_hold = max(2, min(int(request.args.get("max_hold", settings.swing_horizon_days)), 120))
     except ValueError:
-        tp_rr, sl_mult, max_hold = 3.0, 2.0, 20
+        tp_rr, sl_mult, max_hold = 3.0, 2.0, settings.swing_horizon_days
     try:
         return jsonify(consensus_mod.optimize_weights(universe_name, tp_rr, sl_mult, max_hold))
     except Exception as exc:

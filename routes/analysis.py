@@ -117,9 +117,22 @@ def api_accuracy():
         horizon = max(1, min(int(request.args.get("horizon", settings.swing_horizon_days)), 60))
     except ValueError:
         horizon = settings.swing_horizon_days
+    horizons = None
+    raw = request.args.get("horizons")
+    if raw is not None:
+        try:
+            horizons = tuple(int(x) for x in raw.split(",") if x.strip())
+        except ValueError:
+            return jsonify(error="Parameter horizons tidak valid"), 400
+        if not horizons:
+            return jsonify(error="Parameter horizons kosong"), 400
+        horizons = tuple(max(1, min(h, 60)) for h in horizons)
     try:
         df = data.get_ohlcv(ticker, period=period, interval=interval, use_cache=not refresh)
-        result = validation.analyze_accuracy(df, horizon=horizon)
+        if horizons is not None:
+            result = validation.accuracy_by_horizon(df, horizons=horizons)
+        else:
+            result = validation.analyze_accuracy(df, horizon=horizon)
         result["ticker"] = ticker
         return jsonify(result)
     except Exception as exc:

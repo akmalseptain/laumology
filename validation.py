@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pandas as pd
 
@@ -64,16 +66,19 @@ def _factor_stats(cf: pd.DataFrame, keys: list[str], fwd: pd.Series, base_wr: fl
     return out
 
 
-def analyze_accuracy(df: pd.DataFrame, horizon: int | None = None, min_n: int = 20, min_edge: float = MIN_EDGE) -> dict:
+def analyze_accuracy(df: pd.DataFrame, horizon: int | None = None, min_n: int = 20, min_edge: float = MIN_EDGE,
+                     d: pd.DataFrame | None = None) -> dict:
     """Measure predictive edge of each factor and calibrate the composite score.
 
     Forward return = close[t+horizon] / close[t] - 1. This is a historical
     study: the last `horizon` bars are dropped (look-ahead free).
 
     `horizon=None` mengambil `settings.swing_horizon_days` (satu sumber kebenaran).
+    `d` opsional: hasil `add_indicators` yang sudah dihitung agar tidak mengulang
+    (lihat `accuracy_by_horizon`). Bila `None`, dihitung sendiri.
     """
     horizon = settings.swing_horizon_days if horizon is None else horizon
-    d = add_indicators(df)
+    d = add_indicators(df) if d is None else d
     d = d.dropna(subset=["ma50", "ma200", "atr", "supertrend"])
     if len(d) < 80:
         raise ValueError("Data tidak cukup untuk uji akurasi (min 80 bar)")
@@ -135,6 +140,135 @@ def analyze_accuracy(df: pd.DataFrame, horizon: int | None = None, min_n: int = 
         "recommendations": recommendations,
         "agreement": agreement,
     }
+
+
+def accuracy_by_horizon(
+    df: pd.DataFrame,
+    horizons: tuple[int, ...] = (1, 5, 10, 15),
+    min_n: int = 20,
+    min_edge: float = MIN_EDGE,
+) -> dict:
+    """Studi akurasi lintas horizon (W-0017) — READ-ONLY & additive.
+
+    Dua konstruk dibedakan TEGAS agar tak tertukar:
+      - `forward`: win-rate ARAH return majemuk `close.shift(-h)/close-1`
+        (dari `analyze_accuracy`); sampel = bars - h ⇒ look-ahead free.
+      - `trade`: win-rate TRADE-level setelah TP/SL/timeout
+        (`backtest(max_hold=h)`); populasi berbeda karena posisi bisa keluar
+        lebih awal dari `h`, jadi `avg_bars < max_hold`.
+
+    Indikator dihitung SEKALI (`d`) lalu dipakai ulang tiap horizon/metrik.
+    `trade` ditandai `sufficient=False` bila `n_trades < min_n`; `profit_factor`
+    `None` bila tak hingga (tak ada trade rugi). Tiap entri `factors`/`candidates`
+    memuat `win_rate_lo` + `significant`. `indicator_stability` merangkum lintas
+    horizon (`avg_edge` dibobot `n`; `consistent` = hadir di semua `hs`, ≥2
+    horizon, edge>0 di tiap horizon). Tidak menyentuh skor/rumus.
+    """
+    from backtest import backtest
+
+    hs = sorted({int(h) for h in horizons if int(h) > 0})
+    if not hs:
+        raise ValueError("horizons kosong (minimal satu horizon > 0)")
+
+    d = add_indicators(df)
+    rows: list[dict] = []
+    for h in hs:
+        acc = analyze_accuracy(df, horizon=h, min_n=min_n, min_edge=min_edge, d=d)
+        bt = backtest(df, max_hold=h, d=d)
+
+        # Edge per-indikator tiap horizon: populasi `factors` (inti) dan
+        # `candidates` (kandidat) dibedakan tegas lewat flag `candidate`.
+        # `win_rate_lo` (batas bawah Wilson) + `significant` dibawa agar
+        # penilaian per-horizon benar-benar statistik, sejalan dengan
+        # `recommendations` (`edge >= min_edge` ∧ `win_rate_lo > base_wr`).
+        base_wr = acc["base_win_rate"]
+        factors = [
+            {"factor": f["factor"], "n": f["n"], "win_rate": f["win_rate"],
+             "win_rate_lo": f["win_rate_lo"],
+             "significant": f["edge"] >= min_edge and f["win_rate_lo"] > base_wr,
+             "edge": f["edge"], "candidate": False}
+            for f in acc["factors"]
+        ]
+        candidates = [
+            {"factor": c["factor"], "n": c["n"], "win_rate": c["win_rate"],
+             "win_rate_lo": c["win_rate_lo"],
+             "significant": c["edge"] >= min_edge and c["win_rate_lo"] > base_wr,
+             "edge": c["edge"], "candidate": True}
+            for c in acc["candidates"]
+        ]
+        best = max(factors + candidates, key=lambda x: x["edge"], default=None)
+        tr = bt.trades
+        pf = float(bt.profit_factor) if math.isfinite(bt.profit_factor) else None
+
+        rows.append({
+            "horizon": h,
+            "factors": factors,
+            "candidates": candidates,
+            "forward": {
+                "win_rate": acc["base_win_rate"],
+                "avg_ret": acc["base_avg_ret"],
+                "median_ret": acc["base_median_ret"],
+                "samples": acc["samples"],
+                "best_factor": best["factor"] if best else None,
+                "best_edge": best["edge"] if best else None,
+            },
+            "trade": {
+                "n_trades": bt.n_trades,
+                "win_rate": bt.win_rate if bt.n_trades else None,
+                "profit_factor": pf,
+                "expectancy": bt.expectancy if bt.n_trades else None,
+                "avg_bars": float(tr["bars"].mean()) if not tr.empty else 0.0,
+                "sufficient": bt.n_trades >= min_n and pf is not None,
+            },
+        })
+
+    # Agregasi lintas horizon (W-0017 lanjutan): mana indikator yang konsisten
+    # edge>0 di SELURUH horizon. `consistent` HANYA True bila hadir di semua `hs`
+    # (n_horizons == len(hs)) ∧ minimal 2 horizon ∧ edge>0 di tiap horizon —
+    # mencegah faktor sampel kecil (absen di horizon lain) diklaim "stabil".
+    stability: dict[str, dict] = {}
+    for row in rows:
+        h = row["horizon"]
+        for entry in list(row["factors"]) + list(row["candidates"]):
+            st = stability.setdefault(entry["factor"], {
+                "factor": entry["factor"],
+                "candidate": entry["candidate"],
+                "horizons": [],
+                "sum_w": 0.0,
+                "sum_edge_w": 0.0,
+                "edges": [],
+                "n_positive_edge": 0,
+                "n_significant": 0,
+            })
+            st["horizons"].append(h)
+            st["sum_w"] += entry["n"]
+            st["sum_edge_w"] += entry["edge"] * entry["n"]
+            st["edges"].append(entry["edge"])
+            if entry["edge"] > 0:
+                st["n_positive_edge"] += 1
+            if entry["significant"]:
+                st["n_significant"] += 1
+
+    indicator_stability: list[dict] = []
+    for st in stability.values():
+        n_horizons = len(st["horizons"])
+        avg_edge = (st["sum_edge_w"] / st["sum_w"]) if st["sum_w"] else 0.0
+        indicator_stability.append({
+            "factor": st["factor"],
+            "candidate": st["candidate"],
+            "n_horizons": n_horizons,
+            "n_positive_edge": st["n_positive_edge"],
+            "n_significant": st["n_significant"],
+            "avg_edge": avg_edge,
+            "min_edge": min(st["edges"]),
+            "max_edge": max(st["edges"]),
+            "consistent": (n_horizons == len(hs) and n_horizons >= 2
+                           and st["n_positive_edge"] == n_horizons),
+        })
+    indicator_stability.sort(key=lambda x: x["avg_edge"], reverse=True)
+
+    return {"horizons": hs, "min_n": int(min_n), "rows": rows,
+            "indicator_stability": indicator_stability}
 
 
 def calibrate(tickers: list[str], horizon: int | None = None, min_edge: float = MIN_EDGE, min_tickers: int = 5) -> dict:

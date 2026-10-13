@@ -32,6 +32,23 @@
     NormalIdleIntervalMinutes = 30
     FailureBackoffMinutes     = 60
 
+    # --- Routing model & efisiensi konteks (mutakhir, hemat biaya) ---
+    # Semua default = flash agar tidak menaikkan biaya. Isi Strong/Fast/ByRole
+    # bila ingin mengarahkan tugas kritis ke model lebih kuat.
+    Models                    = @{
+        Default = 'deepseek/deepseek-flash'   # fallback semua peran
+        Fast    = 'deepseek/deepseek-flash'   # tugas ringan: investigasi, reaksi, rapat
+        Strong  = 'deepseek/deepseek-flash'   # tugas kritis: rencana, implementasi, verifikasi
+        ByRole  = @{}                          # mis. @{ 'lead-plan' = 'deepseek/deepseek-v4-pro' }
+        ByAgent = @{}                          # mis. @{ 'code-engineer' = 'deepseek/deepseek-v4-pro' }
+    }
+    EnableCrossTalk           = $true   # reaksi silang antar-investigator (matikan utk hemat)
+    MaxAgentRetries           = 1       # ulangan otomatis saat agen gagal (transient), bukan saat anggaran ditolak
+    PlanMaxChars              = 6000    # batas panjang rencana yang diteruskan antar-tahap
+    FindingsMaxChars          = 8000    # batas panjang temuan yang diteruskan
+    ReactionsMaxChars         = 3000    # batas panjang reaksi silang
+    RepoMapMaxChars           = 6000    # batas peta repo yang disuntik ke prompt
+
     # --- Mode batch manual (tanpa VPS) ---
     # Sekali jalankan Invoke-AutonomousLoop.ps1: N siklus, lalu berhenti.
     CyclesPerRun              = 4
@@ -41,6 +58,8 @@
 
     # --- Publikasi otonom (commit + push -> deploy Render) ---
     # Staging dibatasi ke jalur pengembangan; file pribadi pengguna tidak disentuh.
+    # AutoPush = $true -> saklar utama: setelah run selesai otomatis commit + push origin
+    #   (memicu deploy). AutoCommit saja = commit lokal tanpa push.
     AutoCommit                = $true
     AutoPush                  = $true
     PublishPaths              = @('.opencode', 'tools', 'routes', 'tests', 'api', 'pine', 'templates', 'static')

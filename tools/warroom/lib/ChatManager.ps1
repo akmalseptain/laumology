@@ -23,22 +23,26 @@ function Invoke-WarRoomChat {
     Invoke-WarRoomBeep -Kind 'info'
 
     $transcript = "TOPIK: $Topic"
+    $messages = @()
     $cycleId = 'rapat-' + (Get-Date -Format 'HHmmss')
+    $tuning = Get-WarRoomTuning
 
     for ($r = 1; $r -le $Rounds; $r++) {
         foreach ($ag in $Agents) {
+            $transcriptCtx = Limit-WarRoomText $transcript $tuning.FindingsMaxChars
             $prompt = @"
 KARAKTER: $(Get-AgentPersona -Agent $ag)
 Kamu IKUT RAPAT santai (bukan laporan formal). Ini obrolan sejauh ini:
-$transcript
+$transcriptCtx
 
 Balas sebagai '$ag' dalam BAHASA SEHARI-HARI, MAKSIMAL 2 kalimat. Tanggapi pesan terakhir (boleh setuju/nyela/bercanda/debat ringan). Tanpa bullet/heading. Jangan mengarang fakta.
 "@
-            $o = Invoke-OpenCodeAgentWithBudget -Agent $ag -Prompt $prompt -CycleId $cycleId -Role 'rapat' -TimeoutSec $TimeoutSec -Auto:$Auto -Stream
+            $o = Invoke-OpenCodeAgentWithBudget -Agent $ag -Prompt $prompt -CycleId $cycleId -Role 'rapat' -Model (Resolve-WarRoomModel -Agent $ag -Role 'rapat' -Tier 'fast') -TimeoutSec $TimeoutSec -Auto:$Auto -Stream
             if ($o.allowed -and $o.result -and $o.result.text) {
                 $txt = (($o.result.text -replace "\s+", ' ').Trim())
                 Write-AgentVoice -Agent $ag -Text $txt
                 $transcript += "`n${ag}: $txt"
+                $messages += [pscustomobject]@{ agent = $ag; text = $txt }
             } elseif (-not $o.allowed) {
                 Write-Host ("  ({0} dilewati: {1})" -f $ag, $o.reason) -ForegroundColor DarkGray
             }
@@ -47,6 +51,10 @@ Balas sebagai '$ag' dalam BAHASA SEHARI-HARI, MAKSIMAL 2 kalimat. Tanggapi pesan
 
     Write-Host ""
     Invoke-WarRoomBeep -Kind 'ok'
+
+    # Persist notulen rapat agar 'replay' menampilkan rapat yang baru dibahas,
+    # bukan rapat lama dari siklus loop sebelumnya.
+    try { Out-WarRoomMinutes -Title ("Rapat: $Topic") -Messages $messages | Out-Null } catch { }
 
     # Simpan hasil rapat ke backlog agar loop mengerjakannya (rapat -> backlog -> loop).
     if ($env:WARROOM_CHAT_NO_BACKLOG -ne '1') {

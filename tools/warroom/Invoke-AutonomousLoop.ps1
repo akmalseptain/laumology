@@ -19,6 +19,7 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libDir 'GitGuard.ps1')
 . (Join-Path $libDir 'BudgetManager.ps1')
 . (Join-Path $libDir 'BacklogManager.ps1')
+. (Join-Path $libDir 'ModelRouter.ps1')
 . (Join-Path $libDir 'AgentRunner.ps1')
 . (Join-Path $libDir 'DiscussionManager.ps1')
 . (Join-Path $libDir 'PipelineManager.ps1')
@@ -59,12 +60,17 @@ function Publish-WarRoomChanges {
         Write-WarRoomEvent -Category 'orchestrator' -Message "auto-commit $CycleId ($($staged.Count) file)" | Out-Null
         if ($autoPush) {
             $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
-            # Tarik dulu (fast-forward saja) agar tidak bentrok antar-laptop.
+            # Selaraskan dengan remote dulu agar push berhasil (tanpa menulis ulang riwayat).
             $pullOut = & git pull --ff-only origin $branch 2>&1
             if ($LASTEXITCODE -ne 0) {
-                Write-Host "  Auto-push DILEWATI: remote berubah (tidak bisa fast-forward). Commit lokal disimpan." -ForegroundColor Yellow
-                Write-WarRoomEvent -Category 'git' -Level 'warn' -Message "auto-push dilewati (ff-only gagal): $($pullOut -join ' ')" | Out-Null
-                return $false
+                Write-Host "  Sinkron remote (merge)..." -ForegroundColor DarkGray
+                $pullOut = & git pull --no-rebase --no-edit origin $branch 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    & git merge --abort 2>&1 | Out-Null
+                    Write-Host "  Auto-push DILEWATI: remote berbeda & tidak bisa digabung otomatis. Commit lokal disimpan." -ForegroundColor Yellow
+                    Write-WarRoomEvent -Category 'git' -Level 'warn' -Message "auto-push dilewati (gabung gagal): $($pullOut -join ' ')" | Out-Null
+                    return $false
+                }
             }
             $pushOut = & git push origin $branch 2>&1
             if ($LASTEXITCODE -ne 0) {
@@ -156,6 +162,7 @@ try {
 
         # IMPLEMENTING (pipeline bertahap: plan -> investigate -> implement -> verify)
         Set-WarRoomState -State 'IMPLEMENTING' -Note 'pipeline' -Iteration $i | Out-Null
+        $pipe = $null
         if (-not $execute) {
             Write-Host "  [dry-run] Tidak memanggil model." -ForegroundColor DarkGray
         } else {
@@ -189,7 +196,7 @@ Ikuti AGENTS.md. Jangan commit/push. Jangan operasi Git destruktif.
 Ringkasan error gate:
 $tSummary
 "@
-                $ro = Invoke-OpenCodeAgentWithBudget -Agent $cfg.Agents.Code -Prompt $repPrompt -CycleId $cycleId -Role 'code-repair' -TimeoutSec $CycleTimeoutSec -Auto
+                $ro = Invoke-OpenCodeAgentWithBudget -Agent $cfg.Agents.Code -Prompt $repPrompt -CycleId $cycleId -Role 'code-repair' -Model (Resolve-WarRoomModel -Agent $cfg.Agents.Code -Role 'code-repair' -Tier 'strong') -TimeoutSec $CycleTimeoutSec -Auto
                 if ($ro.allowed -and $ro.result) { Write-AgentVoice -Agent $cfg.Agents.Code -Phase ("repair#$attempt") -Text $ro.result.text }
                 Push-Location (Get-WarRoomRoot)
                 try { $tout = & py -3.14 tools/quality_gate.py 2>&1; $tcode = $LASTEXITCODE } finally { Pop-Location }
@@ -205,7 +212,7 @@ $tSummary
 
         # RECORDING
         Set-WarRoomState -State 'RECORDING' -Note 'catat hasil' -Iteration $i | Out-Null
-        $outcome = if ($tcode -eq 0) { 'ok' } else { 'test-failed' }
+        $outcome = if ($execute -and $pipe -and -not $pipe.plan) { 'no-plan' } elseif ($tcode -eq 0) { 'ok' } else { 'test-failed' }
         # Hanya siklus eksekusi nyata yang dihitung terhadap batas harian.
         if ($execute) { Add-CycleRecord -CycleId $cycleId -Outcome $outcome }
         Set-WarRoomState -State 'OBSERVING_AGAIN' -Note 'siap iterasi berikut' -Iteration $i -MarkSuccess:($tcode -eq 0) | Out-Null
@@ -224,10 +231,11 @@ $tSummary
         }
     }
 
-    # PUBLISH otonom (commit + push -> deploy) setelah run selesai, hanya bila
-    # eksekusi nyata, AutoCommit aktif, dan tidak ada error.
-    if ($execute -and $autoCommit -and $stopReason -ne 'error') {
-        Write-Host "  PUBLISH: auto-commit + auto-push..." -ForegroundColor Cyan
+    # PUBLISH otonom: setelah run selesai, commit + push ke origin (memicu deploy),
+    # bila eksekusi nyata dan tidak berakhir error. AutoPush cukup sebagai saklar utama
+    # (otomatis ikut commit), AutoCommit tetap didukung untuk sekadar commit lokal.
+    if ($execute -and ($autoPush -or $autoCommit) -and $stopReason -ne 'error') {
+        Write-Host "  PUBLISH: commit + push origin (deploy)..." -ForegroundColor Cyan
         Publish-WarRoomChanges -CycleId ("run-{0:yyyyMMdd-HHmmss}" -f (Get-Date)) | Out-Null
     }
 } catch {

@@ -13,6 +13,7 @@ $libDir = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libDir 'GitGuard.ps1')
 . (Join-Path $libDir 'BudgetManager.ps1')
 . (Join-Path $libDir 'BacklogManager.ps1')
+. (Join-Path $libDir 'ModelRouter.ps1')
 . (Join-Path $libDir 'AgentRunner.ps1')
 . (Join-Path $libDir 'DiscussionManager.ps1')
 . (Join-Path $libDir 'ChatManager.ps1')
@@ -142,12 +143,35 @@ function Show-Backlog {
     }
 }
 
-function Show-Replay {
+function Get-WarRoomReplayFile {
+    # Pilih artefak rapat terbaru lintas jenis (notulen/debat/pipeline) dengan urutan
+    # deterministik: timestamp pada nama berkas, lalu waktu tulis, lalu prioritas jenis.
+    # Prioritas jenis (notulen > debat > pipeline) mencegah pipeline mentah menutupi
+    # notulen rapat pada siklus yang sama.
     $dir = Get-WarRoomStateDir
-    $f = Get-ChildItem -LiteralPath $dir -Filter 'notulen-*.md' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $f) {
-        $f = Get-ChildItem -LiteralPath $dir -Filter 'discussion-*.json' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $groups = @(
+        @{ pattern = 'notulen-*.md';      rank = 0 },
+        @{ pattern = 'discussion-*.json'; rank = 1 },
+        @{ pattern = 'pipeline-*.json';   rank = 2 }
+    )
+    $all = @()
+    foreach ($g in $groups) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $dir -Filter $g.pattern -ErrorAction SilentlyContinue)) {
+            $stamp = ''
+            if ($f.Name -match '(\d{8}-\d{6})') { $stamp = $Matches[1] }
+            $all += [pscustomobject]@{ file = $f; stamp = $stamp; mtime = $f.LastWriteTime; rank = $g.rank }
+        }
     }
+    if ($all.Count -eq 0) { return $null }
+    $best = $all | Sort-Object -Property `
+        @{ Expression = { $_.stamp }; Descending = $true }, `
+        @{ Expression = { $_.mtime }; Descending = $true }, `
+        @{ Expression = { 9 - $_.rank }; Descending = $true } | Select-Object -First 1
+    return $best.file
+}
+
+function Show-Replay {
+    $f = Get-WarRoomReplayFile
     if ($f) {
         Write-Host ("  --- REPLAY: {0} ---" -f $f.Name) -ForegroundColor Cyan
         Get-Content -LiteralPath $f.FullName -Encoding UTF8 | ForEach-Object { Write-Host ("  " + $_) }

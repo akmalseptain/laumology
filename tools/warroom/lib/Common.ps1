@@ -113,6 +113,14 @@ function Get-WarRoomUtcNow {
     return (Get-Date).ToUniversalTime().ToString('o')
 }
 
+function Limit-WarRoomText {
+    # Pangkas teks untuk menghemat token konteks antar-tahap. Menandai sisa yang dibuang.
+    param([string]$Text, [int]$MaxChars = 0)
+    if ([string]::IsNullOrEmpty($Text)) { return $Text }
+    if ($MaxChars -le 0 -or $Text.Length -le $MaxChars) { return $Text }
+    return ($Text.Substring(0, $MaxChars) + "`n...[dipangkas $($Text.Length - $MaxChars) karakter]")
+}
+
 function Get-AgentColor {
     param([string]$Agent)
     switch -Wildcard ($Agent) {

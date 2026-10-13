@@ -12,6 +12,7 @@ function Start-WarRoomAgentProcess {
         [Parameter(Mandatory)][string]$Prompt,
         [string]$CycleId = 'adhoc',
         [string]$Role = '',
+        [string]$Model = '',
         [int]$TimeoutSec = 600,
         [switch]$Auto,
         [switch]$NoBudget
@@ -31,6 +32,7 @@ function Start-WarRoomAgentProcess {
         '-CycleId', $CycleId, '-TimeoutSec', $TimeoutSec
     )
     if ($Role) { $args += @('-Role', $Role) }
+    if ($Model) { $args += @('-Model', $Model) }
     if ($Auto) { $args += '-Auto' }
     if ($NoBudget) { $args += '-NoBudget' }
 
@@ -113,8 +115,11 @@ function Invoke-WarRoomDiscussion {
         [switch]$Auto
     )
     $cfg = Get-WarRoomConfig
+    $tuning = Get-WarRoomTuning
     if ($MaxRounds -le 0) { $MaxRounds = [int]$cfg.MaxDiscussionRounds }
     if ($MaxConcurrent -le 0) { $MaxConcurrent = [int]$cfg.MaxConcurrentModelTasks }
+    # Mode anggaran reduced: batasi konkurensi untuk menghemat biaya.
+    if ((Get-BudgetStatus).mode -eq 'reduced' -and $MaxConcurrent -gt 1) { $MaxConcurrent = 1 }
     if ($Agents.Count -eq 0) {
         $Agents = @($cfg.Agents.Quant, $cfg.Agents.Code, $cfg.Agents.QA)
     }
@@ -145,7 +150,7 @@ $Problem
 
 Format: ringkas, poin-poin, setiap klaim disertai bukti.
 "@
-            $runs += Start-WarRoomAgentProcess -Agent $ag -Prompt $prompt -CycleId $CycleId -Role $ag -TimeoutSec $TimeoutSec -Auto:$Auto
+            $runs += Start-WarRoomAgentProcess -Agent $ag -Prompt $prompt -CycleId $CycleId -Role $ag -Model (Resolve-WarRoomModel -Agent $ag -Role $ag -Tier 'fast') -TimeoutSec $TimeoutSec -Auto:$Auto
         }
         $collected = Wait-WarRoomProcessesStreaming -Runs $runs -Phase 'proposal' -TimeoutSec ($TimeoutSec + 120)
         foreach ($c in $collected) {
@@ -166,6 +171,7 @@ Format: ringkas, poin-poin, setiap klaim disertai bukti.
         $synthesis = ($messages | Where-Object { $_.phase -eq 'proposal' } | ForEach-Object {
             "[$($_.agent)]`n$($_.text)"
         }) -join "`n`n"
+        $synthesis = Limit-WarRoomText $synthesis $tuning.FindingsMaxChars
         $challenge = @"
 KARAKTER: $(Get-AgentPersona -Agent $cfg.Agents.Reviewer)
 Perankan natural & menantang, tapi tetap berbukti.
@@ -182,7 +188,7 @@ $synthesis
 
 WAJIB akhiri dengan satu baris: REKOMENDASI: TERIMA | REVISI | TOLAK
 "@
-        $r = Start-WarRoomAgentProcess -Agent $cfg.Agents.Reviewer -Prompt $challenge -CycleId $CycleId -Role 'reviewer' -TimeoutSec $TimeoutSec -Auto:$Auto
+        $r = Start-WarRoomAgentProcess -Agent $cfg.Agents.Reviewer -Prompt $challenge -CycleId $CycleId -Role 'reviewer' -Model (Resolve-WarRoomModel -Agent $cfg.Agents.Reviewer -Role 'reviewer' -Tier 'strong') -TimeoutSec $TimeoutSec -Auto:$Auto
         $col = Wait-WarRoomProcessesStreaming -Runs @($r) -Phase 'challenge' -TimeoutSec ($TimeoutSec + 120)
         foreach ($c in $col) {
             $messages += [pscustomobject]@{

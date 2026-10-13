@@ -1090,6 +1090,37 @@ class TestBacktest(unittest.TestCase):
         net = backtest.backtest(df, "TEST", fee_buy=0.003, fee_sell=0.004, slip=0.002)
         self.assertLessEqual(net.total_return, gross.total_return + 1e-9)
 
+    def test_default_horizon_from_settings(self):
+        """Horizon backtest default harus mengikuti satu sumber settings.swing_horizon_days."""
+        import backtest
+        from config import settings
+        df = make_df(320)
+        old = settings.swing_horizon_days
+        try:
+            settings.swing_horizon_days = 7
+            dflt = backtest.backtest(df, "TEST")
+            explicit = backtest.backtest(df, "TEST", max_hold=7)
+        finally:
+            settings.swing_horizon_days = old
+        self.assertEqual(dflt.total_return, explicit.total_return)
+        self.assertEqual(dflt.n_trades, explicit.n_trades)
+
+    def test_explicit_horizon_respected(self):
+        """max_hold eksplisit tidak boleh ditimpa oleh settings."""
+        import backtest
+        from config import settings
+        df = make_df(320)
+        old = settings.swing_horizon_days
+        try:
+            settings.swing_horizon_days = 7
+            explicit = backtest.backtest(df, "TEST", max_hold=20)
+            settings.swing_horizon_days = 20
+            dflt20 = backtest.backtest(df, "TEST")
+        finally:
+            settings.swing_horizon_days = old
+        self.assertEqual(explicit.total_return, dflt20.total_return)
+        self.assertEqual(explicit.n_trades, dflt20.n_trades)
+
 
 class TestValidate(unittest.TestCase):
     def test_clean(self):
@@ -1211,6 +1242,229 @@ class TestSwingHorizonFreshness(unittest.TestCase):
         finally:
             settings.swing_horizon_days = old
 
+    def test_api_backtest_uses_settings_horizon(self):
+        import backtest
+        import data
+        import webapp
+        from config import settings
+
+        df = make_df(320)
+        old_ohlcv = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        old = settings.swing_horizon_days
+        try:
+            settings.swing_horizon_days = 7
+            r = webapp.app.test_client().get("/api/backtest?ticker=TEST")
+            expected = backtest.backtest(
+                df, "TEST", min_score=65, max_hold=7, tp_rr=3.0, sl_mult=2.0,
+                fee_buy=0.0015, fee_sell=0.0025, slip=0.001,
+            )
+        finally:
+            data.get_ohlcv = old_ohlcv
+            settings.swing_horizon_days = old
+        self.assertEqual(r.status_code, 200)
+        body = r.get_json()
+        self.assertEqual(body["total_return"], expected.total_return)
+        self.assertEqual(body["n_trades"], expected.n_trades)
+
+    def test_api_backtest_explicit_horizon_respected(self):
+        import backtest
+        import data
+        import webapp
+        from config import settings
+
+        df = make_df(320)
+        old_ohlcv = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        old = settings.swing_horizon_days
+        try:
+            settings.swing_horizon_days = 7
+            r = webapp.app.test_client().get("/api/backtest?ticker=TEST&max_hold=20")
+            expected = backtest.backtest(
+                df, "TEST", min_score=65, max_hold=20, tp_rr=3.0, sl_mult=2.0,
+                fee_buy=0.0015, fee_sell=0.0025, slip=0.001,
+            )
+        finally:
+            data.get_ohlcv = old_ohlcv
+            settings.swing_horizon_days = old
+        self.assertEqual(r.status_code, 200)
+        body = r.get_json()
+        self.assertEqual(body["total_return"], expected.total_return)
+        self.assertEqual(body["n_trades"], expected.n_trades)
+
+
+
+class TestAccuracyByHorizon(unittest.TestCase):
+    """W-0017: studi akurasi lintas horizon — forward-WR vs trade-WR, additive."""
+
+    def test_runs_four_horizons_lookahead_free(self):
+        import validation
+
+        df = make_df(400)
+        res = validation.accuracy_by_horizon(df, horizons=(1, 5, 10, 15))
+        self.assertEqual(res["horizons"], [1, 5, 10, 15])
+        self.assertEqual(len(res["rows"]), 4)
+        base_bars = validation.analyze_accuracy(df, horizon=1)["bars"]
+
+        for row in res["rows"]:
+            h = row["horizon"]
+            # Dua konstruk wajib terpisah & terlabel tegas.
+            self.assertIn("forward", row)
+            self.assertIn("trade", row)
+            self.assertIn("win_rate", row["forward"])
+            self.assertIn("win_rate", row["trade"])
+            # Sampel forward = bars - horizon (look-ahead free).
+            self.assertEqual(row["forward"]["samples"], base_bars - h)
+            self.assertIn("best_factor", row["forward"])
+            for k in ("profit_factor", "avg_bars", "n_trades", "sufficient"):
+                self.assertIn(k, row["trade"], k)
+
+    def test_rows_include_per_factor_edge(self):
+        """W-0017: tiap row horizon memuat edge per-indikator (bukan cuma best)."""
+        import validation
+
+        df = make_df(400)
+        res = validation.accuracy_by_horizon(df, horizons=(1, 5))
+        upper = len(validation.FACTOR_KEYS) + len(validation.CANDIDATE_FACTORS)
+
+        for row in res["rows"]:
+            self.assertIn("factors", row)
+            self.assertIn("candidates", row)
+            # Jumlah bisa beda per horizon (min_n motong faktor) ⇒ batas atas.
+            self.assertLessEqual(len(row["factors"]), len(validation.FACTOR_KEYS))
+            self.assertLessEqual(len(row["candidates"]), len(validation.CANDIDATE_FACTORS))
+            self.assertLessEqual(len(row["factors"]) + len(row["candidates"]), upper)
+            for f in row["factors"]:
+                self.assertFalse(f["candidate"])
+                for k in ("factor", "n", "win_rate", "edge"):
+                    self.assertIn(k, f, k)
+            for c in row["candidates"]:
+                self.assertTrue(c["candidate"])
+            # Bandingkan langsung dengan analyze_accuracy horizon yang sama.
+            acc = validation.analyze_accuracy(df, horizon=row["horizon"])
+            self.assertEqual([f["factor"] for f in row["factors"]],
+                             [f["factor"] for f in acc["factors"]])
+            self.assertEqual([c["factor"] for c in row["candidates"]],
+                             [c["factor"] for c in acc["candidates"]])
+
+    def test_horizon_one_is_timeout_dominated(self):
+        """horizon=1 ⇒ max_hold=1 ⇒ TP/SL praktis tak tersentuh (TIMEOUT)."""
+        import validation
+
+        res = validation.accuracy_by_horizon(make_df(400), horizons=(1,))
+        row = res["rows"][0]
+        self.assertEqual(row["horizon"], 1)
+        self.assertLessEqual(row["trade"]["avg_bars"], 1.0)
+        pf = row["trade"]["profit_factor"]
+        # PF tak hingga tidak boleh lolos sebagai inf; harus None.
+        self.assertTrue(pf is None or pf != float("inf"))
+        self.assertEqual(
+            row["trade"]["sufficient"],
+            row["trade"]["n_trades"] >= 20 and pf is not None,
+        )
+
+    def test_api_accuracy_additive(self):
+        import data
+        import webapp
+
+        df = make_df(400)
+        old = data.get_ohlcv
+        data.get_ohlcv = lambda *a, **k: df
+        try:
+            client = webapp.app.test_client()
+            old_r = client.get("/api/accuracy?ticker=TEST")
+            new_r = client.get("/api/accuracy?ticker=TEST&horizons=1,5")
+        finally:
+            data.get_ohlcv = old
+
+        self.assertEqual(old_r.status_code, 200)
+        ob = old_r.get_json()
+        for k in ("horizon", "calibration", "factors", "agreement", "ticker"):
+            self.assertIn(k, ob)
+        self.assertNotIn("rows", ob)
+
+        self.assertEqual(new_r.status_code, 200)
+        nb = new_r.get_json()
+        self.assertEqual(nb["horizons"], [1, 5])
+        self.assertEqual(len(nb["rows"]), 2)
+        self.assertEqual(nb["ticker"], "TEST")
+        for row in nb["rows"]:
+            self.assertIn("forward", row)
+            self.assertIn("trade", row)
+
+
+class TestIndicatorStability(unittest.TestCase):
+    """W-0017 lanjutan: agregasi lintas horizon + signifikansi per-indikator."""
+
+    def test_rows_carry_significance(self):
+        import validation
+
+        df = make_df(400)
+        res = validation.accuracy_by_horizon(df, horizons=(1, 5, 10))
+        for row in res["rows"]:
+            acc = validation.analyze_accuracy(df, horizon=row["horizon"])
+            base_wr = acc["base_win_rate"]
+            for f in row["factors"] + row["candidates"]:
+                self.assertIn("win_rate_lo", f)
+                self.assertIn("significant", f)
+                self.assertAlmostEqual(
+                    f["win_rate_lo"],
+                    validation.wilson_lower_bound(f["win_rate"], f["n"]),
+                )
+                # Definisi `significant` disamakan dengan `recommendations`.
+                self.assertEqual(
+                    f["significant"],
+                    f["edge"] >= validation.MIN_EDGE and f["win_rate_lo"] > base_wr,
+                )
+
+    def test_stability_invariants_and_weighted_edge(self):
+        import validation
+
+        df = make_df(400)
+        res = validation.accuracy_by_horizon(df, horizons=(1, 5, 10))
+        self.assertIn("indicator_stability", res)
+        hs = res["horizons"]
+
+        # Presence per faktor dihitung dari row (faktor n<min_n dibuang).
+        per_factor: dict[str, list[dict]] = {}
+        for row in res["rows"]:
+            for f in row["factors"] + row["candidates"]:
+                per_factor.setdefault(f["factor"], []).append(f)
+
+        for st in res["indicator_stability"]:
+            self.assertEqual(st["candidate"], all(f["candidate"] for f in per_factor[st["factor"]]))
+            self.assertEqual(st["n_horizons"], len(per_factor[st["factor"]]))
+            self.assertLessEqual(st["n_horizons"], len(hs))
+            # consistent hanya bila hadir SEMUA horizon & >=2 horizon & edge>0 semua.
+            if st["consistent"]:
+                self.assertEqual(st["n_horizons"], len(hs))
+                self.assertGreaterEqual(st["n_horizons"], 2)
+                self.assertEqual(st["n_positive_edge"], st["n_horizons"])
+            # min_edge <= avg_edge <= max_edge; avg_edge dibobot n.
+            self.assertLessEqual(st["min_edge"], st["avg_edge"] + 1e-12)
+            self.assertLessEqual(st["avg_edge"], st["max_edge"] + 1e-12)
+            wsum = sum(f["n"] for f in per_factor[st["factor"]])
+            edges = [f["edge"] for f in per_factor[st["factor"]]]
+            expected = sum(f["edge"] * f["n"] for f in per_factor[st["factor"]]) / wsum
+            self.assertAlmostEqual(st["avg_edge"], expected)
+            self.assertEqual(st["min_edge"], min(edges))
+            self.assertEqual(st["max_edge"], max(edges))
+
+    def test_absent_factor_never_consistent(self):
+        """Faktor yang absen di satu horizon tak boleh diklaim 'konsisten'."""
+        import validation
+
+        df = make_df(400)
+        hs = (1, 5, 10)
+        res = validation.accuracy_by_horizon(df, horizons=hs)
+        seen = {st["factor"]: st for st in res["indicator_stability"]}
+        for factor, st in seen.items():
+            present = sum(
+                1 for row in res["rows"]
+                for f in row["factors"] + row["candidates"] if f["factor"] == factor
+            )
+            if present < len(hs):
+                self.assertFalse(st["consistent"], factor)
 
 
 class TestRisk(unittest.TestCase):

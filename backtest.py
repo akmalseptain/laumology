@@ -40,21 +40,23 @@ def backtest(
     df: pd.DataFrame,
     ticker: str = "",
     min_score: int | None = None,
-    max_hold: int = 20,
+    max_hold: int | None = None,
     tp_rr: float | None = None,
     sl_mult: float | None = None,
     fee_buy: float | None = None,
     fee_sell: float | None = None,
     slip: float | None = None,
+    d: pd.DataFrame | None = None,
 ) -> BacktestResult:
     min_score = min_score if min_score is not None else settings.buy_score
+    max_hold = max_hold if max_hold is not None else settings.swing_horizon_days
     tp_rr = tp_rr if tp_rr is not None else settings.tp2_rr
     sl_mult = sl_mult if sl_mult is not None else settings.atr_sl_mult
     fee_buy = (settings.fee_buy_pct / 100.0) if fee_buy is None else fee_buy
     fee_sell = (settings.fee_sell_pct / 100.0) if fee_sell is None else fee_sell
     slip = (settings.slippage_pct / 100.0) if slip is None else slip
 
-    d = add_indicators(df)
+    d = add_indicators(df) if d is None else d
     sc = score_frame(d)
     d = d.join(sc[["score"]]).dropna(subset=["ma50", "atr"])
 
@@ -270,8 +272,9 @@ def _simulate(open_, high, low, close, atr_v, score, ma50,
     }
 
 
-def optimize(df: pd.DataFrame, ticker: str = "", max_hold: int = 20,
+def optimize(df: pd.DataFrame, ticker: str = "", max_hold: int | None = None,
              min_scores=None, tp_rrs=None, sl_mults=None):
+    max_hold = max_hold if max_hold is not None else settings.swing_horizon_days
     if min_scores is None:
         min_scores = [55, 60, 65, 70, 75]
     if tp_rrs is None:
@@ -312,7 +315,7 @@ def optimize(df: pd.DataFrame, ticker: str = "", max_hold: int = 20,
 def backtest_decision(
     df: pd.DataFrame,
     ticker: str = "",
-    max_hold: int = 20,
+    max_hold: int | None = None,
     tp_rr: float | None = None,
     sl_mult: float | None = None,
     fee_buy: float | None = None,
@@ -323,6 +326,7 @@ def backtest_decision(
     """Backtest memakai Decision Engine (structure + regime + filter) vs legacy."""
     from decision import signal_series
 
+    max_hold = max_hold if max_hold is not None else settings.swing_horizon_days
     tp_rr = tp_rr if tp_rr is not None else settings.tp2_rr
     sl_mult = sl_mult if sl_mult is not None else settings.atr_sl_mult
     fee_buy = (settings.fee_buy_pct / 100.0) if fee_buy is None else fee_buy

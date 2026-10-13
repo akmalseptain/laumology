@@ -53,7 +53,8 @@ def _run(d: pd.DataFrame, wt: float, wb: float, thr: float,
 
 
 def optimize_weights(universe: str = "idx30", tp_rr: float = 3.0,
-                     sl_mult: float = 2.0, max_hold: int = 20) -> dict:
+                     sl_mult: float = 2.0, max_hold: int | None = None) -> dict:
+    max_hold = max_hold if max_hold is not None else settings.swing_horizon_days
     tickers = screener.resolve_watchlist(universe)
     prepared = {}
     for t in tickers:
