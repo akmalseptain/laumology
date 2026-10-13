@@ -26,10 +26,10 @@ async function runMusyawarah(){
       +'<div class="metric"><div class="k">Entry</div><div class="v v-white">'+idr(d.entry)+'</div></div>'
       +'<div class="metric"><div class="k">Target</div><div class="v v-up">'+idr(d.target)+'</div></div>'
       +'</div>'
-      + '<div class="mono" style="color:#7c8c83;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Voting agen ('+wlabel+')'+(d.has_financials===false?' <span class="badge" style="color:var(--muted)">fundamental dikecualikan: rasio tidak tersedia</span>':'')+'</div>'
+      + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Voting agen ('+wlabel+')'+(d.has_financials===false?' <span class="badge" style="color:var(--muted)">fundamental dikecualikan: rasio tidak tersedia</span>':'')+'</div>'
       + '<div class="checks" style="grid-template-columns:1fr 1fr">'+vrow('@technical',v.technical||0)+vrow('@bandarmologi',v.bandarmologi||0)+vrow('@fundamental',v.fundamental||0)+vrow('@sentiment',v.sentiment||0)+'</div>'
       + '<div class="mono" style="background:var(--surface);border:1px solid var(--border);color:var(--foreground);border-radius:12px;padding:16px;margin-top:16px;white-space:pre-wrap;font-size:12px;line-height:1.7;overflow-x:auto">'+String(d.text).replace(/</g,"&lt;")+'</div>'
-      + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:8px">Engine: '+d.engine+'</div>';
+      + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Engine: '+d.engine+'</div>';
     showStatus("Selesai");
   }catch(e){ $("#myResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
   finally{ $("#myRun").disabled=false; }
@@ -50,10 +50,10 @@ async function runOptimizeWeights(){
     const rows=(d.leaderboard||[]).map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+x.w_technical+' / '+x.w_bandarmologi+'</td><td>'+x.threshold+'</td>'
       +'<td class="'+(x.mean_return>=0?'v-up':'v-red')+'">'+x.mean_return+'%</td><td>'+(x.mean_pf==null?'~':x.mean_pf)+'</td>'
       +'<td>'+(x.mean_win_rate*100).toFixed(0)+'%</td><td>'+x.trades+'</td></tr>').join("");
-    $("#myWeights").innerHTML = '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Optimasi bobot technical:bandarmologi ('+d.tickers+' saham, '+d.tested+' kombinasi)</div>'
-      + (d.best?'<div class="mono" style="color:#33443b;font-size:12px;margin-bottom:8px">Terbaik: technical '+d.best.w_technical+' : bandarmologi '+d.best.w_bandarmologi+' &middot; threshold '+d.best.threshold+' &middot; return rata-rata '+d.best.mean_return+'%</div>':'')
+    $("#myWeights").innerHTML = '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Optimasi bobot technical:bandarmologi ('+d.tickers+' saham, '+d.tested+' kombinasi)</div>'
+      + (d.best?'<div class="mono" style="color:var(--foreground);font-size:12px;margin-bottom:8px">Terbaik: technical '+d.best.w_technical+' : bandarmologi '+d.best.w_bandarmologi+' &middot; threshold '+d.best.threshold+' &middot; return rata-rata '+d.best.mean_return+'%</div>':'')
       + '<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Tech:Bandar</th><th>Thr</th><th>Return</th><th>PF</th><th>Win</th><th>Trade</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
-      + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">'+d.note+'</div>';
+      + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">'+d.note+'</div>';
     showStatus("Selesai");
   }catch(e){ $("#myWeights").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
   finally{ $("#myWeightsBtn").disabled=false; }
@@ -70,8 +70,8 @@ async function runDataQuality(){
     const rows=(d.items||[]).map(x=>'<tr><td style="text-align:left;font-weight:700">'+x.ticker+'</td>'
       +'<td>'+(x.rows||0)+'</td><td>'+(x.last||'-')+'</td>'
       +'<td class="'+(x.ok?'v-up':'v-red')+'">'+(x.ok?'OK':'ISSUE')+'</td>'
-      +'<td style="text-align:left;color:#7c8c83">'+(((x.issues||[]).join('; '))||'-')+'</td></tr>').join("");
-    $("#dqResult").innerHTML='<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Kualitas data: '+(d.ok)+'/'+(d.total)+' OK</div>'
+      +'<td style="text-align:left;color:var(--muted)">'+(((x.issues||[]).join('; '))||'-')+'</td></tr>').join("");
+    $("#dqResult").innerHTML='<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Kualitas data: '+(d.ok)+'/'+(d.total)+' OK</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th>Bar</th><th>Terakhir</th><th>Status</th><th style="text-align:left">Catatan</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     showStatus("Selesai");
   }catch(e){ $("#dqResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }

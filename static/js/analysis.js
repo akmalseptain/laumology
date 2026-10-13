@@ -31,7 +31,7 @@ async function analyze(silent=false){
     if(d.error) throw new Error(d.error);
     render(d);
     if(!silent) showStatus("Selesai");
-  }catch(e){ if(!silent){ $("#result").innerHTML = `<div class="card glass modish empty">Gagal: ${e.message}</div>`; showStatus("Gagal"); } }
+  }catch(e){ if(!silent){ $("#result").innerHTML = `<div class="card empty">Gagal: ${e.message}</div>`; showStatus("Gagal"); } }
   finally{ $("#goBtn").disabled=false; }
 }
 
@@ -51,36 +51,36 @@ function render(d){
     return `<div class="comp"><span class="name">${k}</span><span class="bar"><i style="width:${Math.min(100,v/max*100)}%"></i></span><span class="num">${fmt(v,0)}</span></div>`;
   }).join("");
   const checks = (d.checklist||[]).map(c=>`<div class="check ${c.pass?'ok':'no'}"><span class="ic">${c.pass?'✓':'✗'}</span>${c.label}</div>`).join("");
-  const reasons = d.reasons.length? d.reasons.map(x=>`<li>${x}</li>`).join("") : "<li style='color:#737373;border-left-color:rgba(255,255,255,.15)'>Tidak ada faktor bullish kuat.</li>";
-  const warns = d.warnings.length? d.warnings.map(x=>`<li>${x}</li>`).join("") : "<li style='color:#737373;border-left-color:rgba(255,255,255,.15)'>Tidak ada peringatan.</li>";
+  const reasons = d.reasons.length? d.reasons.map(x=>`<li>${x}</li>`).join("") : "<li style='color:var(--muted);border-left-color:rgba(255,255,255,.15)'>Tidak ada faktor bullish kuat.</li>";
+  const warns = d.warnings.length? d.warnings.map(x=>`<li>${x}</li>`).join("") : "<li style='color:var(--muted);border-left-color:rgba(255,255,255,.15)'>Tidak ada peringatan.</li>";
   const stCls = d.st_dir_up ? "v-up" : "v-red";
   const passed = (d.checklist||[]).filter(c=>c.pass).length;
 
   $("#result").innerHTML = `
-    <div class="card glass modish hero">
+    <div class="card hero">
       <div class="ring" style="background:conic-gradient(${cc} ${d.score*3.6}deg, rgba(255,255,255,.06) 0)">
         <div class="val"><b style="color:${cc}">${d.score}</b><span>/100</span></div>
       </div>
       <div class="headline">
         <span class="badge-lg s-${sc}">${d.signal}</span>
         <span class="badge-lg s-HOLD" style="margin-left:6px">${d.action}</span>
-        <h2 class="glow-text">${d.ticker}</h2>
+        <h2>${d.ticker}</h2>
         <div class="price"><span id="livePrice">${idr(d.price)}</span> <span id="liveChg">${chg(d.change_1d)}</span>
           <span id="liveDot" class="live-dot" style="display:${d.live?'inline-block':'none'};vertical-align:middle;margin-left:8px"></span></div>
         <div class="meta">${d.trend} &middot; W:${d.weekly_trend} &middot; ${d.regime} &middot; Pasar:${d.market_regime||'-'} &middot; ${d.last_date} &middot; ${d.bars} bar${d.model_used?' &middot; <b>SKOR OPT</b>':''}
-          <span id="liveStamp" class="mono" style="color:#525252">${d.live?("· LIVE "+(d.quote_source||"")):""}</span></div>
+          <span id="liveStamp" class="mono" style="color:var(--muted)">${d.live?("· LIVE "+(d.quote_source||"")):""}</span></div>
       </div>
       <div style="text-align:center;min-width:150px">
-        <div class="mono" style="font-size:9px;color:#525252;letter-spacing:.16em">CONFIDENCE</div>
+        <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:.16em">CONFIDENCE</div>
         <div class="grade" style="color:${cc};margin-top:2px">${d.grade}</div>
         <div class="mono" style="font-size:20px;font-weight:900;margin-top:2px">${d.confidence}%</div>
-        <div class="mono" style="font-size:9px;color:#525252;margin-top:4px">${passed}/${d.checklist.length} faktor</div>
-        ${(d.model_used && d.prob_up!=null)?`<div class="mono" style="font-size:10px;color:#525252;margin-top:3px">Prob ML ${fmt(d.prob_up*100,0)}%${d.score_opt!=null?' · opt '+fmt(d.score_opt,0):''}</div>`:''}
+        <div class="mono" style="font-size:9px;color:var(--muted);margin-top:4px">${passed}/${d.checklist.length} faktor</div>
+        ${(d.model_used && d.prob_up!=null)?`<div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px">Prob ML ${fmt(d.prob_up*100,0)}%${d.score_opt!=null?' · opt '+fmt(d.score_opt,0):''}</div>`:''}
       </div>
     </div>
 
-    <div class="card glass modish">
-      <div class="sec"><span class="num">01</span><div class="line"></div><span class="badge">Technical Chart</span>
+    <div class="card">
+      <div class="sec"><span class="badge">Technical Chart</span>
         <button class="btn ghost" data-action="exportCsv" style="margin-left:auto;padding:7px 14px">Export CSV</button>
         <button class="btn ghost" data-action="print" style="padding:7px 14px">Print</button>
         <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(d.tv_symbol)}" target="_blank"
@@ -135,12 +135,12 @@ function render(d){
         <div class="metric"><div class="k">Fib 0.618</div><div class="v v-muted">${fmt(d.fib["0.618"],0)}</div></div>
         <div class="metric"><div class="k">Fib Ext 1.618</div><div class="v v-up">${fmt(d.fib["ext_1.618"],0)}</div></div>
       </div>
-      ${(d.zones && d.zones.length)?'<div class="mono" style="margin-top:12px;color:#a3a3a3;font-size:11px">Zona: ' + d.zones.slice(-4).map(z => '<span style="color:' + (z.type==='demand'?'#26a69a':'#ef5350') + '">' + (z.type==='demand'?'DEMAND':'SUPPLY') + ' ' + fmt(z.bottom) + '-' + fmt(z.top) + '</span>').join(' &middot; ') + '</div>':''}`)}
+      ${(d.zones && d.zones.length)?'<div class="mono" style="margin-top:12px;color:var(--muted);font-size:11px">Zona: ' + d.zones.slice(-4).map(z => '<span style="color:' + (z.type==='demand'?'var(--gain)':'var(--loss)') + '">' + (z.type==='demand'?'DEMAND':'SUPPLY') + ' ' + fmt(z.bottom) + '-' + fmt(z.top) + '</span>').join(' &middot; ') + '</div>':''}`)}
     ${acc("06","Score Breakdown", `<div style="margin-top:4px">${comps}</div>`)}
     ${acc("07","Confluence Checklist", `
       <div class="checks">${checks}</div>
-      ${d.patterns.length?`<div class="mono" style="margin-top:14px;color:#7c8c83;font-size:12px">Pola candle: <b style="color:#0f1712">${d.patterns.join(", ")}</b></div>`:""}
-      ${d.divergences.length?`<div class="mono" style="margin-top:6px;color:#7c8c83;font-size:12px">Divergence: <b style="color:#0f1712">${d.divergences.join(", ")}</b></div>`:""}`)}
+      ${d.patterns.length?`<div class="mono" style="margin-top:14px;color:var(--muted);font-size:12px">Pola candle: <b style="color:var(--foreground)">${d.patterns.join(", ")}</b></div>`:""}
+      ${d.divergences.length?`<div class="mono" style="margin-top:6px;color:var(--muted);font-size:12px">Divergence: <b style="color:var(--foreground)">${d.divergences.join(", ")}</b></div>`:""}`)}
     ${acc("08","Bullish Factors", `<ul class="list">${reasons}</ul>`)}
     ${acc("09","Warnings", `<ul class="list warn">${warns}</ul>`)}
 
@@ -212,25 +212,25 @@ function renderScanRows(dataRows, totalUniverse, scanned){
     const valM = x.Value ? (x.Value/1e9).toFixed(1)+" M" : "-";
     return `<tr data-action="pick" data-arg="${escapeHtml(x.Ticker)}">
       <td style="font-weight:700">${x.Ticker}</td>
-      <td style="color:#a3a3a3">${x.Sector||"-"}</td>
+      <td style="color:var(--muted)">${x.Sector||"-"}</td>
       <td>${fmt(x.Price)}</td>
       <td><span class="tag s-${sc}">${x.Signal}</span></td>
-      <td style="font-weight:600;color:${(x.Decision==='BUY'||x.Decision==='ACCUMULATE')?'#26a69a':((x.Decision==='SELL'||x.Decision==='HOLD (REDUCE)')?'#ef5350':'#a3a3a3')}">${x.Decision||'-'}</td>
-      <td style="color:#a3a3a3">${x.Action}</td>
+      <td style="font-weight:600;color:${(x.Decision==='BUY'||x.Decision==='ACCUMULATE')?'var(--gain)':((x.Decision==='SELL'||x.Decision==='HOLD (REDUCE)')?'var(--loss)':'var(--muted)')}">${x.Decision||'-'}</td>
+      <td style="color:var(--muted)">${x.Action}</td>
       <td>${x.Score}</td><td>${x.Conf}</td>
-      <td style="color:${x.Grade[0]==='A'?'#26a69a':'#a3a3a3'}">${x.Grade}</td>
-      <td style="color:#a3a3a3">${x.Trend}</td><td>${x.Wk}</td>
-      <td style="color:${String(x.MTF).includes('Bullish')?'#26a69a':'#a3a3a3'}">${x.MTF||"-"}</td>
-      <td>${fmt(x.ADX,1)}</td><td style="color:${x.ST==='UP'?'#26a69a':'#ef5350'}">${x.ST}</td>
+      <td style="color:${x.Grade[0]==='A'?'var(--gain)':'var(--muted)'}">${x.Grade}</td>
+      <td style="color:var(--muted)">${x.Trend}</td><td>${x.Wk}</td>
+      <td style="color:${String(x.MTF).includes('Bullish')?'var(--gain)':'var(--muted)'}">${x.MTF||"-"}</td>
+      <td>${fmt(x.ADX,1)}</td><td style="color:${x.ST==='UP'?'var(--gain)':'var(--loss)'}">${x.ST}</td>
       <td>${fmt(x.RSI,1)}</td><td>${fmt(x.Vol,2)}</td>
-      <td style="color:${x.Sqz==='ON'?'#ef5350':'#a3a3a3'}">${x.Sqz}</td>
+      <td style="color:${x.Sqz==='ON'?'var(--loss)':'var(--muted)'}">${x.Sqz}</td>
       <td>${fmt(x.Chop,1)}</td>
       <td>${valM}</td>
-      <td>${fmt(x.TP1)}</td><td style="color:#ef5350">${fmt(x.SL)}</td>
+      <td>${fmt(x.TP1)}</td><td style="color:var(--loss)">${fmt(x.SL)}</td>
       <td>1:${fmt(x.RR,1)}</td><td>${fmt(x["ATR%"],2)}%</td>
     </tr>`;
   }).join("");
-  $("#scResult").innerHTML = `<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned})${dataRows.length>shown.length?' · menampilkan '+shown.length:''} &middot; klik baris untuk detail ${dataRows.length>shown.length?'<button class="btn ghost sm" data-action="scShowAll" style="margin-left:8px">Tampilkan semua</button>':''}</div>
+  $("#scResult").innerHTML = `<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned})${dataRows.length>shown.length?' · menampilkan '+shown.length:''} &middot; klik baris untuk detail ${dataRows.length>shown.length?'<button class="btn ghost sm" data-action="scShowAll" style="margin-left:8px">Tampilkan semua</button>':''}</div>
     <div style="overflow-x:auto"><table>
     <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Reko</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
@@ -390,12 +390,12 @@ function decisionCard(dec){
         <div class="metric"><div class="k">TP3 (RR ${dec.rr3})</div><div class="v v-up">${dec.tp3!=null?idr(dec.tp3):'-'}</div></div>
         <div class="metric"><div class="k">Risk/Reward</div><div class="v v-white">1 : ${dec.rr2}</div></div>
       </div>` : '';
-  const nt = (dec.no_trade_reasons||[]).length ? '<div class="mono" style="color:#e5484d;font-size:11px;margin-top:10px;line-height:1.6">NO TRADE: '+dec.no_trade_reasons.join(' &middot; ')+'</div>' : '';
+  const nt = (dec.no_trade_reasons||[]).length ? '<div class="mono" style="color:var(--down);font-size:11px;margin-top:10px;line-height:1.6">NO TRADE: '+dec.no_trade_reasons.join(' &middot; ')+'</div>' : '';
   const why = (dec.reasons||[]).map(x=>'<li>'+x+'</li>').join('');
   const st = dec.structure || {};
   return `
-    <div class="card glass modish${noTrade?'':''}">
-      <div class="sec"><span class="num">DEC</span><div class="line"></div><span class="badge">Market Decision</span></div>
+    <div class="card">
+      <div class="sec"><span class="badge">Market Decision</span></div>
       <div class="grid">
         <div class="metric hl"><div class="k">Keputusan</div><div class="v ${cls}" style="font-size:18px">${dir}</div></div>
         <div class="metric"><div class="k">Confidence</div><div class="v ${cls}">${dec.confidence}%</div></div>
@@ -406,12 +406,12 @@ function decisionCard(dec){
       </div>
       ${plan}
       ${nt}
-      <div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Komponen (signed)</div>
+      <div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Komponen (signed)</div>
       <div class="grid">
         ${compRow('Trend', c.trend||0)}${compRow('Struktur', c.structure||0)}${compRow('Momentum', c.momentum||0)}
         ${compRow('Volume', c.volume||0)}${compRow('HTF', c.htf||0)}${compRow('Entry', c.entry||0)}
       </div>
-      ${why?`<div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Why ${dir}</div><ul class="list">${why}</ul>`:''}
+      ${why?`<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Why ${dir}</div><ul class="list">${why}</ul>`:''}
     </div>`;
 }
 
@@ -430,9 +430,9 @@ function stockCard(st, dec){
   const secReg = sec.regime||'UNKNOWN';
   const stockCtx = (dec&&dec.direction)||'-';
   return `
-    <div class="card glass modish">
-      <div class="sec"><span class="num">STK</span><div class="line"></div><span class="badge">Stock Intelligence</span></div>
-      <div class="mono" style="color:#8a9a90;font-size:11px;margin-bottom:8px">Hierarki: MARKET <b>${mktCtx}</b> &rarr; SECTOR <b>${secReg}</b> &rarr; STOCK <b>${stockCtx}</b></div>
+    <div class="card">
+      <div class="sec"><span class="badge">Stock Intelligence</span></div>
+      <div class="mono" style="color:var(--muted);font-size:11px;margin-bottom:8px">Hierarki: MARKET <b>${mktCtx}</b> &rarr; SECTOR <b>${secReg}</b> &rarr; STOCK <b>${stockCtx}</b></div>
       <div class="grid">
         ${metric('Data Quality', dq.status||'-', dqCls)}
         ${metric('Likuiditas', (lq.status||'-')+' ('+rp(lq.avg_value_20d)+')', lqCls)}
@@ -441,7 +441,7 @@ function stockCard(st, dec){
         ${metric('Sektor', secReg + (sec.chg_20d!=null?' ('+sec.chg_20d+'%)':''), secReg==='Bullish'?'v-up':(secReg==='Bearish'?'v-red':'v-muted'))}
         ${metric('Signal Strength', st.signal_strength||'-')}
       </div>
-      <div class="mono" style="color:#8a9a90;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Dekomposisi skor</div>
+      <div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Dekomposisi skor</div>
       <div class="grid">
         ${metric('Market', sc.market, band(sc.market))}
         ${metric('Sector', sc.sector, band(sc.sector))}
@@ -450,7 +450,7 @@ function stockCard(st, dec){
         ${metric('Liquidity', sc.liquidity, band(sc.liquidity))}
         ${metric('Risk (rendah=baik)', sc.risk, band(100-sc.risk))}
       </div>
-      ${rf?`<div class="mono" style="color:#e5484d;font-size:11px;margin-top:12px;line-height:1.7">Risk: <ul class="list warn" style="margin-top:6px">${rf}</ul></div>`:''}
-      <div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Sektor/fundamental/flow = konteks; bukan trigger. Data tak tersedia ditandai UNKNOWN (tidak dikarang).</div>
+      ${rf?`<div class="mono" style="color:var(--down);font-size:11px;margin-top:12px;line-height:1.7">Risk: <ul class="list warn" style="margin-top:6px">${rf}</ul></div>`:''}
+      <div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Sektor/fundamental/flow = konteks; bukan trigger. Data tak tersedia ditandai UNKNOWN (tidak dikarang).</div>
     </div>`;
 }

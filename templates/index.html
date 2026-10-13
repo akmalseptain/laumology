@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <!-- LAUMOLOGY - IDX Trading Terminal. Developed by AKMALSEPTAIN. -->
 <meta name="author" content="AKMALSEPTAIN">
-<meta name="description" content="LAUMOLOGY - platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, portofolio.">
+<meta name="description" content="LAUMOLOGY - terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LAUMOLOGY · IDX Trading Terminal</title>
@@ -27,7 +27,7 @@
       "@type": "WebApplication",
       {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
       "name": "LAUMOLOGY",
-      "description": "Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.",
+      "description": "Terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Web"
     },
@@ -59,7 +59,7 @@
 <meta property="og:site_name" content="LAUMOLOGY">
 <meta property="og:locale" content="id_ID">
 <meta property="og:title" content="LAUMOLOGY · IDX Trading Terminal">
-<meta property="og:description" content="Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.">
+<meta property="og:description" content="Terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.">
 <meta property="og:url" content="{{ canonical_base }}/">
 <meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
 <meta property="og:image:type" content="image/png">
@@ -68,7 +68,7 @@
 <meta property="og:image:alt" content="LAUMOLOGY · IDX Trading Terminal">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="LAUMOLOGY · IDX Trading Terminal">
-<meta name="twitter:description" content="Platform analisis teknikal saham IDX berbasis evidence: sinyal, screener, live chart, backtest, akurasi, dan portofolio.">
+<meta name="twitter:description" content="Terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.">
 <meta name="twitter:image" content="{{ canonical_base }}/static/og-cover.png">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
@@ -157,7 +157,7 @@
   <section class="panel" id="panel-fundamental">
     <div class="panel-head">
       <h2>Fundamental</h2>
-      <p>Valuasi, profitabilitas, leverage, dan pertumbuhan emiten untuk analisa komprehensif.</p>
+      <p>Rasio valuasi, profitabilitas, leverage, dan pertumbuhan dari laporan keuangan emiten.</p>
     </div>
     <div class="card">
       <div class="toolbar">
@@ -548,7 +548,7 @@
         </svg>
         <span class="logo-word">LAUMO<i>LOGY</i></span>
       </div>
-      <p>Platform analisis teknikal saham IDX berbasis evidence: sinyal, rencana trade, position sizing, screener, backtest, dan portofolio dalam satu terminal.</p>
+      <p>Analisis saham IDX dari data harga hingga rencana trade: sinyal berskor, screener ~900 emiten, backtest walk-forward, dan pelacak posisi dalam satu terminal.</p>
     </div>
     <div class="fmeta">
       <p><a href="{{ url_for('meta.tentang') }}" style="color:var(--brand);text-decoration:none">Tentang</a> &middot; <a href="{{ url_for('meta.panduan') }}" style="color:var(--brand);text-decoration:none">Panduan</a></p>

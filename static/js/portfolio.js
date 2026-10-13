@@ -14,7 +14,7 @@ function renderWatchlist(){
   if(!watchlist.length){ el.innerHTML = '<div class="empty" style="padding:24px">Watchlist kosong.</div>'; return; }
   el.innerHTML = watchlist.map(t => '<div class="check" style="justify-content:space-between">'
     + '<span style="cursor:pointer" data-action="pick" data-arg="' + escapeHtml(t) + '">' + escapeHtml(t) + '</span>'
-    + '<span><span class="mono" id="wl-' + escapeHtml(t) + '" style="color:#a3a3a3">' + (posQuotes[t]!=null?idr(posQuotes[t]):"-") + '</span>'
+    + '<span><span class="mono" id="wl-' + escapeHtml(t) + '" style="color:var(--muted)">' + (posQuotes[t]!=null?idr(posQuotes[t]):"-") + '</span>'
     + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" data-action="wlRemove" data-arg="' + escapeHtml(t) + '">x</button></span></div>').join("");
 }
 function wlAdd(){ const t=($("#wlInput").value||"").trim().toUpperCase(); if(!t) return;
@@ -63,7 +63,7 @@ function renderAlerts(){
     const fired = alertState[i];
     return '<div class="check" style="justify-content:space-between">'
       + '<span>' + a.ticker + ' ' + (a.dir==='above'?'&ge;':'&le;') + ' ' + fmt(a.price) + ' ' + (fired?'<b style="color:#ef4444">TRIGGERED</b>':'') + '</span>'
-      + '<span><span class="mono" style="color:#a3a3a3">' + (q!=null?idr(q):"-") + '</span>'
+      + '<span><span class="mono" style="color:var(--muted)">' + (q!=null?idr(q):"-") + '</span>'
       + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" data-action="alRemove" data-idx="' + i + '">x</button></span></div>';
   }).join("");
 }
@@ -128,7 +128,7 @@ function refreshPortfolio(){ renderWatchlist(); renderPositions(); renderAlerts(
 /* ---------- Fundamental ---------- */
 async function loadFundamental(t){
   const el = document.getElementById("fundCard"); if(!el) return;
-  el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">10</span><div class="line"></div><span class="badge">Fundamental</span></div><div class="empty">Memuat fundamental...</div></div>';
+  el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Fundamental</span></div><div class="empty">Memuat fundamental...</div></div>';
   try{
     const f = await (await fetch('/api/fundamental?ticker=' + encodeURIComponent(t))).json();
     if(f.error) throw new Error(f.error);
@@ -136,7 +136,7 @@ async function loadFundamental(t){
     const pct=(v)=> v==null?"-":(Number(v)*100).toFixed(2)+"%";
     const dy=(v)=> v==null?"-":Number(v).toFixed(2)+"%";
     const capv=(v)=> v==null?"-":(Number(v)/1e12).toFixed(2)+" T";
-    el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">10</span><div class="line"></div><span class="badge">Fundamental</span></div><div class="grid">'
+    el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Fundamental</span></div><div class="grid">'
       + '<div class="metric"><div class="k">Nama</div><div class="v v-white" style="font-size:13px">' + (f.name || t) + '</div></div>'
       + '<div class="metric"><div class="k">Market Cap</div><div class="v v-muted">' + capv(f.market_cap) + '</div></div>'
       + '<div class="metric"><div class="k">PER</div><div class="v v-muted">' + num(f.pe) + '</div></div>'
@@ -150,7 +150,7 @@ async function loadFundamental(t){
       + '<div class="metric"><div class="k">52w High</div><div class="v v-red">' + fmt(f.high_52w) + '</div></div>'
       + '<div class="metric"><div class="k">52w Low</div><div class="v v-up">' + fmt(f.low_52w) + '</div></div>'
       + '</div></div>';
-  }catch(e){ el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">10</span><div class="line"></div><span class="badge">Fundamental</span></div><div class="empty">Gagal memuat fundamental.</div></div>'; }
+  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Fundamental</span></div><div class="empty">Gagal memuat fundamental.</div></div>'; }
 }
 
 /* ---------- Walk-forward ---------- */
@@ -168,7 +168,7 @@ async function runWalkforward(){
       +'<td class="'+(x.buy_hold>=0?'v-up':'v-red')+'">'+pct(x.buy_hold)+'</td>'
       +'<td>'+pct(x.win_rate)+'</td>'
       +'<td class="'+(x.max_dd>=0?'':'v-red')+'">'+pct(x.max_dd)+'</td></tr>').join("");
-    $("#btWf").innerHTML = '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Walk-forward (segmen out-of-sample)</div>'
+    $("#btWf").innerHTML = '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Walk-forward (segmen out-of-sample)</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th>Fold</th><th>Mulai</th><th>Selesai</th><th>Trade</th><th>Return</th><th>B&amp;H</th><th>Win</th><th>MaxDD</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     showStatus("Selesai");
   }catch(e){ $("#btWf").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
@@ -189,7 +189,7 @@ async function runMarket(){
       +'<td class="'+(s.chg_5d>=0?'v-up':'v-red')+'">'+pct(s.chg_5d)+'</td>'
       +'<td class="'+(s.chg_20d>=0?'v-up':'v-red')+'">'+pct(s.chg_20d)+'</td>'
       +'<td>'+s.breadth+'%</td></tr>').join("");
-    const rs=(d.rs_ranking||[]).map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.ticker)+'</td><td style="text-align:left;color:#a3a3a3">'+x.sector+'</td>'
+    const rs=(d.rs_ranking||[]).map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.ticker)+'</td><td style="text-align:left;color:var(--muted)">'+x.sector+'</td>'
       +'<td class="'+(x.chg_1d>=0?'v-up':'v-red')+'">'+pct(x.chg_1d)+'</td>'
       +'<td class="'+(x.chg_20d>=0?'v-up':'v-red')+'">'+pct(x.chg_20d)+'</td></tr>').join("");
     $("#mkResult").innerHTML =
@@ -201,9 +201,9 @@ async function runMarket(){
       +'<div class="metric"><div class="k">Breadth &gt; MA50</div><div class="v v-muted">'+(br.pct_above_ma50)+'%</div></div>'
       +'<div class="metric"><div class="k">Naik / Turun</div><div class="v v-muted">'+br.advancers+' / '+br.decliners+'</div></div>'
       +'</div>'
-      +'<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Heatmap Sektor</div>'
+      +'<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Heatmap Sektor</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Sektor</th><th>N</th><th>1D</th><th>5D</th><th>20D</th><th>Breadth</th></tr></thead><tbody>'+heat+'</tbody></table></div>'
-      +'<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Relative Strength Ranking (20D)</div>'
+      +'<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Relative Strength Ranking (20D)</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th style="text-align:left">Sektor</th><th>1D</th><th>20D</th></tr></thead><tbody>'+rs+'</tbody></table></div>';
     showStatus("Selesai");
   }catch(e){ $("#mkResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
@@ -240,7 +240,7 @@ async function runPortfolioRisk(){
       +'<div class="metric"><div class="k">Cash</div><div class="v v-up">'+d.cash_pct+'%</div></div></div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th>Nilai</th><th>Bobot</th><th>P/L</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     if(d.sectors && d.sectors.length){
-      html += '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Konsentrasi sektor</div>'
+      html += '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Konsentrasi sektor</div>'
         + '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Sektor</th><th>Nilai</th><th>Bobot</th></tr></thead><tbody>'
         + d.sectors.map(s=>'<tr><td style="text-align:left">'+s.sector+'</td><td>'+idr(s.value)+'</td><td>'+s.weight_pct+'%</td></tr>').join('')
         + '</tbody></table></div>';
@@ -253,9 +253,9 @@ async function runPortfolioRisk(){
       const cd=await (await fetch('/api/correlation?tickers=' + tks.join(','))).json();
       if(!cd.error){
         const hdr='<tr><th></th>'+cd.tickers.map(t=>'<th>'+t+'</th>').join('')+'</tr>';
-        const body=cd.matrix.map((row,i)=>'<tr><td style="text-align:left;font-weight:700">'+cd.tickers[i]+'</td>'+row.map(v=>'<td style="color:'+(v>=0.7?'#ef5350':(v<=0.3?'#26a69a':'#a3a3a3'))+'">'+v+'</td>').join('')+'</tr>').join("");
-        html+='<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Korelasi 120D (&ge;0.7 merah = terlalu mirip)</div><div style="overflow-x:auto"><table>'+hdr+body+'</table></div>';
-      } else { html+='<div class="mono" style="color:#737373;font-size:11px;margin-top:12px">Korelasi: '+cd.error+'</div>'; }
+        const body=cd.matrix.map((row,i)=>'<tr><td style="text-align:left;font-weight:700">'+cd.tickers[i]+'</td>'+row.map(v=>'<td style="color:'+(v>=0.7?'#ef5350':(v<=0.3?'#26a69a':'var(--muted)'))+'">'+v+'</td>').join('')+'</tr>').join("");
+        html+='<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Korelasi 120D (&ge;0.7 merah = terlalu mirip)</div><div style="overflow-x:auto"><table>'+hdr+body+'</table></div>';
+      } else { html+='<div class="mono" style="color:var(--muted);font-size:11px;margin-top:12px">Korelasi: '+cd.error+'</div>'; }
     }
     $("#pfRisk").innerHTML=html; showStatus("Selesai");
   }catch(e){ $("#pfRisk").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
@@ -267,7 +267,7 @@ function renderJournal(){
   const el=$("#jrList");
   if(!journal.length){ el.innerHTML='<div class="empty" style="padding:24px">Belum ada catatan.</div>'; return; }
   el.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Waktu</th><th style="text-align:left">Kode</th><th style="text-align:left">Catatan</th><th>Hasil</th><th></th></tr></thead><tbody>'
-    +journal.map((j,i)=>'<tr><td>'+j.time+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(j.ticker)+'">'+escapeHtml(j.ticker)+'</td><td style="text-align:left;color:#a3a3a3">'+j.note+'</td><td class="'+(j.result>=0?'v-up':'v-red')+'">'+(j.result!=null?(j.result>=0?'+':'')+j.result+'%':'-')+'</td><td><button class="btn ghost" style="padding:3px 8px" data-action="jrRemove" data-idx="'+i+'">x</button></td></tr>').join('')
+    +journal.map((j,i)=>'<tr><td>'+j.time+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(j.ticker)+'">'+escapeHtml(j.ticker)+'</td><td style="text-align:left;color:var(--muted)">'+j.note+'</td><td class="'+(j.result>=0?'v-up':'v-red')+'">'+(j.result!=null?(j.result>=0?'+':'')+j.result+'%':'-')+'</td><td><button class="btn ghost" style="padding:3px 8px" data-action="jrRemove" data-idx="'+i+'">x</button></td></tr>').join('')
     +'</tbody></table></div>';
 }
 function jrRemove(i){ journal.splice(i,1); LS.set("sbl_journal",journal); renderJournal(); }

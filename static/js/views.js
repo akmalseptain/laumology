@@ -5,7 +5,7 @@ function setAsStatus(txt){ const el=$("#asStatus"); if(el) el.textContent=txt; }
 function renderAsResult(rows){
   const top=(rows||[]).filter(x=>x.Signal==="STRONG BUY"||x.Signal==="BUY").slice(0,20);
   $("#asResult").innerHTML = top.length ? '<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th>Skor</th><th>Sinyal</th><th>Aksi</th></tr></thead><tbody>'
-    + top.map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.Ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.Ticker)+'</td><td>'+x.Score+'</td><td><span class="tag s-'+signalClass(x.Signal)+'">'+x.Signal+'</span></td><td style="color:#a3a3a3">'+x.Action+'</td></tr>').join('')
+    + top.map(x=>'<tr data-action="pick" data-arg="'+escapeHtml(x.Ticker)+'" style="cursor:pointer"><td style="text-align:left;font-weight:700">'+escapeHtml(x.Ticker)+'</td><td>'+x.Score+'</td><td><span class="tag s-'+signalClass(x.Signal)+'">'+x.Signal+'</span></td><td style="color:var(--muted)">'+x.Action+'</td></tr>').join('')
     + '</tbody></table></div>' : '<div class="empty" style="padding:18px">Tidak ada sinyal beli di watchlist.</div>';
 }
 async function asScan(){
@@ -61,7 +61,7 @@ $("#cmp").onchange = (e) => {
 
 async function loadMl(t){
   const el = document.getElementById("mlCard"); if(!el) return;
-  el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">11</span><div class="line"></div><span class="badge">Model ML (logistic)</span></div><div class="empty">Melatih model...</div></div>';
+  el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Model ML (logistic)</span></div><div class="empty">Melatih model...</div></div>';
   try{
     const m = await (await fetch('/api/ml?ticker=' + encodeURIComponent(t) + '&horizon=10')).json();
     if(m.error) throw new Error(m.error);
@@ -69,7 +69,7 @@ async function loadMl(t){
     const prob = m.current_prob_up;
     const cls = prob>=0.6?"v-up":(prob<=0.4?"v-red":"v-muted");
     const wrows = (m.weights||[]).slice(0,8).map((w,i)=>'<div class="check" style="justify-content:space-between"><span>'+(i+1)+'. '+w.factor+'</span><span class="mono '+(w.weight>=0?'v-up':'v-red')+'">'+(w.weight>=0?'+':'')+w.weight+'</span></div>').join("");
-    el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">11</span><div class="line"></div><span class="badge">Model ML (logistic)</span></div>'
+    el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Model ML (logistic)</span></div>'
       + '<div class="grid">'
       + '<div class="metric hl"><div class="k">Probabilitas Naik</div><div class="v '+cls+'">'+pct(prob)+'</div></div>'
       + '<div class="metric"><div class="k">Akurasi (out-of-sample)</div><div class="v v-white">'+pct(m.test_accuracy)+'</div></div>'
@@ -77,11 +77,11 @@ async function loadMl(t){
       + '<div class="metric"><div class="k">Edge vs Base</div><div class="v '+(m.edge_vs_base>=0?'v-up':'v-red')+'">'+(m.edge_vs_base==null?'-':(m.edge_vs_base>=0?'+':'')+pct(m.edge_vs_base))+'</div></div>'
       + '<div class="metric"><div class="k">Sampel / Train / Test</div><div class="v v-muted">'+m.samples+' / '+m.train+' / '+m.test+'</div></div>'
       + '</div>'
-      + '<div class="mono" style="color:#7c8c83;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Bobot faktor (kontribusi)</div>'
+      + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Bobot faktor (kontribusi)</div>'
       + '<div class="checks" style="grid-template-columns:1fr">'+wrows+'</div>'
-      + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Heuristik statistik (bukan jaminan). Probabilitas = peluang historis naik dalam 10 bar.</div>'
+      + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Heuristik statistik (bukan jaminan). Probabilitas = peluang historis naik dalam 10 bar.</div>'
       + '</div>';
-  }catch(e){ el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">11</span><div class="line"></div><span class="badge">Model ML</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
+  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Model ML</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
 }
 
 /* ---------- Berita: renderer bersama + sheet detail (W-0010) ---------- */
@@ -329,19 +329,19 @@ document.addEventListener("error", function(e){
 
 async function loadNews(t){
   const el = document.getElementById("newsCard"); if(!el) return;
-  el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div><div class="empty">Memuat berita...</div></div>';
+  el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sentimen Berita</span></div><div class="empty">Memuat berita...</div></div>';
   try{
     const n = await (await fetch('/api/news?ticker=' + encodeURIComponent(t))).json();
     if(n.error) throw new Error(n.error);
     const cls = n.label==="Positif"?"v-up":(n.label==="Negatif"?"v-red":"v-muted");
     const items = newsCardsHtml((n.items||[]).slice(0,8));
-    el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div>'
+    el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sentimen Berita</span></div>'
       + '<div class="grid"><div class="metric hl"><div class="k">Sentimen</div><div class="v '+cls+'">'+n.label+'</div></div>'
       + '<div class="metric"><div class="k">Skor rata-rata</div><div class="v v-muted">'+n.avg_sentiment+'</div></div>'
       + '<div class="metric"><div class="k">Jumlah berita</div><div class="v v-white">'+n.count+'</div></div></div>'
       + (items ? '<div style="margin-top:12px">'+items+'</div>' : (n.degraded ? '<div class="empty" style="padding:20px">Gagal memuat berita (sumber tidak tersedia).</div>' : '<div class="empty" style="padding:20px">Tidak ada berita.</div>'))
       + '</div>';
-  }catch(e){ el.innerHTML = '<div class="card glass modish"><div class="sec"><span class="num">12</span><div class="line"></div><span class="badge">Sentimen Berita</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
+  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sentimen Berita</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
 }
 
 /* ---------- Tab: Fundamental ---------- */
@@ -497,10 +497,10 @@ async function runOptimize(){
       +'<td>'+(x.profit_factor==null?'~':Number(x.profit_factor).toFixed(2))+'</td>'
       +'<td>'+x.n_trades+'</td><td>'+pct(x.win_rate)+'</td></tr>').join("");
     const b=d.best;
-    $("#optResult").innerHTML = '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Optimizer ('+d.tested+' kombinasi)</div>'
-      + (b ? '<div class="mono" style="color:#33443b;font-size:12px;margin-bottom:8px">Terbaik: min_skor '+b.min_score+' · TP RR '+b.tp_rr+' · SL x ATR '+b.sl_mult+'</div>' : '')
+    $("#optResult").innerHTML = '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Optimizer ('+d.tested+' kombinasi)</div>'
+      + (b ? '<div class="mono" style="color:var(--foreground);font-size:12px;margin-bottom:8px">Terbaik: min_skor '+b.min_score+' · TP RR '+b.tp_rr+' · SL x ATR '+b.sl_mult+'</div>' : '')
       + '<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>MinSkor</th><th>TP RR</th><th>SL ATR</th><th>Return</th><th>PF</th><th>Trade</th><th>Win</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
-      + '<div class="mono" style="color:#8a9a90;font-size:10px;margin-top:10px">Hati-hati overfitting: validasi dengan Walk-forward.</div>';
+      + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Hati-hati overfitting: validasi dengan Walk-forward.</div>';
     showStatus("Selesai");
   }catch(e){ $("#optResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
   finally{ $("#optRun").disabled=false; }
@@ -550,9 +550,9 @@ async function loadDb(){
     const [sg, sc] = await Promise.all([fetch('/api/db/signals?limit=20').then(r=>r.json()), fetch('/api/db/scans').then(r=>r.json())]);
     const srows=(sg.rows||[]).map(x=>'<tr><td>'+x.ts.slice(5,16)+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(x.ticker)+'">'+escapeHtml(x.ticker)+'</td><td><span class="tag s-'+signalClass(x.signal)+'">'+x.signal+'</span></td><td>'+x.score+'</td><td>'+x.source+'</td></tr>').join("");
     const crows=(sc.rows||[]).map(x=>'<tr><td>'+x.ts.slice(5,16)+'</td><td style="text-align:left">'+x.universe+'</td><td>'+x.n+'</td><td>'+x.buys+'</td></tr>').join("");
-    el.innerHTML = '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Sinyal tersimpan</div>'
+    el.innerHTML = '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Sinyal tersimpan</div>'
       + (srows?'<div style="overflow-x:auto"><table><thead><tr><th>Waktu</th><th>Kode</th><th>Sinyal</th><th>Skor</th><th>Sumber</th></tr></thead><tbody>'+srows+'</tbody></table></div>':'<div class="empty" style="padding:14px">Kosong. Jalankan scheduler.py atau analisis manual.</div>')
-      + '<div class="mono" style="color:#525252;font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Log scan otomatis</div>'
+      + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 6px">Log scan otomatis</div>'
       + (crows?'<div style="overflow-x:auto"><table><thead><tr><th>Waktu</th><th>Universe</th><th>Discan</th><th>Beli</th></tr></thead><tbody>'+crows+'</tbody></table></div>':'<div class="empty" style="padding:14px">Belum ada scan otomatis (jalankan <b>py scheduler.py</b>).</div>');
   }catch(e){ el.innerHTML='<div class="empty">Gagal memuat.</div>'; }
 }
