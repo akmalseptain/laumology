@@ -966,6 +966,18 @@ class TestGscVerificationMeta(unittest.TestCase):
             '<meta name="google-site-verification" content="RnwQXP6N7GmFJnEJwvC_cPmgesMpyroVameSBPihrKE">',
             hb,
         )
+        self.assertLess(
+            hb.find("google-site-verification"),
+            hb.find("<title>"),
+        )
+
+    def test_html_file_method(self):
+        resp = self.client.get("/google42f09fe8816f0fe6.html")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.get_data(as_text=True).strip(),
+            "google-site-verification: google42f09fe8816f0fe6.html",
+        )
 
     def test_env_valid_tag_rendered(self):
         import os

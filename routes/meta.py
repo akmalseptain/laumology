@@ -90,6 +90,18 @@ def _gsc_token() -> str:
     return raw
 
 
+# Berkas yang diunduh dari Search Console (metode unggah HTML).
+# Isi harus sama persis dengan file di Downloads.
+_GSC_HTML_FILE = "google42f09fe8816f0fe6.html"
+_GSC_HTML_BODY = "google-site-verification: google42f09fe8816f0fe6.html\n"
+
+
+@bp.route("/" + _GSC_HTML_FILE)
+def gsc_html_file():
+    """Berkas verifikasi di akar situs, tempat Google mencarinya."""
+    return Response(_GSC_HTML_BODY, mimetype="text/html")
+
+
 @bp.route("/")
 def index():
     return render_template(

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+{% if site_verification %}<meta name="google-site-verification" content="{{ site_verification }}">{% endif %}
 <meta charset="UTF-8">
 <!-- LAUMOLOGY - IDX Trading Terminal. Developed by AKMALSEPTAIN. -->
 <meta name="author" content="AKMALSEPTAIN">
@@ -19,7 +20,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="LAUMOLOGY">
 <link rel="canonical" href="{{ canonical_base }}/">
-{% if site_verification %}<meta name="google-site-verification" content="{{ site_verification }}">{% endif %}
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
