@@ -3540,6 +3540,13 @@ class TestExternalPressure(unittest.TestCase):
         self.assertEqual(cmp["alignment"], "berlawanan")
         empty = xsource.compare_signal("HOLD", [])
         self.assertEqual(empty["alignment"], "belum cukup")
+        only_bbca = xsource.keep_ticker_posts([
+            {"title": "BBCA saya tahan dulu di support - X", "link": "a"},
+            {"title": "TLKM lebih baik dijual - X", "link": "b"},
+        ], "BBCA")
+        self.assertEqual(len(only_bbca), 1)
+        self.assertIn("BBCA", only_bbca[0]["title"])
+        self.assertNotIn("TLKM", only_bbca[0]["title"])
 
     def test_macro_query_rejects_unsafe_text_offline(self):
         import news

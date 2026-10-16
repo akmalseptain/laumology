@@ -32,8 +32,10 @@ _BELI = ("beli", "serok", "akumulasi", "menguat", "net buy")
 _TAHAN = ("tahan", "hold", "wait", "tunggu", "waspada")
 _OUR = {"BUY": "beli", "SELL": "jual", "HOLD": "tahan", "WAIT": "tahan"}
 _TTL = 1800.0
+_TICKER_RE = re.compile(r"^[A-Z]{2,5}$")
 _lock = threading.Lock()
 _cache: dict = {"ts": 0.0, "items": None, "ok": None}
+_ticker_cache: dict[str, tuple[float, list, bool]] = {}
 
 
 def stance_of(title: str) -> str:
@@ -53,7 +55,7 @@ def stance_of(title: str) -> str:
     return "netral"
 
 
-def compare_signal(our_signal: str | None, posts: list[dict]) -> dict:
+def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "") -> dict:
     """Bandingkan sinyal aplikasi dengan arah mayoritas pos X. Tidak mengubah skor."""
     counts = {"beli": 0, "jual": 0, "tahan": 0, "netral": 0}
     samples: list[str] = []
@@ -75,7 +77,8 @@ def compare_signal(our_signal: str | None, posts: list[dict]) -> dict:
         if list(voiced.values()).count(voiced[theirs]) > 1:
             theirs, note = "campur", "Suara X terbelah, tidak ada arah yang menang."
         else:
-            note = f"Mayoritas pos X berarah {theirs} ({voiced[theirs]} dari {len(posts)})."
+            tentang = f" tentang {subject}" if subject else ""
+            note = f"Mayoritas pos X{tentang} berarah {theirs} ({voiced[theirs]} dari {len(posts)})."
     ours = _OUR.get((our_signal or "").upper(), "tahan")
     if theirs in ("belum ada", "netral", "campur"):
         alignment = "belum cukup"
@@ -113,6 +116,35 @@ def keep_market_posts(rows: list[dict]) -> list[dict]:
         seen.add(key)
         out.append({
             "title": "Pos X: " + title[:180],
+            "summary": None,
+            "url": str(row.get("link") or row.get("url") or ""),
+            "source": "x",
+            "stance": stance_of(title),
+        })
+        if len(out) >= _POST_CAP:
+            break
+    return out
+
+
+def keep_ticker_posts(rows: list[dict], ticker: str) -> list[dict]:
+    """Hanya judul yang menyebut kode ini. BBCA tidak tercampur dengan TLKM."""
+    code = (ticker or "").upper().strip()
+    if not _TICKER_RE.fullmatch(code):
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        title = re.sub(r"\s+", " ", str(row.get("title") or "")).strip()
+        if code not in title.upper() or len(title) < 12:
+            continue
+        key = re.sub(r"\W+", "", title.lower())[:80]
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "title": f"Pos X {code}: " + title[:180],
             "summary": None,
             "url": str(row.get("link") or row.get("url") or ""),
             "source": "x",
@@ -178,4 +210,38 @@ def headlines() -> tuple[list[dict], bool]:
         _cache["ts"] = time.time()
         _cache["items"] = items
         _cache["ok"] = ok
+    return list(items), ok
+
+
+def headlines_for(ticker: str) -> tuple[list[dict], bool]:
+    """Pos X yang menyebut satu kode. Cache terpisah per emiten."""
+    code = (ticker or "").upper().strip()
+    if not _TICKER_RE.fullmatch(code):
+        return [], False
+    now = time.time()
+    with _lock:
+        cached = _ticker_cache.get(code)
+        if cached and now - cached[0] < _TTL:
+            return list(cached[1]), bool(cached[2])
+    queries = (
+        f"{code} (beli OR jual OR tahan OR IHSG OR saham) site:x.com",
+        f"{code} (analisis OR target OR support OR resistance) site:x.com",
+    )
+    rows: list[dict] = []
+    ok = False
+    try:
+        with ThreadPoolExecutor(max_workers=len(queries)) as pool:
+            for found, source_ok in pool.map(_fetch_query, queries):
+                if source_ok:
+                    ok = True
+                rows.extend(found)
+        items = keep_ticker_posts(rows, code)
+    except Exception:
+        items, ok = [], False
+    with _lock:
+        _ticker_cache[code] = (time.time(), items, ok)
+        if len(_ticker_cache) > 80:
+            oldest = sorted(_ticker_cache.items(), key=lambda kv: kv[1][0])[:20]
+            for key, _entry in oldest:
+                _ticker_cache.pop(key, None)
     return list(items), ok

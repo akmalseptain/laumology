@@ -650,7 +650,14 @@ def for_stock(
                 missing.append("X")
             result["missing"] = missing
         import xsource
-        result["x_compare"] = xsource.compare_signal(our_signal, bundle.get("x_items") or [])
+        code = (ticker or "").upper().strip()
+        ticker_posts, ticker_ok = xsource.headlines_for(code) if code else ([], False)
+        if ticker_ok:
+            watched = list(result.get("watched") or [])
+            if "X emiten" not in watched:
+                watched.append("X emiten")
+            result["watched"] = watched
+        result["x_compare"] = xsource.compare_signal(our_signal, ticker_posts, subject=code)
         return result
     except Exception:
         return assess(news_ok=False, usdidr_ok=False, global_ok=False)
