@@ -524,17 +524,22 @@ function externalCard(x){
   let cmpHtml = "";
   if(cmp && cmp.theirs){
     const alignCls = cmp.alignment==="searah" ? "v-up" : (cmp.alignment==="berlawanan" ? "v-red" : "v-muted");
-    const samples = (cmp.samples||[]).slice(0,8).map(function(t){
-      return '<li>'+escapeHtml(t)+'</li>';
+    const samples = (cmp.samples||[]).slice(0,8).map(function(raw){
+      var text = String(raw||"");
+      var m = text.match(/^\[(beli|jual|tahan|peristiwa|netral)\]\s*/i);
+      var side = m ? m[1].toLowerCase() : "";
+      if(m) text = text.slice(m[0].length);
+      var sideCls = side==="beli" ? "v-up" : (side==="jual" ? "v-red" : "v-muted");
+      return '<li><span class="tag-side '+sideCls+'">'+escapeHtml(side||"—")+'</span><span>'+escapeHtml(text)+'</span></li>';
     }).join("");
-    cmpHtml = '<div class="sec" style="margin-top:16px"><span class="badge">Komparasi '+escapeHtml(cmp.ticker||"emiten")+'</span></div>'
-      + '<div class="grid">'
-      + '<div class="metric"><div class="k">Sinyal kita</div><div class="v">'+escapeHtml(cmp.our_signal||cmp.ours||"-")+'</div></div>'
-      + '<div class="metric"><div class="k">Suara X</div><div class="v">'+escapeHtml(cmp.theirs)+'</div></div>'
-      + '<div class="metric"><div class="k">Hasil</div><div class="v '+alignCls+'">'+escapeHtml(cmp.alignment||"-")+'</div></div>'
+    cmpHtml = '<div class="cmp"><div class="sec"><span class="badge">Komparasi '+escapeHtml(cmp.ticker||"emiten")+'</span></div>'
+      + '<div class="cmp-row">'
+      + '<div><div class="k">Sinyal kita</div><div class="v">'+escapeHtml(cmp.our_signal||cmp.ours||"-")+'</div></div>'
+      + '<div><div class="k">Suara X</div><div class="v">'+escapeHtml(cmp.theirs)+'</div></div>'
+      + '<div><div class="k">Hasil</div><div class="v '+alignCls+'">'+escapeHtml(cmp.alignment||"-")+'</div></div>'
       + '</div>'
-      + '<p class="mono" style="margin:8px 0 0;font-size:12px;line-height:1.5">'+escapeHtml(cmp.note||"")+'</p>'
-      + (samples ? '<ul class="list">'+samples+'</ul>' : '');
+      + '<p class="note">'+escapeHtml(cmp.note||"")+'</p>'
+      + (samples ? '<ul class="xposts">'+samples+'</ul>' : '');
   }
   const watched = (x.watched||[]).map(function(w){ return escapeHtml(w); }).join(" · ");
   const missing = (x.missing||[]).length ? ' · belum ada: '+(x.missing||[]).map(function(w){ return escapeHtml(w); }).join(", ") : "";
