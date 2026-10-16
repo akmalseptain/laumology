@@ -27,9 +27,20 @@ _NEEDLES = (
     "ihsg", "msci", "ftse", "rupiah", "asing", "bei", "bursa",
     "suku bunga", "trading halt",
 )
-_JUAL = ("jual", "anjlok", "cutloss", "cut loss", "hindari", "melemah", "net sell", "trading halt", "turun")
-_BELI = ("beli", "serok", "akumulasi", "menguat", "net buy")
+_JUAL = (
+    "jual", "anjlok", "cutloss", "cut loss", "hindari", "melemah", "net sell",
+    "trading halt", "turun", "jeblok", "ambles", "longsor", "tertekan",
+    "bearish", "koreksi",
+)
+_BELI = (
+    "beli", "serok", "akumulasi", "menguat", "net buy", "naik", "bullish",
+    "cuan", "koleksi", "rebound", "breakout",
+)
 _TAHAN = ("tahan", "hold", "wait", "tunggu", "waspada")
+_PERISTIWA = (
+    "rups", "tender offer", "dividen", "right issue", "rights issue",
+    "akuisisi", "stock split", "private placement", "waran", "buyback",
+)
 _OUR = {"BUY": "beli", "SELL": "jual", "HOLD": "tahan", "WAIT": "tahan"}
 _TTL = 1800.0
 _TICKER_RE = re.compile(r"^[A-Z]{2,5}$")
@@ -53,12 +64,14 @@ def stance_of(title: str) -> str:
         return "beli"
     if tahan:
         return "tahan"
+    if any(word in low for word in _PERISTIWA):
+        return "peristiwa"
     return "netral"
 
 
 def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "") -> dict:
     """Bandingkan sinyal aplikasi dengan arah mayoritas pos X. Tidak mengubah skor."""
-    counts = {"beli": 0, "jual": 0, "tahan": 0, "netral": 0}
+    counts = {"beli": 0, "jual": 0, "tahan": 0, "netral": 0, "peristiwa": 0}
     samples: list[str] = []
     for post in posts or []:
         if not isinstance(post, dict):
@@ -66,12 +79,16 @@ def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "")
         title = str(post.get("title") or "")
         side = post.get("stance") if post.get("stance") in counts else stance_of(title)
         counts[side] += 1
-        if side != "netral" and len(samples) < 8:
+        if side not in ("netral",) and len(samples) < 8:
             samples.append(title[:160])
     voiced = {k: counts[k] for k in ("beli", "jual", "tahan")}
     nama = subject or "emiten ini"
     if not posts:
         theirs, note = "belum ada", f"Belum ada pos X yang menyebut {nama}."
+    elif max(voiced.values()) == 0 and counts["peristiwa"] > 0:
+        theirs = "peristiwa"
+        note = (f"Pos X tentang {nama} membahas aksi korporasi "
+                f"({counts['peristiwa']} dari {len(posts)}), bukan ajakan beli atau jual.")
     elif max(voiced.values()) == 0:
         theirs, note = "netral", f"Ada pos X tentang {nama}, tetapi arah beli atau jualnya tidak terbaca."
     else:

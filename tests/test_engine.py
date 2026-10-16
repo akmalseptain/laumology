@@ -3553,6 +3553,11 @@ class TestExternalPressure(unittest.TestCase):
         ], "BBCA")
         self.assertEqual(len(mixed), 1)
         self.assertIn("akumulasi", mixed[0]["title"])
+        corp = xsource.stance_of("Siap-siap, perusahaan ini mau tender offer saham NAYZ")
+        self.assertEqual(corp, "peristiwa")
+        cmp = xsource.compare_signal("HOLD", [{"title": "RUPS NAYZ", "stance": "peristiwa"}], subject="NAYZ")
+        self.assertEqual(cmp["theirs"], "peristiwa")
+        self.assertIn("NAYZ", cmp["note"])
 
     def test_macro_query_rejects_unsafe_text_offline(self):
         import news
