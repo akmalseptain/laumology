@@ -180,7 +180,12 @@ async function runMarket(){
   const list=$("#mkList").value; if(!list) return;
   showStatus("Mengambil data pasar...", true); $("#mkRun").disabled=true;
   try{
-    const d=await (await fetch('/api/market?list=' + encodeURIComponent(list))).json();
+    const pair = await Promise.all([
+      fetch('/api/market?list=' + encodeURIComponent(list)).then(function(r){ return r.json(); }),
+      fetch('/api/external').then(function(r){ return r.json(); }).catch(function(){ return null; })
+    ]);
+    const d = pair[0];
+    const ext = pair[1];
     if(d.error) throw new Error(d.error);
     const pct=(v)=> v==null?"-":(Number(v)).toFixed(2)+"%";
     const ih=d.ihsg||{}; const br=d.breadth||{};
@@ -205,6 +210,9 @@ async function runMarket(){
       +'<div class="metric"><div class="k">Breadth &gt; MA50</div><div class="v v-muted">'+(br.pct_above_ma50)+'%</div></div>'
       +'<div class="metric"><div class="k">Naik / Turun</div><div class="v v-muted">'+br.advancers+' / '+br.decliners+'</div></div>'
       +'</div>'
+      + (ext && ext.summary && !ext.error
+          ? '<div class="mono" style="margin-top:14px;font-size:12px;line-height:1.6"><b>Tekanan luar</b> · '+escapeHtml(ext.label||"")+' — '+escapeHtml(ext.summary)+'</div>'
+          : '')
       +'<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Heatmap Sektor</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Sektor</th><th>N</th><th>1D</th><th>5D</th><th>20D</th><th>Breadth</th></tr></thead><tbody>'+heat+'</tbody></table></div>'
       +'<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Relative Strength Ranking (20D)</div>'

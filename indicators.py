@@ -24,8 +24,12 @@ def rsi(close: pd.Series, n: int = 14) -> pd.Series:
     loss = -delta.clip(upper=0.0)
     avg_gain = wilder(gain, n)
     avg_loss = wilder(loss, n)
+    # avg_loss == 0 bukan "netral". Rally tanpa bar turun = RSI 100.
+    # fillna(50) hanya untuk bar pemanasan, sebelum Wilder punya n sampel.
     rs = avg_gain / avg_loss.replace(0.0, np.nan)
     out = 100.0 - (100.0 / (1.0 + rs))
+    out = out.mask((avg_loss == 0) & (avg_gain > 0), 100.0)
+    out = out.mask((avg_gain == 0) & (avg_loss == 0), 50.0)
     return out.fillna(50.0)
 
 

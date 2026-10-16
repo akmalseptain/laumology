@@ -5,6 +5,7 @@ import json
 import numpy as np
 
 import data
+import external
 import fundamentals
 import llm
 import market
@@ -91,28 +92,25 @@ def _fundamental(f: dict) -> dict:
     else:
         cap = "Small Cap"
 
-    if roe is not None and roe >= 0.15 and (der is None or der < 100):
-        quality = "Kualitas Baik"
-    elif roe is not None and roe < 0:
-        quality = "Rugi"
+    if f.get("valuation_code") and f.get("quality_code"):
+        labels = {
+            "valuation_code": f.get("valuation_code"),
+            "valuation_label": f.get("valuation_label"),
+            "valuation_note": f.get("valuation_note"),
+            "quality_code": f.get("quality_code"),
+            "quality_label": f.get("quality_label"),
+            "quality_note": f.get("quality_note"),
+        }
     else:
-        quality = "Kualitas Sedang"
-
-    if pe is None:
-        val = "Valuasi n/a"
-    elif pe < 12:
-        val = "Valuasi Murah"
-    elif pe < 22:
-        val = "Valuasi Wajar"
-    else:
-        val = "Valuasi Mahal"
+        labels = fundamentals.classify_ratios(pe, roe, der)
 
     return {
-        "category": f"{cap} · {quality}",
-        "valuation": val,
+        "category": f"{cap} · {labels['quality_label']}",
+        "valuation": labels["valuation_label"],
         "pe": pe, "pb": pb, "roe": roe, "der": der,
         "dividend_yield": f.get("dividend_yield"),
         "name": f.get("name"),
+        **labels,
     }
 
 
@@ -129,8 +127,21 @@ def _fund_tech_alignment(tech_bias: str, fund: dict, available: bool) -> dict:
         return {"status": "n/a", "note": "Data fundamental tidak tersedia."}
     category = fund.get("category") or ""
     valuation = fund.get("valuation") or ""
-    strong = ("Kualitas Baik" in category) or ("Murah" in valuation)
-    weak = ("Rugi" in category) or ("Mahal" in valuation)
+    strong = (
+        fund.get("quality_code") == "baik"
+        or fund.get("valuation_code") == "rendah"
+        or "Kualitas Baik" in category
+        or "Kualitas baik" in category
+        or "Murah" in valuation
+        or "rendah" in valuation.lower()
+    )
+    weak = (
+        fund.get("quality_code") == "rugi"
+        or fund.get("valuation_code") == "tinggi"
+        or "Rugi" in category
+        or "Mahal" in valuation
+        or "tinggi" in valuation.lower()
+    )
     if tech_bias == "BULLISH" and strong:
         status, note = "SEARAH", "Teknikal bullish didukung fundamental kuat/murah."
     elif tech_bias == "BEARISH" and weak:
@@ -215,7 +226,7 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     fund_available = bool(f.get("available"))
     fund_has_financials = bool(f.get("has_financials"))
     tech_fund_alignment = _fund_tech_alignment(tech_bias, fund, fund_available)
-    fund_summary = (f"{fund['category']}. {fund['valuation']} "
+    fund_summary = (f"{fund['category']}. {fund['valuation']}. {fund.get('valuation_note') or ''} "
                     f"(PER {f.get('pe') if f.get('pe') is not None else '-'}, "
                     f"PBV {f.get('pb') if f.get('pb') is not None else '-'}, "
                     f"ROE {round((f.get('roe') or 0)*100,1)}%, DER {f.get('der') if f.get('der') is not None else '-'}).")
@@ -238,6 +249,19 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     sentiment_summary = (f"Sentimen berita {nw.get('label')} (skor {nw.get('avg_sentiment')}, "
                          f"{nw.get('count', 0)} berita). IHSG {mk.get('regime', 'n/a')} "
                          f"(1D {round(mk.get('ret_1d', 0), 2)}%, 20D {round(mk.get('ret_20d', 0), 2)}%).")
+    # Tekanan luar (MSCI, asing, kurs, suku bunga, bursa global) bersifat
+    # penjelasan. Tidak mengubah vote, bobot, konsensus, maupun veto.
+    try:
+        luar = external.for_stock(
+            ticker,
+            change_1d=getattr(a, "change_1d", None),
+            rs_change=getattr(a, "rs_change", None),
+            extra_items=list(nw.get("items") or []),
+        )
+    except Exception:
+        luar = {"status": "tidak_tersedia", "label": "Belum bisa dinilai",
+                "summary": "Tekanan luar belum bisa dinilai.", "drivers": []}
+    luar_summary = luar.get("summary") or "Tekanan luar belum bisa dinilai."
 
     # --- ML probability (quant input) ---
     ml_prob = None
@@ -255,13 +279,13 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
                    "Distribusi": -0.5, "DISTRIBUSI MASIF": -1.0}.get(bandar["status"], 0.0)
 
     fund_vote = 0.0
-    if "Kualitas Baik" in fund["category"]:
+    if fund.get("quality_code") == "baik":
         fund_vote += 0.5
-    if "Rugi" in fund["category"]:
+    if fund.get("quality_code") == "rugi":
         fund_vote -= 0.7
-    if "Murah" in fund["valuation"]:
+    if fund.get("valuation_code") == "rendah":
         fund_vote += 0.5
-    elif "Mahal" in fund["valuation"]:
+    elif fund.get("valuation_code") == "tinggi":
         fund_vote -= 0.3
     fund_vote = max(-1.0, min(1.0, fund_vote))
 
@@ -336,6 +360,7 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         f"• @bandarmologi : {bandar_summary}\n"
         f"• @fundamental  : {fund_summary}\n"
         f"• @sentiment    : {sentiment_summary}\n"
+        f"• @luar         : {luar_summary}\n"
         + ml_line +
         "\n[2. CATATAN VETO & SINTESIS MODERATOR]\n"
         f"• {synthesis}\n"
@@ -363,6 +388,7 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         "fundamental": fund,
         "fund_tech_alignment": tech_fund_alignment,
         "sentiment": sent,
+        "external": luar,
         "ml_prob_up": ml_prob,
         "votes": votes,
         "weights_used": weights_used,
@@ -421,7 +447,10 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
             "bandarmologi": {"status": bandar["status"], "text": bandar_summary},
             "fundamental": {"category": fund["category"], "text": fund_summary},
             "sentiment": {"label": sent.get("label"), "text": sentiment_summary},
+            "external": {"status": luar.get("status"), "label": luar.get("label"),
+                         "text": luar_summary},
         },
+        "external": luar,
         "fund_tech_alignment": tech_fund_alignment,
         "synthesis": synthesis,
         "reason": reason,

@@ -5,6 +5,7 @@ import time
 
 from flask import Blueprint, jsonify, request
 
+import external
 import fundamentals
 import llm
 import market
@@ -34,6 +35,17 @@ def api_news():
 def api_news_market():
     try:
         return jsonify(news.get_market_news())
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@bp.route("/api/external")
+def api_external():
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    try:
+        if ticker:
+            return jsonify(external.for_stock(ticker))
+        return jsonify(external.for_market())
     except Exception as exc:
         return jsonify(error=str(exc)), 502
 

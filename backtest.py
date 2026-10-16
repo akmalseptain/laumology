@@ -392,7 +392,23 @@ def backtest_decision(
     curve_out = [round(float(x), 4) for x in curve]
     dates_out = [str(x)[:10] for x in dates]
     if tdf.empty:
-        return BacktestResult(ticker.upper(), 0.0, buy_hold, 0, 0.0, 0.0, 0.0, 0.0, 0.0, tdf, curve_out, dates_out)
+        # Argumen bernama: pemanggilan posisi dulu pernah menaruh DataFrame
+        # transaksi ke kolom expectancy bila tidak ada trade.
+        return BacktestResult(
+            ticker=ticker.upper(),
+            total_return=0.0,
+            buy_hold_return=buy_hold,
+            n_trades=0,
+            win_rate=0.0,
+            avg_win=0.0,
+            avg_loss=0.0,
+            profit_factor=0.0,
+            max_drawdown=0.0,
+            expectancy=0.0,
+            trades=tdf,
+            equity_curve=curve_out,
+            dates=dates_out,
+        )
     rets = tdf["return_pct"].to_numpy() / 100.0
     wins = rets[rets > 0]
     losses = rets[rets <= 0]

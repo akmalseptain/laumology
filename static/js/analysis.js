@@ -225,6 +225,7 @@ function render(d, opts={}){
       <div id="liveChart" class="lwchart" style="border:0;border-radius:0"></div>
     </div>
 
+    ${externalCard(d.external)}
     ${(d.decision && d.decision.direction) ? decisionCard(d.decision) : ''}
     ${(d.stock && d.stock.scores) ? stockCard(d.stock, d.decision) : ''}
 
@@ -498,6 +499,35 @@ document.querySelectorAll(".tvbtn").forEach(b=>b.onclick=()=>{
   b.classList.add("active"); tvInterval = TV_INT[b.dataset.i] || "1d"; loadLiveChart();
 });
 
+
+/* Tekanan di luar teknikal/fundamental: MSCI, asing, kurs, suku bunga, global. */
+function externalCard(x){
+  if(!x || !x.status) return "";
+  const bad = ["tekanan_luar","pelemahan_pasar","tekanan_emiten","waspada_luar"].indexOf(x.status) >= 0;
+  const good = ["dukungan_luar","penguatan_pasar","kekuatan_emiten","peluang_luar"].indexOf(x.status) >= 0;
+  const cls = bad ? "v-red" : (good ? "v-up" : "v-muted");
+  const drivers = (x.drivers||[]).map(function(d){
+    const ev = (d.evidence||[]).slice(0,2).map(function(t){ return escapeHtml(t); }).join(" · ");
+    const dir = d.direction==="turun" ? "v-red" : (d.direction==="naik" ? "v-up" : "v-muted");
+    const detail = d.detail ? ' <span class="mono" style="color:var(--muted)">'+escapeHtml(d.detail)+'</span>' : '';
+    return '<div class="check" style="justify-content:space-between;align-items:flex-start;gap:12px">'
+      + '<span>'+escapeHtml(d.label||d.id||"")+detail
+      + (ev ? '<div class="mono" style="color:var(--muted);font-size:11px;margin-top:4px;line-height:1.5">'+ev+'</div>' : '')
+      + '</span><span class="mono '+dir+'">'+escapeHtml(d.direction||"-")+'</span></div>';
+  }).join("");
+  const watched = (x.watched||[]).map(function(w){ return escapeHtml(w); }).join(" · ");
+  const missing = (x.missing||[]).length ? ' · belum ada: '+(x.missing||[]).map(function(w){ return escapeHtml(w); }).join(", ") : "";
+  return '<div class="card"><div class="sec"><span class="badge">Tekanan Luar</span></div>'
+    + '<div class="grid">'
+    + '<div class="metric hl"><div class="k">Status</div><div class="v '+cls+'" style="font-size:18px">'+escapeHtml(x.label||x.status)+'</div></div>'
+    + '<div class="metric"><div class="k">Intensitas</div><div class="v v-muted">'+(x.intensity==null?"-":escapeHtml(x.intensity))+'</div></div>'
+    + '</div>'
+    + '<p style="margin:12px 0 0;line-height:1.6;font-size:14px">'+escapeHtml(x.summary||"")+'</p>'
+    + (x.coupling ? '<p class="mono" style="color:var(--muted);margin:8px 0 0;font-size:12px">'+escapeHtml(x.coupling)+'</p>' : '')
+    + (drivers ? '<div class="checks" style="margin-top:12px">'+drivers+'</div>' : '')
+    + (watched ? '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px;letter-spacing:.04em">Dipantau: '+watched+missing+'</div>' : '')
+    + '</div>';
+}
 
 /* ---------- Market Decision card (additive) ---------- */
 function decisionCard(dec){

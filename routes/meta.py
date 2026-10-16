@@ -208,6 +208,7 @@ def api_schema():
         {"method": "GET", "path": "/api/ml", "params": ["ticker", "horizon", "candidates"]},
         {"method": "GET", "path": "/api/news", "params": ["ticker"]},
         {"method": "GET", "path": "/api/news/market", "params": []},
+        {"method": "GET", "path": "/api/external", "params": ["ticker"]},
         {"method": "GET", "path": "/api/fundamental", "params": ["ticker"]},
         {"method": "GET", "path": "/api/market", "params": ["list", "refresh"]},
         {"method": "GET", "path": "/api/sector-strength", "params": ["list"]},

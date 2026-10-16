@@ -354,17 +354,20 @@ function syncFuInputs(){
 }
 function fuVerdict(f){
   const out=[];
-  let val="Cukup";
-  if(f.pe!=null){ if(f.pe>0 && f.pe<15) val="Murah"; else if(f.pe>30) val="Mahal"; }
-  out.push(["Valuasi", val, val==="Murah"?"v-up":(val==="Mahal"?"v-red":"v-muted")]);
-  let prof="Cukup";
-  if(f.roe!=null){ prof = f.roe>=0.15?"Baik":(f.roe<0.05?"Kurang":"Cukup"); }
-  else if(f.profit_margin!=null){ prof = f.profit_margin>=0.10?"Baik":(f.profit_margin<0.03?"Kurang":"Cukup"); }
-  out.push(["Profitabilitas", prof, prof==="Baik"?"v-up":(prof==="Kurang"?"v-red":"v-muted")]);
-  let lev="Sedang";
-  if(f.der!=null){ lev = f.der<=50?"Rendah":(f.der>150?"Tinggi":"Sedang"); }
-  out.push(["Leverage (DER)", lev, lev==="Rendah"?"v-up":(lev==="Tinggi"?"v-red":"v-muted")]);
-  let grow="Stabil";
+  const val = f.valuation_label || (f.pe==null ? "PER TTM tidak tersedia" : "PER TTM");
+  const valCls = f.valuation_code==="rendah" ? "v-up" : (f.valuation_code==="tinggi" ? "v-red" : "v-muted");
+  out.push(["Valuasi", val, valCls]);
+  const prof = f.quality_label || "ROE tidak tersedia";
+  const profCls = f.quality_code==="baik" ? "v-up" : (f.quality_code==="rugi" ? "v-red" : "v-muted");
+  out.push(["Kualitas", prof, profCls]);
+  let lev="Tidak tersedia";
+  let levCls="v-muted";
+  if(f.der!=null){
+    lev = f.der<=50?"Rendah":(f.der>150?"Tinggi":"Sedang");
+    levCls = lev==="Rendah"?"v-up":(lev==="Tinggi"?"v-red":"v-muted");
+  }
+  out.push(["Leverage (DER)", lev, levCls]);
+  let grow="Tidak tersedia";
   const gr=(f.revenue_growth!=null&&f.earnings_growth!=null)?(f.revenue_growth+f.earnings_growth)/2:(f.revenue_growth!=null?f.revenue_growth:f.earnings_growth);
   if(gr!=null){ grow = gr>=0.15?"Tumbuh":(gr<0?"Turun":"Stabil"); }
   out.push(["Pertumbuhan", grow, grow==="Tumbuh"?"v-up":(grow==="Turun"?"v-red":"v-muted")]);
@@ -439,7 +442,10 @@ async function loadFundamentalTab(){
       + m("52w Low", rp(f.low_52w), "v-up")
       + m("Posisi 52w", rangePos==null?"-":rangePos+"%")
       + '</div>'
-      + '<p class="note">'+(unavailable?'Data fundamental tidak tersedia dari sumber (kosong/rate-limit); angka "-" bukan berarti nol. ':(priceOnly?'Hanya harga tersedia dari sumber; rasio fundamental (PER/PBV/ROE) kosong. ':''))+'Penilaian bersifat heuristik dari rasio, bukan rekomendasi. Angka "-" berarti data tidak tersedia di yfinance.</p>'
+      + '<p class="note">'+(unavailable?'Data fundamental tidak tersedia dari sumber (kosong/rate-limit); angka "-" bukan berarti nol. ':(priceOnly?'Hanya harga tersedia dari sumber; rasio fundamental (PER/PBV/ROE) kosong. ':''))
+      + escapeHtml(f.valuation_note||"")+" "+escapeHtml(f.quality_note||"")
+      + ((f.checks&&f.checks.length)?" "+f.checks.map(escapeHtml).join(" "):"")
+      + ' Angka "-" berarti field itu tidak lolos cek atau tidak ada di sumber. Bukan rekomendasi beli.</p>'
       + '</div>';
     showStatus("Selesai");
   }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }

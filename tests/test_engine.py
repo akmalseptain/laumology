@@ -1866,7 +1866,7 @@ class TestWiring(unittest.TestCase):
         import webapp
         paths = {str(r) for r in webapp.app.url_map.iter_rules()}
         for p in ["/", "/health", "/api/analyze", "/api/ohlc", "/api/screen",
-                  "/api/calibrate", "/api/news/market", "/api/scan/start", "/api/paper"]:
+                  "/api/calibrate", "/api/news/market", "/api/external", "/api/scan/start", "/api/paper"]:
             self.assertIn(p, paths)
 
     def test_security_headers_on_html(self):
@@ -2023,15 +2023,23 @@ class TestSwingHorizonFreshness(unittest.TestCase):
         from config import settings
 
         df = make_df()
+        import external
         old_ohlcv, old_quote = data.get_ohlcv, data.get_quote
+        old_ext = external.for_stock
         data.get_ohlcv = lambda *a, **k: df
         data.get_quote = lambda *a, **k: None
+        external.for_stock = lambda *a, **k: {
+            "status": "netral", "label": "Netral", "intensity": 0,
+            "summary": "Tidak ada tekanan luar yang teridentifikasi.",
+            "drivers": [], "coupling": None,
+        }
         old = self._freeze()
         try:
             r = webapp.app.test_client().get("/api/analyze?ticker=TEST")
             base = signals.analyze(df, "TEST", d=indicators.add_indicators(df))
         finally:
             data.get_ohlcv, data.get_quote = old_ohlcv, old_quote
+            external.for_stock = old_ext
             self._restore(old)
         self.assertEqual(r.status_code, 200)
         body = r.get_json()
@@ -2064,9 +2072,16 @@ class TestSwingHorizonFreshness(unittest.TestCase):
             "time": "now",
             "source": "test",
         }
+        import external
         old_ohlcv, old_quote = data.get_ohlcv, data.get_quote
+        old_ext = external.for_stock
         data.get_ohlcv = lambda *a, **k: df
         data.get_quote = lambda *a, **k: quote
+        external.for_stock = lambda *a, **k: {
+            "status": "netral", "label": "Netral", "intensity": 0,
+            "summary": "Tidak ada tekanan luar yang teridentifikasi.",
+            "drivers": [], "coupling": None,
+        }
         old = self._freeze()
         try:
             r = webapp.app.test_client().get("/api/analyze?ticker=TEST")
@@ -2074,6 +2089,7 @@ class TestSwingHorizonFreshness(unittest.TestCase):
             base = signals.analyze(df_live, "TEST", d=indicators.add_indicators(df_live))
         finally:
             data.get_ohlcv, data.get_quote = old_ohlcv, old_quote
+            external.for_stock = old_ext
             self._restore(old)
         self.assertEqual(r.status_code, 200)
         self.assertIsNotNone(live)
@@ -3044,6 +3060,79 @@ class TestFundamentalsSanitize(unittest.TestCase):
         self.assertFalse(out["available"])
         self.assertEqual(out["reason"], "empty")
 
+    def _fetch(self, fake):
+        from unittest.mock import patch
+
+        with patch("fundamentals.yf.Ticker") as mock_ticker, \
+             patch("data.get_quote", return_value=None), \
+             patch("data.get_ohlcv", return_value=None):
+            mock_ticker.return_value.info = fake
+            return self.fundamentals.get_fundamentals("CEK")
+
+    def test_forward_pe_never_replaces_ttm(self):
+        out = self._fetch({"currentPrice": 1000.0, "forwardPE": 8.0, "trailingEps": -20.0})
+        self.assertIsNone(out["pe"])
+        self.assertEqual(out["pe_forward"], 8.0)
+        self.assertNotEqual(out["valuation_code"], "rendah")
+
+    def test_pe_matches_price_over_eps(self):
+        out = self._fetch({"currentPrice": 5175.0, "trailingEps": 472.0, "trailingPE": 99.0})
+        self.assertAlmostEqual(out["pe"], 5175.0 / 472.0, places=4)
+        self.assertIn("pe", out["suspect"])
+
+    def test_pe_keeps_yahoo_when_close(self):
+        out = self._fetch({"currentPrice": 5175.0, "trailingEps": 472.0, "trailingPE": 10.963983})
+        self.assertAlmostEqual(out["pe"], 10.963983, places=4)
+        self.assertNotIn("pe", out["suspect"])
+
+    def test_absurd_book_value_is_dropped(self):
+        out = self._fetch({
+            "currentPrice": 2210.0,
+            "bookValue": 0.16,
+            "priceToBook": 13812.5,
+            "trailingPE": 6.5,
+            "trailingEps": 340.0,
+        })
+        self.assertIsNone(out["book_value"])
+        self.assertIsNone(out["pb"])
+        self.assertTrue(any("tidak masuk akal" in c for c in out["checks"]))
+
+    def test_dividend_percent_and_fraction_and_cash(self):
+        pct = self._fetch({"currentPrice": 5175.0, "dividendYield": 6.27})
+        self.assertAlmostEqual(pct["dividend_yield"], 6.27, places=2)
+        self.fundamentals._cache.clear()
+        frac = self._fetch({"currentPrice": 5175.0, "dividendYield": 0.0627})
+        self.assertAlmostEqual(frac["dividend_yield"], 6.27, places=2)
+        self.fundamentals._cache.clear()
+        cash = self._fetch({
+            "currentPrice": 5175.0,
+            "dividendYield": 99.0,
+            "dividendRate": 324.4725,
+        })
+        self.assertAlmostEqual(cash["dividend_yield"], 6.27, places=2)
+        self.assertIn("harga", cash["dividend_basis"])
+        self.fundamentals._cache.clear()
+        dust = self._fetch({
+            "currentPrice": 2210.0,
+            "dividendYield": 9.61,
+            "trailingAnnualDividendRate": 0.007,
+        })
+        self.assertAlmostEqual(dust["dividend_yield"], 9.61, places=2)
+        self.assertIn("dividend", dust["suspect"])
+
+    def test_missing_der_is_not_healthy(self):
+        labels = self.fundamentals.classify_ratios(10.0, 0.22, None)
+        self.assertNotEqual(labels["quality_code"], "baik")
+        self.assertIn("DER", labels["quality_note"])
+
+    def test_rsi_flat_is_neutral_and_rising_is_high(self):
+        import indicators
+
+        flat = indicators.rsi(pd.Series([10.0] * 40))
+        self.assertTrue(bool((flat == 50.0).all()))
+        rising = indicators.rsi(pd.Series([float(i) for i in range(1, 41)]))
+        self.assertGreater(float(rising.iloc[-1]), 90.0)
+
 
 class TestFundTechAlignment(unittest.TestCase):
     """Konfluensi deterministik teknikal x fundamental bersifat additive.
@@ -3125,11 +3214,17 @@ class TestMusyawarahConsensusWeights(unittest.TestCase):
         a.decision, a.market_regime = {}, "uptrend"
         return a
 
-    def _run(self, fund):
+    def _run(self, fund, luar=None):
         from unittest.mock import patch
 
         import musyawarah
 
+        if luar is None:
+            luar = {
+                "status": "netral", "label": "Netral", "intensity": 0,
+                "summary": "Tidak ada tekanan luar yang teridentifikasi.",
+                "drivers": [],
+            }
         df = make_df()
         a = self._fake_analysis()
         with patch("musyawarah.data.get_ohlcv", return_value=df), \
@@ -3139,6 +3234,7 @@ class TestMusyawarahConsensusWeights(unittest.TestCase):
              patch("musyawarah.fundamentals.get_fundamentals", return_value=fund), \
              patch("musyawarah.news.get_news", return_value={"label": "Netral", "avg_sentiment": 0, "count": 0}), \
              patch("musyawarah.market.ihsg", return_value={}), \
+             patch("musyawarah.external.for_stock", return_value=luar), \
              patch("musyawarah.ml.predict", side_effect=RuntimeError("no ml")):
             return musyawarah.musyawarah("TEST")
 
@@ -3188,6 +3284,168 @@ class TestMusyawarahConsensusWeights(unittest.TestCase):
         w = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
         exp = round(sum(w[k] * d["votes"][k] for k in w), 3)
         self.assertEqual(d["consensus"], exp)
+
+    def test_tekanan_luar_does_not_move_consensus(self):
+        """Penjelasan MSCI/tekanan luar tidak menggeser bobot maupun konsensus."""
+        luar = {
+            "status": "tekanan_luar",
+            "label": "Tekanan luar",
+            "intensity": 70,
+            "summary": "IHSG melemah bersama tekanan luar: Rebalancing indeks (MSCI/FTSE).",
+            "drivers": [],
+        }
+        d = self._run(self._full(), luar=luar)
+        w = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
+        exp = round(sum(w[k] * d["votes"][k] for k in w), 3)
+        self.assertEqual(d["consensus"], exp)
+        self.assertEqual(d["weights_used"]["fundamental"], 0.15)
+        self.assertEqual(d["external"]["status"], "tekanan_luar")
+        self.assertIn("@luar", d["text"])
+        self.assertIn("MSCI", d["text"])
+
+
+class TestExternalPressure(unittest.TestCase):
+    """Tekanan di luar teknikal/fundamental: disebut hanya bila ada bukti."""
+
+    def test_msci_plus_ihsg_down_is_external_pressure(self):
+        import external
+        result = external.assess(
+            macro_items=[{
+                "title": "IHSG anjlok tertekan rebalancing MSCI, investor asing jual",
+                "summary": None,
+            }],
+            ihsg={"ret_1d": -2.2, "ret_5d": -3.4, "regime": "Bearish"},
+            news_ok=True,
+            stock_ret_1d=-1.1,
+        )
+        self.assertEqual(result["status"], "tekanan_luar")
+        self.assertTrue(any(d["id"] == "indeks_pasif" for d in result["drivers"]))
+        self.assertIn("MSCI", result["summary"])
+        self.assertIn("luar teknikal", result["summary"])
+        self.assertIn("lebih tahan", result["coupling"])
+
+    def test_fx_stress_does_not_invent_msci(self):
+        import external
+        result = external.assess(
+            macro_items=[],
+            ihsg={"ret_1d": -2.0, "ret_5d": -1.2, "regime": "Bearish"},
+            usdidr_ret_5d=1.4,
+            usdidr_ok=True,
+            news_ok=True,
+        )
+        self.assertEqual(result["status"], "tekanan_luar")
+        ids = {d["id"] for d in result["drivers"]}
+        self.assertIn("kurs", ids)
+        self.assertNotIn("indeks_pasif", ids)
+        self.assertNotIn("MSCI", result["summary"])
+
+    def test_broad_drop_without_cause_stays_unnamed(self):
+        import external
+        result = external.assess(
+            macro_items=[],
+            ihsg={"ret_1d": -1.8, "ret_5d": -0.4, "regime": "Netral"},
+            usdidr_ok=True,
+            usdidr_ret_5d=0.2,
+            global_ok=True,
+            global_ret_5d=-0.4,
+            news_ok=True,
+        )
+        self.assertEqual(result["status"], "pelemahan_pasar")
+        self.assertEqual(result["drivers"], [])
+        self.assertIn("belum terbaca", result["summary"])
+
+    def test_msci_mention_without_shock_is_watch(self):
+        import external
+        result = external.assess(
+            macro_items=[{"title": "MSCI keluarkan beberapa saham dari indeks", "summary": ""}],
+            ihsg={"ret_1d": -0.2, "ret_5d": 0.3, "regime": "Netral"},
+            news_ok=True,
+        )
+        self.assertEqual(result["status"], "waspada_luar")
+        self.assertEqual(result["drivers"][0]["id"], "indeks_pasif")
+        self.assertEqual(result["drivers"][0]["direction"], "turun")
+
+    def test_unnamed_rebalance_follows_the_index_shock(self):
+        import external
+        result = external.assess(
+            macro_items=[{"title": "MSCI umumkan rebalancing indeks", "summary": ""}],
+            ihsg={"ret_1d": -1.6, "ret_5d": -0.5},
+            news_ok=True,
+        )
+        self.assertEqual(result["status"], "tekanan_luar")
+        self.assertEqual(result["drivers"][0]["direction"], "netral")
+
+    def test_stock_specific_drop_is_not_market_pressure(self):
+        import external
+        result = external.assess(
+            ihsg={"ret_1d": 0.2, "ret_5d": 0.4, "regime": "Bullish"},
+            stock_ret_1d=-2.5,
+            news_ok=True,
+        )
+        self.assertEqual(result["status"], "tekanan_emiten")
+        self.assertEqual(result["drivers"], [])
+
+    def test_ticker_commodity_headline_is_not_macro(self):
+        import external
+        result = external.assess(
+            ticker_items=[{"title": "Harga batu bara anjlok, emiten tambang tertekan", "summary": ""}],
+            ihsg={"ret_1d": 0.1, "ret_5d": 0.2},
+            news_ok=True,
+        )
+        self.assertFalse(any(d["id"] == "komoditas" for d in result["drivers"]))
+        self.assertEqual(result["status"], "netral")
+
+    def test_macro_commodity_shock_is_external(self):
+        import external
+        result = external.assess(
+            macro_items=[{"title": "Harga batu bara anjlok dan menekan bursa", "summary": ""}],
+            ihsg={"ret_1d": 0.1, "ret_5d": 0.2},
+            news_ok=True,
+        )
+        self.assertEqual(result["status"], "waspada_luar")
+        self.assertEqual(result["drivers"][0]["id"], "komoditas")
+
+    def test_rate_hike_pressures_and_cut_supports(self):
+        import external
+        hike = external.assess(
+            macro_items=[{"title": "The Fed menaikkan suku bunga acuan", "summary": ""}],
+            ihsg={"ret_1d": -1.3, "ret_5d": -0.2},
+            news_ok=True,
+        )
+        cut = external.assess(
+            macro_items=[{"title": "Bank Indonesia pangkas suku bunga", "summary": ""}],
+            ihsg={"ret_1d": 1.2, "ret_5d": 0.4},
+            news_ok=True,
+        )
+        self.assertEqual(hike["status"], "tekanan_luar")
+        self.assertEqual(hike["drivers"][0]["direction"], "turun")
+        self.assertEqual(cut["status"], "dukungan_luar")
+        self.assertEqual(cut["drivers"][0]["direction"], "naik")
+
+    def test_nothing_observed_is_unavailable(self):
+        import external
+        result = external.assess(news_ok=False)
+        self.assertEqual(result["status"], "tidak_tersedia")
+        self.assertEqual(result["intensity"], 0)
+
+    def test_summary_only_mention_does_not_create_driver(self):
+        import external
+        result = external.assess(
+            macro_items=[{
+                "title": "Analisis teknikal IHSG hari ini",
+                "summary": "Di dalam ringkasan disebut MSCI dan Wall Street secara sampingan.",
+            }],
+            ihsg={"ret_1d": -1.5, "ret_5d": -0.2},
+            news_ok=True,
+        )
+        self.assertEqual(result["drivers"], [])
+        self.assertEqual(result["status"], "pelemahan_pasar")
+
+    def test_macro_query_rejects_unsafe_text_offline(self):
+        import news
+        items, ok = news.headlines_for_query("IHSG <msci>")
+        self.assertEqual(items, [])
+        self.assertTrue(ok)
 
 
 class TestRateLimitEnvRobustness(unittest.TestCase):

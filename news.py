@@ -649,6 +649,69 @@ def _time_key(item: dict) -> float:
     return 0.0
 
 
+_QUERY_OK = re.compile(r"^[0-9A-Za-z][0-9A-Za-z \-]{2,79}$")
+
+
+def _http_xml(url: str) -> bytes:
+    """Ambil XML RSS dengan plafon byte yang sama seperti jalur berita lain."""
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": _RSS_UA,
+            "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=_RSS_TIMEOUT) as resp:
+        raw = resp.read(_RSS_MAX_BYTES + 1)
+    if len(raw) > _RSS_MAX_BYTES:
+        raw = raw[:_RSS_MAX_BYTES]
+    return raw
+
+
+def headlines_for_query(query: str, limit: int = 12) -> tuple[list[dict], bool]:
+    """Judul berita untuk satu kueri makro tetap (bukan ticker klien).
+
+    Mengembalikan ``(item, sumber_hidup)``. Kueri di luar pola aman ditolak
+    tanpa jaringan. Dipakai lapisan tekanan luar; tidak membuka pencarian bebas.
+    """
+    q = re.sub(r"\s+", " ", (query or "")).strip()
+    if not _QUERY_OK.match(q):
+        return [], True
+    try:
+        limit = max(1, min(int(limit), 20))
+    except (TypeError, ValueError):
+        limit = 12
+    now = time.time()
+    ckey = "q:" + q.lower()
+    with _cache_lock:
+        cached = _cache.get(ckey)
+        if cached and now - cached[0] < cached[2]:
+            items, ok = cached[1]
+            return list(items), bool(ok)
+
+    items: list[dict] = []
+    ok = False
+    quoted = urllib.parse.quote(q)
+    attempts = (
+        (f"{_BING_URL}?q={quoted}&format=RSS&setlang=id", _parse_bing_rss),
+        (f"{_RSS_URL}?q={quoted}&hl=id&gl=ID&ceid=ID:id", _parse_rss),
+    )
+    for url, parser in attempts:
+        try:
+            parsed = parser(_http_xml(url))
+        except Exception:
+            continue
+        ok = True
+        if parsed:
+            items = parsed[:limit]
+            break
+    ttl = _TTL if items else _NEGATIVE_TTL
+    with _cache_lock:
+        _cache[ckey] = (now, (items, ok), ttl)
+        _prune_cache_locked()
+    return list(items), ok
+
+
 def get_market_news(limit: int = 24, tickers: list[str] | None = None) -> dict:
     """Berita pasar/IHSG agregat dari indeks + emiten besar (di-dedupe)."""
     now = time.time()

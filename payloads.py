@@ -6,6 +6,7 @@ import math
 import pandas as pd
 
 import data
+import external
 import indicators
 import ttlcache
 from config import settings
@@ -83,7 +84,7 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
             a.change_1d = (live["price"] / live["prev_close"] - 1.0) * 100.0
     fresh = check_df(df)
     stale_days = int(fresh_hist.get("stale_days") or 0)
-    return {
+    out = {
         "ticker": a.ticker,
         "last_date": df.index[-1].strftime("%d %b %Y %H:%M"),
         "bars": len(df),
@@ -185,6 +186,23 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
         "vp": a.vp,
         "zones": a.zones,
     }
+    # Lapisan penjelasan. Tidak masuk rumus skor (uji: skor tetap sama).
+    ext = external.for_stock(a.ticker, change_1d=a.change_1d, rs_change=a.rs_change)
+    out["external"] = ext
+    # Tidak mengubah skor. Hanya menandai bila jendela indikator belum sah.
+    if len(df) < 200:
+        out["warnings"] = list(out["warnings"]) + [
+            "Riwayat kurang dari 200 bar pada interval ini: MA200 belum penuh, jangan dibaca sebagai rata-rata 200 periode."
+        ]
+    if interval != "1d":
+        out["warnings"] = list(out["warnings"]) + [
+            f"Indikator dihitung pada interval {interval}, bukan pada candle harian."
+        ]
+    if ext.get("status") in (
+        "tekanan_luar", "pelemahan_pasar", "tekanan_emiten", "waspada_luar",
+    ) and ext.get("summary"):
+        out["warnings"] = list(out["warnings"]) + [ext["summary"]]
+    return out
 
 
 def ohlc_payload(ticker: str, interval: str, bars: int, refresh: bool = False) -> dict:

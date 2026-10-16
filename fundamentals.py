@@ -51,6 +51,17 @@ _SUSPECT_PE = 200.0
 _SUSPECT_PB = 20.0
 _SUSPECT_DER = 500.0
 
+# Dividen. yfinance lama mengirim pecahan (0,0627 = 6,27%). yfinance 1.x yang
+# sekarang terpasang mengirim persen (6,27). Yield IDX di atas 25% sebagai
+# pecahan tidak masuk akal; di atas 40% sebagai persen dibuang.
+_YIELD_FRACTION_MAX = 0.25
+_YIELD_PCT_MAX = 40.0
+
+# Ambang layar PER TTM. Bukan pembanding sektor dan bukan fakta "murah/mahal".
+PE_RENDAH = 12.0
+PE_WAJAR = 22.0
+ROE_BAIK = 0.15
+
 
 def _clean(v):
     try:
@@ -68,6 +79,105 @@ def _ratio(v, maxv: float = _RATIO_MAX, minv: float = 0.0):
     if f is None or f < minv or f > maxv:
         return None
     return f
+
+
+def _yield_from_cash(rate, price) -> float | None:
+    """Yield persen = dividen per saham / harga × 100. Definisi, bukan label Yahoo."""
+    rate_f = _clean(rate)
+    price_f = _clean(price)
+    if rate_f is None or price_f is None or price_f <= 0 or rate_f < 0:
+        return None
+    y = rate_f / price_f * 100.0
+    if y > _YIELD_PCT_MAX:
+        return None
+    return y
+
+
+def _published_yield_pct(raw) -> float | None:
+    """Satu satuan persen untuk field yield Yahoo (pecahan lama atau persen baru)."""
+    y = _clean(raw)
+    if y is None or y < 0:
+        return None
+    if y <= _YIELD_FRACTION_MAX:
+        y *= 100.0
+    if y > _YIELD_PCT_MAX:
+        return None
+    return round(y, 4)
+
+
+def _normalize_dividend(raw, price, rate) -> tuple[float | None, str | None, str | None]:
+    """Yield yang ditampilkan, basis, dan catatan bila angka tunai bertentangan.
+
+    Angka utama adalah yield yang Yahoo terbitkan. Dividen per saham / harga
+    hanya dipakai bila yield itu kosong, atau disebut sebagai pembanding.
+    Nilai tunai debu (misalnya 0,007 pada harga ribuan) tidak boleh menimpa yield.
+    """
+    published = _published_yield_pct(raw)
+    cash = _yield_from_cash(rate, price)
+    if published is not None and published >= 1.0 and cash is not None and cash < 0.05:
+        cash = None
+        dust = True
+    else:
+        dust = False
+    if published is not None:
+        note = None
+        if dust:
+            note = "Dividen per saham dari sumber tidak masuk akal dan diabaikan."
+        elif cash is not None and abs(cash - published) / published > 0.25:
+            note = (f"Trailing dividen/harga {cash:.2f}% berbeda dari yield {published:.2f}%. "
+                    "Yang ditampilkan adalah yield sumber.")
+        elif cash is not None:
+            note = f"Trailing dividen/harga {cash:.2f}%."
+        return published, "yield sumber", note
+    if cash is not None:
+        return round(cash, 4), "dividen per saham / harga", None
+    return None, None, None
+
+
+def classify_ratios(pe, roe, der) -> dict:
+    """Label fundamental yang sama untuk layar dan musyawarah.
+
+    DER yang kosong tidak dihitung sehat. PER forward tidak masuk ke sini.
+    """
+    pe_f = _clean(pe)
+    roe_f = _clean(roe)
+    der_f = _clean(der)
+    if pe_f is None:
+        valuation_code, valuation_label = "n/a", "PER TTM tidak tersedia"
+        valuation_note = "Tanpa EPS positif, PER TTM tidak dihitung. PER forward tidak dipakai sebagai pengganti."
+    elif pe_f < PE_RENDAH:
+        valuation_code, valuation_label = "rendah", "PER TTM rendah"
+        valuation_note = f"PER TTM di bawah {PE_RENDAH:.0f}. Ambang layar, bukan pembanding sektor."
+    elif pe_f < PE_WAJAR:
+        valuation_code, valuation_label = "wajar", "PER TTM sedang"
+        valuation_note = f"PER TTM {PE_RENDAH:.0f}–{PE_WAJAR:.0f}. Ambang layar, bukan pembanding sektor."
+    else:
+        valuation_code, valuation_label = "tinggi", "PER TTM tinggi"
+        valuation_note = f"PER TTM di atas {PE_WAJAR:.0f}. Ambang layar, bukan pembanding sektor."
+
+    if roe_f is None:
+        quality_code, quality_label = "n/a", "ROE tidak tersedia"
+        quality_note = "ROE kosong, kualitas tidak dinilai."
+    elif roe_f < 0:
+        quality_code, quality_label = "rugi", "Rugi"
+        quality_note = "ROE negatif."
+    elif roe_f >= ROE_BAIK and der_f is not None and 0 <= der_f < 100:
+        quality_code, quality_label = "baik", "Kualitas baik"
+        quality_note = "ROE minimal 15% dan DER di bawah 100."
+    elif der_f is None:
+        quality_code, quality_label = "sedang", "Kualitas belum lengkap"
+        quality_note = "ROE ada, DER tidak tersedia. Tidak dinilai sehat hanya dari ROE."
+    else:
+        quality_code, quality_label = "sedang", "Kualitas sedang"
+        quality_note = "ROE di bawah 15% atau DER 100 ke atas."
+    return {
+        "valuation_code": valuation_code,
+        "valuation_label": valuation_label,
+        "valuation_note": valuation_note,
+        "quality_code": quality_code,
+        "quality_label": quality_label,
+        "quality_note": quality_note,
+    }
 
 
 def _prune_cache_locked() -> None:
@@ -164,12 +274,12 @@ def get_fundamentals(ticker: str) -> dict:
         "sector": g("sector"),
         "industry": g("industry"),
         "market_cap": _clean(g("marketCap")),
-        "pe": _ratio(g("trailingPE", "forwardPE")),
+        "pe": _ratio(g("trailingPE")),
         "pb": _ratio(g("priceToBook")),
         "roe": _clean(g("returnOnEquity")),
         "der": _ratio(g("debtToEquity")),
         "eps": _clean(g("trailingEps")),
-        "dividend_yield": _clean(g("dividendYield")),
+        "dividend_yield": None,
         "profit_margin": _clean(g("profitMargins")),
         "revenue_growth": _clean(g("revenueGrowth")),
         "earnings_growth": _clean(g("earningsGrowth")),
@@ -201,6 +311,65 @@ def get_fundamentals(ticker: str) -> dict:
     # ``marketCap`` tak tersedia; tidak mengubah rumus rasio apa pun.
     if out["market_cap"] is None and out["price"] is not None and out["shares"]:
         out["market_cap"] = _clean(out["price"] * out["shares"])
+    checks: list[str] = []
+    mismatch: list[str] = []
+    # PER TTM = harga / EPS. Harus cocok dengan angka di layar. PER forward tidak
+    # pernah disalin ke kolom PER TTM.
+    price = out.get("price")
+    eps = out.get("eps")
+    if price is not None and eps is not None and eps > 0 and price > 0:
+        calc_pe = price / eps
+        if 0 < calc_pe <= _RATIO_MAX:
+            reported = out.get("pe")
+            if reported is None or abs(calc_pe - reported) / max(reported, 1e-9) > 0.02:
+                if reported is not None:
+                    checks.append("PER Yahoo selisih lebih dari 2% dari harga/EPS; dipakai harga/EPS.")
+                    mismatch.append("pe")
+                else:
+                    checks.append("PER TTM dihitung dari harga / EPS.")
+                out["pe"] = round(calc_pe, 4)
+            else:
+                checks.append("PER TTM selaras dengan harga / EPS (selisih ≤ 2%).")
+        else:
+            out["pe"] = None
+            checks.append("PER harga/EPS di luar batas 500 dan dibuang.")
+    elif eps is not None and eps <= 0:
+        out["pe"] = None
+        checks.append("EPS tidak positif. PER TTM dikosongkan. PER forward tetap terpisah.")
+    book = out.get("book_value")
+    if price is not None and book is not None and price > 0:
+        if book <= 0:
+            out["book_value"] = None
+            out["pb"] = None
+            checks.append("Nilai buku tidak positif dan dibuang.")
+        else:
+            calc_pb = price / book
+            if calc_pb > _RATIO_MAX or calc_pb < 0.01:
+                out["book_value"] = None
+                out["pb"] = None
+                mismatch.append("book_value")
+                checks.append("Nilai buku tidak masuk akal terhadap harga. PBV dan nilai buku dikosongkan.")
+            else:
+                reported_pb = out.get("pb")
+                if reported_pb is None or abs(calc_pb - reported_pb) / max(reported_pb, 1e-9) > 0.02:
+                    out["pb"] = round(calc_pb, 4)
+                    checks.append("PBV dihitung dari harga / nilai buku.")
+                else:
+                    checks.append("PBV selaras dengan harga / nilai buku (selisih ≤ 2%).")
+    div_rate = _clean(g("trailingAnnualDividendRate", "dividendRate"))
+    div_raw = g("dividendYield", "trailingAnnualDividendYield")
+    dividend, div_basis, div_note = _normalize_dividend(div_raw, price, div_rate)
+    out["dividend_yield"] = dividend
+    out["dividend_basis"] = div_basis
+    if dividend is not None and div_basis:
+        checks.append(f"Dividen {dividend:.2f}% ({div_basis}).")
+    if div_note:
+        checks.append(div_note)
+        if "diabaikan" in div_note or "berbeda" in div_note:
+            mismatch.append("dividend")
+    labels = classify_ratios(out.get("pe"), out.get("roe"), out.get("der"))
+    out.update(labels)
+    out["checks"] = checks
     # ``has_financials`` terpisah dari ketersediaan harga: emiten dengan harga
     # tapi tanpa rasio tetap ``available`` namun ditandai agar UI tidak
     # menampilkan label "data tidak tersedia" yang menyesatkan.
@@ -221,6 +390,9 @@ def get_fundamentals(ticker: str) -> dict:
         suspects.append("pb")
     if out["der"] is not None and out["der"] > _SUSPECT_DER:
         suspects.append("der")
+    for flag in mismatch:
+        if flag not in suspects:
+            suspects.append(flag)
     out["suspect"] = suspects
     ttl = _TTL if out["available"] else _NEGATIVE_TTL
     with _cache_lock:
