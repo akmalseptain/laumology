@@ -29,7 +29,7 @@ async function runMusyawarah(){
       + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Voting agen ('+wlabel+')'+(d.has_financials===false?' <span class="badge" style="color:var(--muted)">fundamental dikecualikan: rasio tidak tersedia</span>':'')+'</div>'
       + '<div class="checks" style="grid-template-columns:1fr 1fr">'+vrow('@technical',v.technical||0)+vrow('@bandarmologi',v.bandarmologi||0)+vrow('@fundamental',v.fundamental||0)+vrow('@sentiment',v.sentiment||0)+'</div>'
       + (d.external && d.external.summary ? '<div class="mono" style="margin-top:12px;font-size:12px;line-height:1.6"><b>@luar</b> '+escapeHtml(d.external.label||"")+' — '+escapeHtml(d.external.summary)+'</div>' : '')
-      + '<div class="mono" style="background:var(--surface);border:1px solid var(--border);color:var(--foreground);border-radius:12px;padding:16px;margin-top:16px;white-space:pre-wrap;font-size:12px;line-height:1.7;overflow-x:auto">'+String(d.text).replace(/</g,"&lt;")+'</div>'
+      + '<div class="mono" style="background:var(--surface);border:1px solid var(--border);color:var(--foreground);border-radius:8px;padding:14px;margin-top:16px;white-space:pre-wrap;font-size:12px;line-height:1.7;overflow-x:auto">'+String(d.text).replace(/</g,"&lt;")+'</div>'
       + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Engine: '+d.engine+'</div>';
     showStatus("Selesai");
   }catch(e){ $("#myResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
