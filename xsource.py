@@ -33,6 +33,7 @@ _TAHAN = ("tahan", "hold", "wait", "tunggu", "waspada")
 _OUR = {"BUY": "beli", "SELL": "jual", "HOLD": "tahan", "WAIT": "tahan"}
 _TTL = 1800.0
 _TICKER_RE = re.compile(r"^[A-Z]{2,5}$")
+_OTHER_CODE = re.compile(r"\b[A-Z]{4}\b")
 _lock = threading.Lock()
 _cache: dict = {"ts": 0.0, "items": None, "ok": None}
 _ticker_cache: dict[str, tuple[float, list, bool]] = {}
@@ -68,17 +69,18 @@ def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "")
         if side != "netral" and len(samples) < 8:
             samples.append(title[:160])
     voiced = {k: counts[k] for k in ("beli", "jual", "tahan")}
+    nama = subject or "emiten ini"
     if not posts:
-        theirs, note = "belum ada", "Belum ada pos X soal pasar."
+        theirs, note = "belum ada", f"Belum ada pos X yang menyebut {nama}."
     elif max(voiced.values()) == 0:
-        theirs, note = "netral", "Pos X ada, tetapi arah beli atau jualnya tidak terbaca."
+        theirs, note = "netral", f"Ada pos X tentang {nama}, tetapi arah beli atau jualnya tidak terbaca."
     else:
         theirs = max(voiced, key=voiced.get)
         if list(voiced.values()).count(voiced[theirs]) > 1:
-            theirs, note = "campur", "Suara X terbelah, tidak ada arah yang menang."
+            theirs, note = "campur", f"Suara X tentang {nama} terbelah, tidak ada arah yang menang."
         else:
-            tentang = f" tentang {subject}" if subject else ""
-            note = f"Mayoritas pos X{tentang} berarah {theirs} ({voiced[theirs]} dari {len(posts)})."
+            note = (f"Mayoritas pos X tentang {nama} berarah {theirs} "
+                    f"({voiced[theirs]} dari {len(posts)}).")
     ours = _OUR.get((our_signal or "").upper(), "tahan")
     if theirs in ("belum ada", "netral", "campur"):
         alignment = "belum cukup"
@@ -96,6 +98,7 @@ def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "")
         "alignment": alignment,
         "note": note,
         "samples": samples,
+        "ticker": subject or None,
     }
 
 
@@ -137,7 +140,12 @@ def keep_ticker_posts(rows: list[dict], ticker: str) -> list[dict]:
         if not isinstance(row, dict):
             continue
         title = re.sub(r"\s+", " ", str(row.get("title") or "")).strip()
-        if code not in title.upper() or len(title) < 12:
+        upper = title.upper()
+        if code not in upper or len(title) < 12:
+            continue
+        others = {token for token in _OTHER_CODE.findall(title) if token != code}
+        # Judul daftar banyak kode adalah berita pasar, bukan suara emiten ini.
+        if len(others) >= 2:
             continue
         key = re.sub(r"\W+", "", title.lower())[:80]
         if not key or key in seen:

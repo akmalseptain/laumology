@@ -527,7 +527,7 @@ function externalCard(x){
     const samples = (cmp.samples||[]).slice(0,8).map(function(t){
       return '<li>'+escapeHtml(t)+'</li>';
     }).join("");
-    cmpHtml = '<div class="sec" style="margin-top:16px"><span class="badge">Komparasi sinyal</span></div>'
+    cmpHtml = '<div class="sec" style="margin-top:16px"><span class="badge">Komparasi '+escapeHtml(cmp.ticker||"emiten")+'</span></div>'
       + '<div class="grid">'
       + '<div class="metric"><div class="k">Sinyal kita</div><div class="v">'+escapeHtml(cmp.our_signal||cmp.ours||"-")+'</div></div>'
       + '<div class="metric"><div class="k">Suara X</div><div class="v">'+escapeHtml(cmp.theirs)+'</div></div>'

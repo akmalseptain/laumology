@@ -3547,6 +3547,12 @@ class TestExternalPressure(unittest.TestCase):
         self.assertEqual(len(only_bbca), 1)
         self.assertIn("BBCA", only_bbca[0]["title"])
         self.assertNotIn("TLKM", only_bbca[0]["title"])
+        mixed = xsource.keep_ticker_posts([
+            {"title": "IHSG anjlok, BBCA BMRI BBRI ikut melemah - X", "link": "c"},
+            {"title": "BBCA layak diakumulasi di support - X", "link": "d"},
+        ], "BBCA")
+        self.assertEqual(len(mixed), 1)
+        self.assertIn("akumulasi", mixed[0]["title"])
 
     def test_macro_query_rejects_unsafe_text_offline(self):
         import news
