@@ -96,19 +96,35 @@ var _tblTimer=null;
 function scheduleEnhance(){ clearTimeout(_tblTimer); _tblTimer=setTimeout(enhanceTables, 80); }
 new MutationObserver(scheduleEnhance).observe(document.body,{childList:true,subtree:true});
 
+function tapeSet(id, text){ var n=document.getElementById(id); if(n) n.textContent=text; }
+function tapePx(n){
+  var x=Number(n);
+  if(!isFinite(x) || x<=0) return "—";
+  return x.toLocaleString("id-ID", {maximumFractionDigits:1});
+}
 async function loadSummary(){
   var el=document.getElementById("summaryBar"); if(!el) return;
+  var wl=(typeof watchlist!=="undefined" && watchlist)?watchlist.length:0;
+  tapeSet("wlN", String(wl));
   try{
     var d=await (await fetch("/api/summary")).json();
-    var ih=d.ihsg||{}; var up=(Number(ih.ret_1d)||0)>=0;
+    var ih=d.ihsg||{};
+    var ret=Number(ih.ret_1d);
+    var up=isFinite(ret) && ret>=0;
     var sc=(d.scans&&d.scans[0])||null;
-    var wl=(typeof watchlist!=="undefined" && watchlist)?watchlist.length:0;
-    el.innerHTML =
-      '<div class="s-card brand"><div class="k">IHSG</div><div class="v">'+fmt(ih.price)+'</div><div class="sub '+(up?'v-up':'v-red')+'">'+(up?'+':'-')+Math.abs(Number(ih.ret_1d)||0).toFixed(2)+'% · '+(ih.regime||'-')+'</div></div>'
-      + '<div class="s-card"><div class="k">Sinyal Beli Hari Ini</div><div class="v v-up">'+(d.signals_today||0)+'</div><div class="sub">dari riwayat scanner</div></div>'
-      + '<div class="s-card"><div class="k">Scan Terakhir</div><div class="v">'+(sc?sc.n:'-')+'</div><div class="sub">'+(sc?((sc.universe||"").toUpperCase()+' · '+sc.buys+' beli'):'belum ada')+'</div></div>'
-      + '<div class="s-card"><div class="k">Watchlist</div><div class="v">'+wl+'</div><div class="sub">saham dipantau</div></div>';
-  }catch(e){ el.innerHTML=''; }
+    var sub=document.getElementById("ihsgSub");
+    tapeSet("ihsgPx", tapePx(ih.price));
+    if(sub){
+      sub.className="sub "+(isFinite(ret)?(up?"v-up":"v-red"):"");
+      sub.textContent=(isFinite(ret)?((up?"+":"")+ret.toFixed(2)+"% · "):"")+ (ih.regime||"tidak tersedia");
+    }
+    tapeSet("sigToday", String(d.signals_today||0));
+    tapeSet("scanN", sc?String(sc.n):"—");
+    tapeSet("scanSub", sc?((sc.universe||"").toUpperCase()+" · "+sc.buys+" beli"):"belum ada");
+  }catch(e){
+    tapeSet("ihsgPx", "—");
+    tapeSet("ihsgSub", "tidak tersedia");
+  }
 }
 
 var _onboardLastFocus=null;

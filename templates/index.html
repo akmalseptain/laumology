@@ -166,13 +166,18 @@
     <p>Sinyal, screener, backtest, dan pelacak portofolio dalam satu terminal. Pahami 12 indikator yang dipakai terminal ini di <a href="{{ url_for('meta.indikator_saham') }}">glosarium indikator saham</a>.</p>
   </section>
   <section class="panel active" id="panel-analisis" role="tabpanel" aria-labelledby="tab-analisis">
-    <div id="summaryBar" class="summary-bar"></div>
+    <div id="summaryBar" class="summary-bar" aria-live="polite">
+      <div class="s-card brand"><div class="k">IHSG</div><div class="v" id="ihsgPx">—</div><div class="sub" id="ihsgSub">memuat</div></div>
+      <div class="s-card"><div class="k">Sinyal beli</div><div class="v" id="sigToday">—</div><div class="sub">hari ini</div></div>
+      <div class="s-card"><div class="k">Scan</div><div class="v" id="scanN">—</div><div class="sub" id="scanSub">belum ada</div></div>
+      <div class="s-card"><div class="k">Watchlist</div><div class="v" id="wlN">—</div><div class="sub">dipantau</div></div>
+    </div>
     <div class="panel-head">
       <h2>Analisis</h2>
       <p>Ringkasan sinyal, rencana trade, indikator, dan konfluensi.</p>
     </div>
     <div class="chips" id="chips">
-      <span class="chip" data-t="BBCA">BBCA</span>
+      <span class="chip active" data-t="BBCA">BBCA</span>
       <span class="chip" data-t="BBRI">BBRI</span>
       <span class="chip" data-t="TLKM">TLKM</span>
       <span class="chip" data-t="ANTM">ANTM</span>
@@ -187,7 +192,11 @@
       <span class="muted">Model ML &amp; sentimen dimuat otomatis</span>
     </div>
     <div id="result">
-      <div class="card empty">Tekan <b>Analisis</b> untuk memuat sinyal saham.</div>
+      <div class="idle" id="idle">
+        <div class="idle-k">Siap</div>
+        <div class="idle-code" id="idleCode">BBCA</div>
+        <p>Enter untuk membuka sinyal, rencana, dan tekanan luar.</p>
+      </div>
     </div>
   </section>
 

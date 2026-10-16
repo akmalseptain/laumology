@@ -124,6 +124,11 @@ document.querySelectorAll(".tab").forEach(t=>{
 });
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ $("#ticker").value=c.dataset.t; document.querySelectorAll(".chip").forEach(x=>x.classList.remove("active")); c.classList.add("active"); analyze(); });
 $("#goBtn").onclick = () => analyze();
+function syncIdle(){
+  var el=document.getElementById("idleCode"); if(!el) return;
+  el.textContent=(($("#ticker").value||"").trim().toUpperCase())||"—";
+}
+$("#ticker").addEventListener("input", syncIdle);
 $("#ticker").addEventListener("keydown", e => { if(e.key==="Enter") analyze(); });
 $("#interval").onchange = () => analyze();
 $("#auto").onchange = (e) => {
