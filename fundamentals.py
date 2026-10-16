@@ -297,6 +297,92 @@ def _fallback_price(yt: str) -> float | None:
     return None
 
 
+def _as_frame(value):
+    """Hanya DataFrame berisi angka. Objek mock atau kosong diabaikan."""
+    import pandas as pd
+    if isinstance(value, pd.DataFrame) and not value.empty:
+        return value
+    return None
+
+
+def _series_numbers(frame, labels: tuple[str, ...]) -> list[float]:
+    """Nilai baris laporan, dari periode terbaru. Label dicocokkan tanpa besar-kecil."""
+    if frame is None:
+        return []
+    index = {str(name).strip().lower(): name for name in frame.index}
+    row = None
+    for label in labels:
+        key = index.get(label.lower())
+        if key is not None:
+            row = frame.loc[key]
+            break
+    if row is None:
+        return []
+    numbers = []
+    for value in list(row):
+        number = _clean(value)
+        if number is not None:
+            numbers.append(number)
+    return numbers
+
+
+def _fill_from_statements(ticker_obj, out: dict, checks: list[str]) -> None:
+    """Isi rasio dari laporan bila ringkasan Yahoo kosong.
+
+    Empat kuartal dijumlahkan menjadi TTM. Kalau kuartal tidak lengkap, pakai
+    laporan tahunan. Satu atau dua kuartal tidak dikali empat.
+    """
+    if ticker_obj is None:
+        return
+    if any(out.get(key) is not None for key in ("eps", "pe", "pb", "roe")):
+        return
+    try:
+        income_q = _as_frame(getattr(ticker_obj, "quarterly_income_stmt", None))
+        income_a = _as_frame(getattr(ticker_obj, "income_stmt", None))
+        balance_q = _as_frame(getattr(ticker_obj, "quarterly_balance_sheet", None))
+        balance_a = _as_frame(getattr(ticker_obj, "balance_sheet", None))
+    except Exception:
+        return
+    if income_q is None and income_a is None and balance_q is None and balance_a is None:
+        return
+    ni_labels = ("Net Income", "Net Income Common Stockholders")
+    quarterly_ni = _series_numbers(income_q, ni_labels)
+    if len(quarterly_ni) >= 4:
+        ttm_income = sum(quarterly_ni[:4])
+    else:
+        annual_ni = _series_numbers(income_a, ni_labels)
+        ttm_income = annual_ni[0] if annual_ni else None
+    balance = balance_q if balance_q is not None else balance_a
+    equity_vals = _series_numbers(balance, (
+        "Stockholders Equity", "Common Stock Equity", "Total Equity Gross Minority Interest",
+    ))
+    share_vals = _series_numbers(balance, ("Ordinary Shares Number", "Share Issued"))
+    debt_vals = _series_numbers(balance, ("Total Debt",))
+    equity = equity_vals[0] if equity_vals else None
+    shares = out.get("shares") or (share_vals[0] if share_vals else None)
+    if out.get("shares") is None and shares:
+        out["shares"] = shares
+    if ttm_income is not None:
+        out["net_income"] = out.get("net_income") or ttm_income
+    if shares and shares > 0 and ttm_income is not None and out.get("eps") is None:
+        out["eps"] = round(ttm_income / shares, 4)
+    if shares and shares > 0 and equity is not None and equity > 0 and out.get("book_value") is None:
+        out["book_value"] = round(equity / shares, 4)
+    if equity and equity > 0 and ttm_income is not None and out.get("roe") is None:
+        out["roe"] = round(ttm_income / equity, 4)
+    if equity and equity > 0 and debt_vals and out.get("der") is None:
+        out["der"] = round(debt_vals[0] / equity * 100.0, 4)
+    revenue = _series_numbers(income_q, ("Total Revenue",))
+    if len(revenue) >= 4 and out.get("revenue") is None:
+        out["revenue"] = sum(revenue[:4])
+    elif out.get("revenue") is None:
+        annual_rev = _series_numbers(income_a, ("Total Revenue",))
+        if annual_rev:
+            out["revenue"] = annual_rev[0]
+    if out.get("eps") is not None or out.get("book_value") is not None:
+        checks.append("Rasio dihitung dari laporan Yahoo karena ringkasan emiten kosong.")
+
+
 def get_fundamentals(ticker: str) -> dict:
     yt = to_yahoo(ticker)
     if len(yt) > _MAX_KEY_LEN:
@@ -381,6 +467,7 @@ def get_fundamentals(ticker: str) -> dict:
     if out["market_cap"] is None and out["price"] is not None and out["shares"]:
         out["market_cap"] = _clean(out["price"] * out["shares"])
     checks: list[str] = []
+    _fill_from_statements(t, out, checks)
     mismatch: list[str] = []
     # PER TTM = harga / EPS. Harus cocok dengan angka di layar. PER forward tidak
     # pernah disalin ke kolom PER TTM.

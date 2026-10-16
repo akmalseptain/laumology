@@ -2996,6 +2996,44 @@ class TestFundamentalsSanitize(unittest.TestCase):
         self.assertIn("pb", out["suspect"])
         self.assertTrue(out["available"])
 
+    def test_empty_info_filled_from_quarterly_statements(self):
+        from unittest.mock import patch
+
+        import pandas as pd
+
+        import fundamentals
+
+        income = pd.DataFrame(
+            {"2026-09-30": [25.0, 100.0], "2026-06-30": [25.0, 100.0],
+             "2026-03-31": [25.0, 100.0], "2025-12-31": [25.0, 100.0]},
+            index=["Net Income", "Total Revenue"],
+        )
+        balance = pd.DataFrame(
+            {"2026-09-30": [1000.0, 400.0, 100.0]},
+            index=["Stockholders Equity", "Total Debt", "Ordinary Shares Number"],
+        )
+
+        class _Ticker:
+            info = {}
+            quarterly_income_stmt = income
+            quarterly_balance_sheet = balance
+            income_stmt = None
+            balance_sheet = None
+
+        fundamentals._cache.clear()
+        with patch("fundamentals.yf.Ticker", return_value=_Ticker()), \
+             patch("data.get_quote", return_value={"last": 50.0}), \
+             patch("data.get_ohlcv", return_value=None):
+            out = fundamentals.get_fundamentals("TEST")
+        self.assertEqual(out["eps"], 1.0)
+        self.assertEqual(out["pe"], 50.0)
+        self.assertEqual(out["book_value"], 10.0)
+        self.assertEqual(out["pb"], 5.0)
+        self.assertEqual(out["roe"], 0.1)
+        self.assertEqual(out["der"], 40.0)
+        self.assertTrue(out["has_financials"])
+        self.assertTrue(any("laporan" in note for note in out["checks"]))
+
     def test_partial_info_not_available_and_short_ttl(self):
         from unittest.mock import patch
 
