@@ -1045,6 +1045,13 @@ class TestAboutPageSeo(unittest.TestCase):
         self.assertEqual(home.status_code, 200)
         self.assertIn('href="/tentang"', home.get_data(as_text=True))
 
+    def test_home_faq_is_in_raw_html(self):
+        html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("Apa itu LAUMOLOGY?", html)
+        self.assertIn('"@type": "FAQPage"', html)
+        self.assertIn("Bukan nasihat investasi.", html)
+        self.assertIn("<h1>Analisis Saham IDX</h1>", html)
+
     def test_sitemap_lists_about_with_lastmod(self):
         import os
         from unittest import mock
@@ -1214,10 +1221,10 @@ class TestIndikatorSahamPageSeo(unittest.TestCase):
         self.assertIn('"@type": "BreadcrumbList"', html)
         self.assertIn('"@type": "Organization"', html)
         self.assertIn(
-            '<meta property="article:published_time" content="2026-10-13">', html
+            '<meta property="article:published_time" content="2026-10-16">', html
         )
         self.assertIn(
-            '<meta property="article:modified_time" content="2026-10-13">', html
+            '<meta property="article:modified_time" content="2026-10-16">', html
         )
 
     def test_indikator_page_relative_when_env_missing(self):
@@ -1331,10 +1338,10 @@ class TestOgImageMetaTags(unittest.TestCase):
     def test_panduan_renders_article_datetime_meta(self):
         html = self.client.get("/panduan").get_data(as_text=True)
         self.assertIn(
-            '<meta property="article:published_time" content="2026-10-13">', html
+            '<meta property="article:published_time" content="2026-10-16">', html
         )
         self.assertIn(
-            '<meta property="article:modified_time" content="2026-10-13">', html
+            '<meta property="article:modified_time" content="2026-10-16">', html
         )
 
 

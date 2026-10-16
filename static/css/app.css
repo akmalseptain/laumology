@@ -270,7 +270,16 @@ tbody tr:hover{background:var(--accent-soft)}
 
 .empty{color:var(--muted);text-align:center;padding:44px 20px;font-size:13px}
 .empty.sm{padding:20px}
-.disclaimer{color:var(--muted);font-size:11px;text-align:center;margin:28px 0 8px}
+.disclaimer{color:var(--muted);font-size:11px;text-align:center;margin:18px 0 8px}
+.seo-plain{margin:28px 0 0;padding-top:16px;border-top:1px solid var(--border)}
+.seo-plain h2{margin:0 0 8px;font-family:var(--display-font);font-size:16px;font-weight:600;letter-spacing:-.01em}
+.seo-plain p{margin:0 0 8px;max-width:68ch;font-size:13px;line-height:1.65;color:var(--muted)}
+.seo-plain a{color:var(--brand-dark);text-decoration:none}
+.seo-plain a:hover{text-decoration:underline}
+[data-theme="dark"] .seo-plain a{color:var(--brand)}
+.seo-faq{margin:4px 0 12px}
+.seo-faq dt{margin-top:10px;font-size:13px;font-weight:600}
+.seo-faq dd{margin:2px 0 0;font-size:13px;line-height:1.6;color:var(--muted)}
 
 /* ---------------- Charts ---------------- */
 #tv_chart{width:100%}

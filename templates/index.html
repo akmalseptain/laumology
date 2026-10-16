@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <!-- LAUMOLOGY - IDX Trading Terminal. Developed by AKMALSEPTAIN. -->
 <meta name="author" content="AKMALSEPTAIN">
-<meta name="description" content="Terminal analisis saham IDX: sinyal teknikal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.">
+<meta name="description" content="Analisis saham Indonesia gratis: sinyal teknikal, rasio fundamental, screener emiten IDX, grafik, backtest, dan konteks IHSG. Bukan nasihat investasi.">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>LAUMOLOGY · Terminal Analisis Saham IDX</title>
+<title>LAUMOLOGY · Analisis Saham IDX, Screener, dan IHSG</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -28,7 +28,7 @@
       "@type": "WebApplication",
       {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
       "name": "LAUMOLOGY",
-      "description": "Terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.",
+      "description": "Analisis saham Indonesia gratis: sinyal teknikal, rasio fundamental, screener emiten IDX, grafik, backtest, dan konteks IHSG. Bukan nasihat investasi.",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Web"
     },
@@ -52,6 +52,35 @@
       "name": "LAUMOLOGY",
       {% if canonical_base %}"url": {{ canonical_base|tojson }},{% endif %}
       "logo": {{ ((canonical_base ~ "/static/icon-512.png") if canonical_base else "/static/icon-512.png")|tojson }}
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Apa itu LAUMOLOGY?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "LAUMOLOGY adalah terminal web untuk analisis saham IDX. Kode emiten menampilkan sinyal teknikal, rasio fundamental, berita, dan kondisi IHSG."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Apakah pemakaiannya gratis?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Ya. Terminal ini dibuka dari peramban, tanpa memasang aplikasi."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Apakah hasilnya saran beli saham?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Bukan. LAUMOLOGY adalah alat bantu dan edukasi. Keputusan investasi tetap ada pada pengguna."
+          }
+        }
+      ]
     }
   ]
 }
@@ -59,8 +88,8 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="LAUMOLOGY">
 <meta property="og:locale" content="id_ID">
-<meta property="og:title" content="LAUMOLOGY · Terminal Analisis Saham IDX">
-<meta property="og:description" content="Terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.">
+<meta property="og:title" content="LAUMOLOGY · Analisis Saham IDX, Screener, dan IHSG">
+<meta property="og:description" content="Analisis saham Indonesia gratis: sinyal teknikal, rasio fundamental, screener emiten IDX, grafik, backtest, dan konteks IHSG. Bukan nasihat investasi.">
 <meta property="og:url" content="{{ canonical_base }}/">
 <meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
 <meta property="og:image:type" content="image/png">
@@ -68,8 +97,8 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="LAUMOLOGY · IDX Trading Terminal">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="LAUMOLOGY · Terminal Analisis Saham IDX">
-<meta name="twitter:description" content="Terminal analisis saham IDX: sinyal berskor keyakinan, screener seluruh emiten, chart candlestick real-time, backtest walk-forward, dan pelacak portofolio.">
+<meta name="twitter:title" content="LAUMOLOGY · Analisis Saham IDX, Screener, dan IHSG">
+<meta name="twitter:description" content="Analisis saham Indonesia gratis: sinyal teknikal, rasio fundamental, screener emiten IDX, grafik, backtest, dan konteks IHSG. Bukan nasihat investasi.">
 <meta name="twitter:image" content="{{ canonical_base }}/static/og-cover.png">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
@@ -532,6 +561,19 @@
     </div>
   </section>
 
+  <section class="seo-plain" aria-label="Tentang analisis saham IDX">
+    <h2>Analisis saham IDX untuk emiten Indonesia</h2>
+    <p>LAUMOLOGY adalah terminal analisis saham Indonesia yang dipakai langsung dari peramban. Masukkan kode emiten untuk melihat sinyal teknikal, rasio fundamental, berita, dan tekanan pasar seperti pergerakan IHSG. Screener memindai banyak emiten, backtest menguji aturan, dan glosarium menjelaskan RSI, MACD, serta indikator lain yang dipakai di layar.</p>
+    <dl class="seo-faq">
+      <dt>Apa itu LAUMOLOGY?</dt>
+      <dd>LAUMOLOGY adalah terminal web untuk analisis saham IDX. Kode emiten menampilkan sinyal teknikal, rasio fundamental, berita, dan kondisi IHSG.</dd>
+      <dt>Apakah pemakaiannya gratis?</dt>
+      <dd>Ya. Terminal ini dibuka dari peramban, tanpa memasang aplikasi.</dd>
+      <dt>Apakah hasilnya saran beli saham?</dt>
+      <dd>Bukan. LAUMOLOGY adalah alat bantu dan edukasi. Keputusan investasi tetap ada pada pengguna.</dd>
+    </dl>
+    <p><a href="{{ url_for('meta.panduan') }}">Cara memakai terminal</a> · <a href="{{ url_for('meta.indikator_saham') }}">Daftar indikator</a> · <a href="{{ url_for('meta.tentang') }}">Tentang dan disclaimer</a></p>
+  </section>
   <div class="disclaimer">Bukan nasihat keuangan · Kelola risiko · Data yfinance + TradingView</div>
 </main>
 

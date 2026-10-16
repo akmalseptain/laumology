@@ -59,7 +59,7 @@ def _public_base() -> str:
 
 # Tanggal modifikasi konten publik (W3C date). Nilai tetap agar sitemap
 # deterministik (bukan ``datetime.now()`` yang berubah tiap request/run).
-_CONTENT_LASTMOD = "2026-10-13"
+_CONTENT_LASTMOD = "2026-10-16"
 
 # Token verifikasi Google Search Console harus murni alfanumerik + ``-``/``_``.
 # Divalidasi ketat agar nilai env yang "jorok" (``"``, ``<``, dll) tak pernah
