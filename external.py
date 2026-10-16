@@ -1,6 +1,8 @@
 """Tekanan di luar teknikal dan fundamental emiten.
 
-Lapisan ini tidak mengubah skor, vote, atau veto. Ia hanya menjelaskan apakah
+Lapisan ini tidak mengubah skor teknikal. Musyawarah memakai status
+tekanan_luar / dukungan_luar yang sudah terkonfirmasi untuk vote sentimen.
+Ia menjelaskan apakah
 pergerakan lebih mirip tekanan pasar (MSCI/FTSE, arus asing, kurs, suku bunga,
 komoditas, bursa global) atau khas emiten. Penyebab disebut hanya bila judul
 berita atau proksi harga benar-benar menunjuk ke sana.

@@ -3322,8 +3322,8 @@ class TestMusyawarahConsensusWeights(unittest.TestCase):
         exp = round(sum(w[k] * d["votes"][k] for k in w), 3)
         self.assertEqual(d["consensus"], exp)
 
-    def test_tekanan_luar_does_not_move_consensus(self):
-        """Penjelasan MSCI/tekanan luar tidak menggeser bobot maupun konsensus."""
+    def test_tekanan_luar_cuts_sentiment_and_holds_buy(self):
+        """Tekanan luar terkonfirmasi memotong sentimen 0,4 dan menahan BUY."""
         luar = {
             "status": "tekanan_luar",
             "label": "Tekanan luar",
@@ -3331,14 +3331,19 @@ class TestMusyawarahConsensusWeights(unittest.TestCase):
             "summary": "IHSG melemah bersama tekanan luar: Rebalancing indeks (MSCI/FTSE).",
             "drivers": [],
         }
-        d = self._run(self._full(), luar=luar)
+        calm = self._run(self._full())
+        hot = self._run(self._full(), luar=luar)
         w = {"technical": 0.40, "bandarmologi": 0.30, "fundamental": 0.15, "sentiment": 0.15}
-        exp = round(sum(w[k] * d["votes"][k] for k in w), 3)
-        self.assertEqual(d["consensus"], exp)
-        self.assertEqual(d["weights_used"]["fundamental"], 0.15)
-        self.assertEqual(d["external"]["status"], "tekanan_luar")
-        self.assertIn("@luar", d["text"])
-        self.assertIn("MSCI", d["text"])
+        self.assertEqual(hot["consensus"], round(sum(w[k] * hot["votes"][k] for k in w), 3))
+        self.assertEqual(hot["weights_used"], calm["weights_used"])
+        self.assertAlmostEqual(
+            hot["votes"]["sentiment"],
+            round(max(-1.0, calm["votes"]["sentiment"] - 0.4), 2),
+        )
+        self.assertLess(hot["consensus"], calm["consensus"])
+        self.assertIn("Tekanan luar terkonfirmasi", " ".join(hot["vetoes"]))
+        self.assertEqual(hot["decision"], "WAIT")
+        self.assertIn("MSCI", hot["text"])
 
 
 class TestExternalPressure(unittest.TestCase):

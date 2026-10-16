@@ -154,6 +154,30 @@ def _fund_tech_alignment(tech_bias: str, fund: dict, available: bool) -> dict:
     return {"status": status, "note": note}
 
 
+# Geser vote sentimen hanya bila tekanan/dukungan luar sudah terkonfirmasi
+# (IHSG ikut bergerak dan intensitas cukup). Judul tanpa gejolak tidak dihitung.
+_LUAR_SELL = 0.4
+_LUAR_BUY = 0.3
+_LUAR_MIN_INTENSITY = 40.0
+
+
+def _external_sentiment_delta(luar: dict | None) -> float:
+    if not isinstance(luar, dict):
+        return 0.0
+    try:
+        intensity = float(luar.get("intensity") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if intensity < _LUAR_MIN_INTENSITY:
+        return 0.0
+    status = luar.get("status")
+    if status == "tekanan_luar":
+        return -_LUAR_SELL
+    if status == "dukungan_luar":
+        return _LUAR_BUY
+    return 0.0
+
+
 def reconcile_vetoes(base: str, decision_engine: dict, market_regime: str | None) -> list[str]:
     """Veto Risk Moderator agar Musyawarah konsisten dengan Decision Engine & regime IHSG."""
     out: list[str] = []
@@ -250,8 +274,8 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     sentiment_summary = (f"Sentimen berita {nw.get('label')} (skor {nw.get('avg_sentiment')}, "
                          f"{nw.get('count', 0)} berita). IHSG {mk.get('regime', 'n/a')} "
                          f"(1D {round(mk.get('ret_1d', 0), 2)}%, 20D {round(mk.get('ret_20d', 0), 2)}%).")
-    # Tekanan luar (MSCI, asing, kurs, suku bunga, bursa global) bersifat
-    # penjelasan. Tidak mengubah vote, bobot, konsensus, maupun veto.
+    # Tekanan luar yang terkonfirmasi menggeser vote sentimen dan menahan BUY.
+    # Waspada tanpa gejolak IHSG tetap penjelasan saja.
     try:
         luar = external.for_stock(
             ticker,
@@ -295,6 +319,8 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         sent_vote = min(1.0, sent_vote + 0.3)
     elif sent.get("ihsg_regime") == "Bearish":
         sent_vote = max(-1.0, sent_vote - 0.3)
+    luar_delta = _external_sentiment_delta(luar)
+    sent_vote = max(-1.0, min(1.0, sent_vote + luar_delta))
 
     weights = _agent_weights(fund_has_financials)
     votes = {
@@ -321,6 +347,10 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     dec = getattr(a, "decision", {}) or {}
     mkt_regime = getattr(a, "market_regime", None)
     vetoes.extend(reconcile_vetoes(base, dec, mkt_regime))
+    if luar_delta < 0:
+        vetoes.append(
+            f"Tekanan luar terkonfirmasi ({luar.get('label') or 'tekanan luar'}) -> tahan BUY."
+        )
 
     decision = ("SKIP" if base == "SKIP" else "WAIT") if vetoes else base
 
