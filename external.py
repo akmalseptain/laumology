@@ -568,6 +568,13 @@ def _build_bundle() -> dict:
         headlines, news_ok = _macro_headlines()
     except Exception:
         headlines, news_ok = [], False
+    x_ok = False
+    try:
+        import xsource
+        x_items, x_ok = xsource.headlines()
+        headlines = list(headlines) + list(x_items)
+    except Exception:
+        x_ok = False
     try:
         ihsg = market.ihsg()
     except Exception as exc:
@@ -575,6 +582,7 @@ def _build_bundle() -> dict:
     return {
         "headlines": headlines,
         "news_ok": news_ok,
+        "x_ok": x_ok,
         "ihsg": ihsg if isinstance(ihsg, dict) else {},
         "usdidr": _proxy("USDIDR=X"),
         "global": _proxy("^GSPC"),
@@ -616,7 +624,7 @@ def for_stock(
                 extra_items = []
         usdidr = bundle.get("usdidr") or {}
         glob = bundle.get("global") or {}
-        return assess(
+        result = assess(
             macro_items=bundle.get("headlines") or [],
             ticker_items=extra_items or [],
             ihsg=bundle.get("ihsg") or {},
@@ -628,6 +636,17 @@ def for_stock(
             stock_ret_1d=change_1d,
             rs_change=rs_change,
         )
+        if bundle.get("x_ok"):
+            watched = list(result.get("watched") or [])
+            if "X" not in watched:
+                watched.append("X")
+            result["watched"] = watched
+        else:
+            missing = list(result.get("missing") or [])
+            if "X" not in missing:
+                missing.append("X")
+            result["missing"] = missing
+        return result
     except Exception:
         return assess(news_ok=False, usdidr_ok=False, global_ok=False)
 

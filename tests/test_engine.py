@@ -3483,6 +3483,24 @@ class TestExternalPressure(unittest.TestCase):
         self.assertEqual(result["drivers"], [])
         self.assertEqual(result["status"], "pelemahan_pasar")
 
+    def test_x_posts_keep_only_official_handles(self):
+        import json
+        import xsource
+        text = json.dumps([
+            {"handle": "idx_bei", "text": "IHSG ditutup melemah setelah pengumuman MSCI.",
+             "url": "https://x.com/idx_bei/status/1"},
+            {"handle": "randomtrader", "text": "MSCI bikin IHSG anjlok parah.",
+             "url": "https://x.com/randomtrader/status/2"},
+            {"handle": "bank_indonesia", "text": "Rupiah", "url": "https://x.com/bank_indonesia/status/3"},
+            {"handle": "ojkindonesia", "text": "OJK mencatat investor asing net sell di pasar reguler.",
+             "url": "http://evil.example/post"},
+        ])
+        rows = xsource.parse_posts(text)
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["title"].startswith("@idx_bei:"))
+        self.assertIn("MSCI", rows[0]["title"])
+        self.assertFalse(xsource.configured())
+
     def test_macro_query_rejects_unsafe_text_offline(self):
         import news
         items, ok = news.headlines_for_query("IHSG <msci>")
