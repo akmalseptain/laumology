@@ -1064,7 +1064,8 @@ class TestAboutPageSeo(unittest.TestCase):
         self.assertIn("Apa itu LAUMOLOGY?", html)
         self.assertIn('"@type": "FAQPage"', html)
         self.assertIn("Bukan nasihat investasi.", html)
-        self.assertIn("<h1>Analisis Saham IDX</h1>", html)
+        self.assertIn("<h1>LAUMOLOGY</h1>", html)
+        self.assertIn("<title>LAUMOLOGY</title>", html)
 
     def test_sitemap_lists_about_with_lastmod(self):
         import os
