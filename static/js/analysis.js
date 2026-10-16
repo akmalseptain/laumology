@@ -520,6 +520,22 @@ function externalCard(x){
       + (ev ? '<div class="mono" style="color:var(--muted);font-size:11px;margin-top:4px;line-height:1.5">'+ev+'</div>' : '')
       + '</span><span class="mono '+dir+'">'+escapeHtml(d.direction||"-")+'</span></div>';
   }).join("");
+  const cmp = x.x_compare;
+  let cmpHtml = "";
+  if(cmp && cmp.theirs){
+    const alignCls = cmp.alignment==="searah" ? "v-up" : (cmp.alignment==="berlawanan" ? "v-red" : "v-muted");
+    const samples = (cmp.samples||[]).slice(0,3).map(function(t){
+      return '<li>'+escapeHtml(t)+'</li>';
+    }).join("");
+    cmpHtml = '<div class="sec" style="margin-top:16px"><span class="badge">Komparasi sinyal</span></div>'
+      + '<div class="grid">'
+      + '<div class="metric"><div class="k">Sinyal kita</div><div class="v">'+escapeHtml(cmp.our_signal||cmp.ours||"-")+'</div></div>'
+      + '<div class="metric"><div class="k">Suara X</div><div class="v">'+escapeHtml(cmp.theirs)+'</div></div>'
+      + '<div class="metric"><div class="k">Hasil</div><div class="v '+alignCls+'">'+escapeHtml(cmp.alignment||"-")+'</div></div>'
+      + '</div>'
+      + '<p class="mono" style="margin:8px 0 0;font-size:12px;line-height:1.5">'+escapeHtml(cmp.note||"")+'</p>'
+      + (samples ? '<ul class="list">'+samples+'</ul>' : '');
+  }
   const watched = (x.watched||[]).map(function(w){ return escapeHtml(w); }).join(" · ");
   const missing = (x.missing||[]).length ? ' · belum ada: '+(x.missing||[]).map(function(w){ return escapeHtml(w); }).join(", ") : "";
   return '<div class="card"><div class="sec"><span class="badge">Tekanan Luar</span></div>'
@@ -530,6 +546,7 @@ function externalCard(x){
     + '<p style="margin:12px 0 0;line-height:1.6;font-size:14px">'+escapeHtml(x.summary||"")+'</p>'
     + (x.coupling ? '<p class="mono" style="color:var(--muted);margin:8px 0 0;font-size:12px">'+escapeHtml(x.coupling)+'</p>' : '')
     + (drivers ? '<div class="checks" style="margin-top:12px">'+drivers+'</div>' : '')
+    + cmpHtml
     + (watched ? '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px;letter-spacing:.04em">Dipantau: '+watched+missing+'</div>' : '')
     + '</div>';
 }

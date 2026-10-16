@@ -569,6 +569,7 @@ def _build_bundle() -> dict:
     except Exception:
         headlines, news_ok = [], False
     x_ok = False
+    x_items: list = []
     try:
         import xsource
         x_items, x_ok = xsource.headlines()
@@ -583,6 +584,7 @@ def _build_bundle() -> dict:
         "headlines": headlines,
         "news_ok": news_ok,
         "x_ok": x_ok,
+        "x_items": x_items if x_ok else [],
         "ihsg": ihsg if isinstance(ihsg, dict) else {},
         "usdidr": _proxy("USDIDR=X"),
         "global": _proxy("^GSPC"),
@@ -609,6 +611,7 @@ def for_stock(
     change_1d: float | None = None,
     rs_change: float | None = None,
     extra_items: list[dict] | None = None,
+    our_signal: str | None = None,
 ) -> dict:
     """Tekanan luar untuk satu saham. Tidak melempar; gagal jadi status jujur.
 
@@ -646,6 +649,8 @@ def for_stock(
             if "X" not in missing:
                 missing.append("X")
             result["missing"] = missing
+        import xsource
+        result["x_compare"] = xsource.compare_signal(our_signal, bundle.get("x_items") or [])
         return result
     except Exception:
         return assess(news_ok=False, usdidr_ok=False, global_ok=False)

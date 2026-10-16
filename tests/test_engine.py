@@ -3495,6 +3495,13 @@ class TestExternalPressure(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertTrue(rows[0]["title"].startswith("Pos X:"))
         self.assertIn("MSCI", rows[0]["title"])
+        self.assertEqual(rows[0]["stance"], "jual")
+        cmp = xsource.compare_signal("BUY", rows)
+        self.assertEqual(cmp["ours"], "beli")
+        self.assertEqual(cmp["theirs"], "jual")
+        self.assertEqual(cmp["alignment"], "berlawanan")
+        empty = xsource.compare_signal("HOLD", [])
+        self.assertEqual(empty["alignment"], "belum cukup")
 
     def test_macro_query_rejects_unsafe_text_offline(self):
         import news

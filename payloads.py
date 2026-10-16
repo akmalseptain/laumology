@@ -187,7 +187,9 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
         "zones": a.zones,
     }
     # Lapisan penjelasan. Tidak masuk rumus skor (uji: skor tetap sama).
-    ext = external.for_stock(a.ticker, change_1d=a.change_1d, rs_change=a.rs_change)
+    ext = external.for_stock(
+        a.ticker, change_1d=a.change_1d, rs_change=a.rs_change, our_signal=a.signal,
+    )
     out["external"] = ext
     # Tidak mengubah skor. Hanya menandai bila jendela indikator belum sah.
     if len(df) < 200:

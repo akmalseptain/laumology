@@ -282,11 +282,15 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
             change_1d=getattr(a, "change_1d", None),
             rs_change=getattr(a, "rs_change", None),
             extra_items=list(nw.get("items") or []),
+            our_signal=getattr(a, "signal", None),
         )
     except Exception:
         luar = {"status": "tidak_tersedia", "label": "Belum bisa dinilai",
                 "summary": "Tekanan luar belum bisa dinilai.", "drivers": []}
     luar_summary = luar.get("summary") or "Tekanan luar belum bisa dinilai."
+    cmp = luar.get("x_compare") if isinstance(luar.get("x_compare"), dict) else {}
+    if cmp.get("note"):
+        luar_summary += f" Komparasi X: {cmp.get('alignment')}. {cmp.get('note')}"
 
     # --- ML probability (quant input) ---
     ml_prob = None

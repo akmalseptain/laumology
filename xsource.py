@@ -22,9 +22,73 @@ _NEEDLES = (
     "ihsg", "msci", "ftse", "rupiah", "asing", "bei", "bursa",
     "suku bunga", "trading halt",
 )
+_JUAL = ("jual", "anjlok", "cutloss", "cut loss", "hindari", "melemah", "net sell", "trading halt", "turun")
+_BELI = ("beli", "serok", "akumulasi", "menguat", "net buy")
+_TAHAN = ("tahan", "hold", "wait", "tunggu", "waspada")
+_OUR = {"BUY": "beli", "SELL": "jual", "HOLD": "tahan", "WAIT": "tahan"}
 _TTL = 1800.0
 _lock = threading.Lock()
 _cache: dict = {"ts": 0.0, "items": None, "ok": None}
+
+
+def stance_of(title: str) -> str:
+    """Arah yang terbaca dari judul. Kalimat yang berisi beli dan jual jadi netral."""
+    low = (title or "").lower()
+    jual = any(word in low for word in _JUAL)
+    beli = any(word in low for word in _BELI)
+    tahan = any(word in low for word in _TAHAN)
+    if jual and beli:
+        return "netral"
+    if jual:
+        return "jual"
+    if beli:
+        return "beli"
+    if tahan:
+        return "tahan"
+    return "netral"
+
+
+def compare_signal(our_signal: str | None, posts: list[dict]) -> dict:
+    """Bandingkan sinyal aplikasi dengan arah mayoritas pos X. Tidak mengubah skor."""
+    counts = {"beli": 0, "jual": 0, "tahan": 0, "netral": 0}
+    samples: list[str] = []
+    for post in posts or []:
+        if not isinstance(post, dict):
+            continue
+        title = str(post.get("title") or "")
+        side = post.get("stance") if post.get("stance") in counts else stance_of(title)
+        counts[side] += 1
+        if side != "netral" and len(samples) < 3:
+            samples.append(title[:160])
+    voiced = {k: counts[k] for k in ("beli", "jual", "tahan")}
+    if not posts:
+        theirs, note = "belum ada", "Belum ada pos X soal pasar."
+    elif max(voiced.values()) == 0:
+        theirs, note = "netral", "Pos X ada, tetapi arah beli atau jualnya tidak terbaca."
+    else:
+        theirs = max(voiced, key=voiced.get)
+        if list(voiced.values()).count(voiced[theirs]) > 1:
+            theirs, note = "campur", "Suara X terbelah, tidak ada arah yang menang."
+        else:
+            note = f"Mayoritas pos X berarah {theirs} ({voiced[theirs]} dari {len(posts)})."
+    ours = _OUR.get((our_signal or "").upper(), "tahan")
+    if theirs in ("belum ada", "netral", "campur"):
+        alignment = "belum cukup"
+    elif ours == theirs:
+        alignment = "searah"
+    elif {ours, theirs} == {"beli", "jual"}:
+        alignment = "berlawanan"
+    else:
+        alignment = "berbeda"
+    return {
+        "ours": ours,
+        "our_signal": (our_signal or "").upper() or None,
+        "theirs": theirs,
+        "counts": counts,
+        "alignment": alignment,
+        "note": note,
+        "samples": samples,
+    }
 
 
 def keep_market_posts(rows: list[dict]) -> list[dict]:
@@ -47,6 +111,7 @@ def keep_market_posts(rows: list[dict]) -> list[dict]:
             "summary": None,
             "url": str(row.get("link") or row.get("url") or ""),
             "source": "x",
+            "stance": stance_of(title),
         })
         if len(out) >= 8:
             break
