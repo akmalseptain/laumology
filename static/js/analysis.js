@@ -524,7 +524,7 @@ function externalCard(x){
   let cmpHtml = "";
   if(cmp && cmp.theirs){
     const alignCls = cmp.alignment==="searah" ? "v-up" : (cmp.alignment==="berlawanan" ? "v-red" : "v-muted");
-    const samples = (cmp.samples||[]).slice(0,3).map(function(t){
+    const samples = (cmp.samples||[]).slice(0,8).map(function(t){
       return '<li>'+escapeHtml(t)+'</li>';
     }).join("");
     cmpHtml = '<div class="sec" style="margin-top:16px"><span class="badge">Komparasi sinyal</span></div>'

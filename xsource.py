@@ -10,14 +10,19 @@ from __future__ import annotations
 import re
 import threading
 import time
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
-_FEED = (
-    "https://news.google.com/rss/search?q="
-    "IHSG+(MSCI+OR+asing+OR+rupiah+OR+%22suku+bunga%22)+site:x.com"
-    "&hl=id&gl=ID&ceid=ID:id"
+# Beberapa kueri supaya pembanding tidak hanya judul MSCI yang sama.
+_QUERIES = (
+    "IHSG (MSCI OR asing OR rupiah OR saham) site:x.com",
+    "(BBCA OR BMRI OR BBRI OR TLKM OR ASII) (beli OR jual OR IHSG) site:x.com",
+    "(LQ45 OR IDX30 OR saham) (IHSG OR bursa OR analisis) site:x.com",
 )
+# Cukup lebar untuk mayoritas, tetap berbatas supaya kartu tidak memuat ratusan judul.
+_POST_CAP = 60
 _NEEDLES = (
     "ihsg", "msci", "ftse", "rupiah", "asing", "bei", "bursa",
     "suku bunga", "trading halt",
@@ -58,7 +63,7 @@ def compare_signal(our_signal: str | None, posts: list[dict]) -> dict:
         title = str(post.get("title") or "")
         side = post.get("stance") if post.get("stance") in counts else stance_of(title)
         counts[side] += 1
-        if side != "netral" and len(samples) < 3:
+        if side != "netral" and len(samples) < 8:
             samples.append(title[:160])
     voiced = {k: counts[k] for k in ("beli", "jual", "tahan")}
     if not posts:
@@ -113,7 +118,7 @@ def keep_market_posts(rows: list[dict]) -> list[dict]:
             "source": "x",
             "stance": stance_of(title),
         })
-        if len(out) >= 8:
+        if len(out) >= _POST_CAP:
             break
     return out
 
@@ -132,21 +137,41 @@ def _titles_from_rss(raw: bytes) -> list[dict]:
     return rows
 
 
+def _feed_url(query: str) -> str:
+    return (
+        "https://news.google.com/rss/search?q="
+        + urllib.parse.quote(query)
+        + "&hl=id&gl=ID&ceid=ID:id"
+    )
+
+
+def _fetch_query(query: str) -> tuple[list[dict], bool]:
+    try:
+        req = urllib.request.Request(
+            _feed_url(query),
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/rss+xml"},
+        )
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            return _titles_from_rss(resp.read(500_000)), True
+    except Exception:
+        return [], False
+
+
 def headlines() -> tuple[list[dict], bool]:
     """``(pos, sumber_hidup)``. Tidak memakai kunci API."""
     now = time.time()
     with _lock:
         if _cache["items"] is not None and now - float(_cache["ts"]) < _TTL:
             return list(_cache["items"]), bool(_cache["ok"])
+    rows: list[dict] = []
+    ok = False
     try:
-        req = urllib.request.Request(
-            _FEED,
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/rss+xml"},
-        )
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            raw = resp.read(500_000)
-        items = keep_market_posts(_titles_from_rss(raw))
-        ok = True
+        with ThreadPoolExecutor(max_workers=len(_QUERIES)) as pool:
+            for found, source_ok in pool.map(_fetch_query, _QUERIES):
+                if source_ok:
+                    ok = True
+                rows.extend(found)
+        items = keep_market_posts(rows)
     except Exception:
         items, ok = [], False
     with _lock:
