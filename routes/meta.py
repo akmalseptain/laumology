@@ -68,15 +68,24 @@ _CONTENT_LASTMOD = "2026-10-16"
 _GSC_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def _gsc_token() -> str:
-    """Token verifikasi Google Search Console (env-gated, fail-closed).
+# Token verifikasi Search Console untuk https://laumology.onrender.com.
+# Publik: Google memintanya tampil di <head>. Env menimpa bila diisi valid.
+_GSC_DEFAULT = "RnwQXP6N7GmFJnEJwvC_cPmgesMpyroVameSBPihrKE"
 
-    Baca ``LAUM_GOOGLE_SITE_VERIFICATION``; hanya lolos bila murni
-    alfanumerik + ``-``/``_``. Nilai tak valid/absen → ``""`` sehingga
-    template melewati tag ``google-site-verification``.
+
+def _gsc_token() -> str:
+    """Token verifikasi Google Search Console.
+
+    Env ``LAUM_GOOGLE_SITE_VERIFICATION`` menimpa default bila valid.
+    Kosong dianggap belum diset, jadi default dipakai. Nilai kotor
+    (kutip, ``<``, spasi) ditolak dan tag tidak dirender.
     """
-    raw = (os.environ.get("LAUM_GOOGLE_SITE_VERIFICATION") or "").strip()
-    if not raw or not _GSC_TOKEN_RE.fullmatch(raw):
+    raw = os.environ.get("LAUM_GOOGLE_SITE_VERIFICATION")
+    if raw is None or not raw.strip():
+        raw = _GSC_DEFAULT
+    else:
+        raw = raw.strip()
+    if not _GSC_TOKEN_RE.fullmatch(raw):
         return ""
     return raw
 

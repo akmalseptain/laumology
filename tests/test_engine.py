@@ -945,25 +945,27 @@ class TestPublicBaseCanonical(unittest.TestCase):
 
 
 class TestGscVerificationMeta(unittest.TestCase):
-    """Meta verifikasi Google Search Console (env-gated, fail-closed).
+    """Meta verifikasi Google Search Console.
 
-    ``LAUM_GOOGLE_SITE_VERIFICATION`` valid → tag dirender; absen/invalid →
-    tag di-skip. Nilai "jorok" (``"``, ``<``) tak pernah lolos ke atribut
-    ``content`` (anti HTML injection), berkat validasi regex + autoescape.
+    Tanpa env, tag memakai token publik default. Env valid menimpa.
+    Nilai kotor (``"``, ``<``) tidak pernah masuk ke atribut ``content``.
     """
 
     def setUp(self):
         import webapp
         self.client = webapp.app.test_client()
 
-    def test_env_unset_no_tag(self):
+    def test_env_unset_uses_public_token(self):
         import os
         from unittest import mock
 
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LAUM_GOOGLE_SITE_VERIFICATION", None)
             hb = self.client.get("/").get_data(as_text=True)
-        self.assertNotIn("google-site-verification", hb)
+        self.assertIn(
+            '<meta name="google-site-verification" content="RnwQXP6N7GmFJnEJwvC_cPmgesMpyroVameSBPihrKE">',
+            hb,
+        )
 
     def test_env_valid_tag_rendered(self):
         import os
