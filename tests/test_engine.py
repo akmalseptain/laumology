@@ -3142,6 +3142,21 @@ class TestFundamentalsSanitize(unittest.TestCase):
         self.assertAlmostEqual(dust["dividend_yield"], 9.61, places=2)
         self.assertIn("dividend", dust["suspect"])
 
+    def test_bank_pe_uses_sector_band_not_the_general_screen(self):
+        import fundamentals
+        bank = fundamentals.classify_ratios(10.96, 0.22, 20, sector="Perbankan")
+        plain = fundamentals.classify_ratios(10.96, 0.22, 20)
+        cheap_bank = fundamentals.classify_ratios(5.1, 0.22, 20, sector="Perbankan")
+        coal = fundamentals.classify_ratios(6.5, 0.2, 30, sector="Energi")
+        tech = fundamentals.classify_ratios(25.0, 0.1, 10, sector="Teknologi")
+        self.assertEqual(bank["valuation_code"], "wajar")
+        self.assertEqual(plain["valuation_code"], "rendah")
+        self.assertEqual(cheap_bank["valuation_code"], "rendah")
+        self.assertEqual(coal["valuation_code"], "wajar")
+        self.assertEqual(tech["valuation_code"], "wajar")
+        self.assertIn("Perbankan", bank["valuation_note"])
+        self.assertIn("bukan median", bank["valuation_note"])
+
     def test_missing_der_is_not_healthy(self):
         labels = self.fundamentals.classify_ratios(10.0, 0.22, None)
         self.assertNotEqual(labels["quality_code"], "baik")

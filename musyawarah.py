@@ -102,7 +102,8 @@ def _fundamental(f: dict) -> dict:
             "quality_note": f.get("quality_note"),
         }
     else:
-        labels = fundamentals.classify_ratios(pe, roe, der)
+        labels = fundamentals.classify_ratios(
+            pe, roe, der, sector=f.get("sector_band") or None)
 
     return {
         "category": f"{cap} · {labels['quality_label']}",

@@ -57,9 +57,43 @@ _SUSPECT_DER = 500.0
 _YIELD_FRACTION_MAX = 0.25
 _YIELD_PCT_MAX = 40.0
 
-# Ambang layar PER TTM. Bukan pembanding sektor dan bukan fakta "murah/mahal".
+# Ambang layar bila sektor tidak dikenal. Bukan fakta "murah/mahal".
 PE_RENDAH = 12.0
 PE_WAJAR = 22.0
+# Pita acuan PER TTM per sektor IDX: (batas bawah sedang, batas atas sedang).
+# Di bawah batas pertama = rendah untuk sektor itu, di atas batas kedua = tinggi.
+# Ini pita tetap, bukan median pasar hari ini.
+_SECTOR_PE_BAND: dict[str, tuple[float, float]] = {
+    "Perbankan": (8.0, 14.0),
+    "Energi": (6.0, 12.0),
+    "Batubara": (6.0, 12.0),
+    "Tambang": (6.0, 12.0),
+    "Teknologi": (18.0, 35.0),
+    "Konsumer": (14.0, 28.0),
+    "Kesehatan": (15.0, 30.0),
+    "Telekomunikasi": (10.0, 18.0),
+    "Properti": (8.0, 16.0),
+    "Infrastruktur": (10.0, 20.0),
+    "Industri": (8.0, 16.0),
+    "Semen & Material": (8.0, 16.0),
+    "Petrokimia": (8.0, 16.0),
+    "Media": (10.0, 20.0),
+    "Perdagangan": (10.0, 20.0),
+    "Peternakan": (10.0, 20.0),
+}
+_YAHOO_SECTOR = {
+    "financial services": "Perbankan",
+    "banks": "Perbankan",
+    "energy": "Energi",
+    "technology": "Teknologi",
+    "consumer defensive": "Konsumer",
+    "consumer cyclical": "Konsumer",
+    "communication services": "Telekomunikasi",
+    "real estate": "Properti",
+    "healthcare": "Kesehatan",
+    "industrials": "Industri",
+    "utilities": "Infrastruktur",
+}
 ROE_BAIK = 0.15
 
 
@@ -134,26 +168,58 @@ def _normalize_dividend(raw, price, rate) -> tuple[float | None, str | None, str
     return None, None, None
 
 
-def classify_ratios(pe, roe, der) -> dict:
+def sector_band_name(ticker: str, yahoo_sector: str | None = None) -> str:
+    """Nama sektor untuk pita PER. Peta lokal menang; Yahoo hanya bila ticker belum dikenal."""
+    from config import sector_of
+
+    local = sector_of(ticker or "")
+    if local != "Lainnya":
+        return local
+    return _YAHOO_SECTOR.get((yahoo_sector or "").strip().lower(), "")
+
+
+def _pe_limits(sector: str | None) -> tuple[float, float, str]:
+    name = (sector or "").strip()
+    band = _SECTOR_PE_BAND.get(name)
+    if band is None:
+        return PE_RENDAH, PE_WAJAR, ""
+    return band[0], band[1], name
+
+
+def classify_ratios(pe, roe, der, sector: str | None = None) -> dict:
     """Label fundamental yang sama untuk layar dan musyawarah.
 
     DER yang kosong tidak dihitung sehat. PER forward tidak masuk ke sini.
+    Sektor yang dikenal memakai pita PER sektor. Tanpa sektor, ambang layar lama.
     """
     pe_f = _clean(pe)
     roe_f = _clean(roe)
     der_f = _clean(der)
+    low, high, sector_name = _pe_limits(sector)
     if pe_f is None:
         valuation_code, valuation_label = "n/a", "PER TTM tidak tersedia"
         valuation_note = "Tanpa EPS positif, PER TTM tidak dihitung. PER forward tidak dipakai sebagai pengganti."
-    elif pe_f < PE_RENDAH:
+    elif pe_f < low:
         valuation_code, valuation_label = "rendah", "PER TTM rendah"
-        valuation_note = f"PER TTM di bawah {PE_RENDAH:.0f}. Ambang layar, bukan pembanding sektor."
-    elif pe_f < PE_WAJAR:
+        if sector_name:
+            valuation_note = (f"PER TTM di bawah {low:.0f}, batas rendah pita {sector_name} "
+                              f"({low:.0f}–{high:.0f}). Pita acuan, bukan median hari ini.")
+        else:
+            valuation_note = f"PER TTM di bawah {low:.0f}. Sektor tidak dikenal, jadi ambang layar umum."
+    elif pe_f < high:
         valuation_code, valuation_label = "wajar", "PER TTM sedang"
-        valuation_note = f"PER TTM {PE_RENDAH:.0f}–{PE_WAJAR:.0f}. Ambang layar, bukan pembanding sektor."
+        if sector_name:
+            valuation_note = (f"PER TTM di dalam pita {sector_name} ({low:.0f}–{high:.0f}). "
+                              "Pita acuan, bukan median hari ini.")
+        else:
+            valuation_note = f"PER TTM {low:.0f}–{high:.0f}. Sektor tidak dikenal, jadi ambang layar umum."
     else:
         valuation_code, valuation_label = "tinggi", "PER TTM tinggi"
-        valuation_note = f"PER TTM di atas {PE_WAJAR:.0f}. Ambang layar, bukan pembanding sektor."
+        if sector_name:
+            valuation_note = (f"PER TTM di atas {high:.0f}, batas atas pita {sector_name} "
+                              f"({low:.0f}–{high:.0f}). Pita acuan, bukan median hari ini.")
+        else:
+            valuation_note = f"PER TTM di atas {high:.0f}. Sektor tidak dikenal, jadi ambang layar umum."
 
     if roe_f is None:
         quality_code, quality_label = "n/a", "ROE tidak tersedia"
@@ -177,6 +243,9 @@ def classify_ratios(pe, roe, der) -> dict:
         "quality_code": quality_code,
         "quality_label": quality_label,
         "quality_note": quality_note,
+        "sector_band": sector_name or None,
+        "pe_band_low": low,
+        "pe_band_high": high,
     }
 
 
@@ -367,7 +436,8 @@ def get_fundamentals(ticker: str) -> dict:
         checks.append(div_note)
         if "diabaikan" in div_note or "berbeda" in div_note:
             mismatch.append("dividend")
-    labels = classify_ratios(out.get("pe"), out.get("roe"), out.get("der"))
+    band = sector_band_name(ticker, out.get("sector") if isinstance(out.get("sector"), str) else None)
+    labels = classify_ratios(out.get("pe"), out.get("roe"), out.get("der"), sector=band or None)
     out.update(labels)
     out["checks"] = checks
     # ``has_financials`` terpisah dari ketersediaan harga: emiten dengan harga

@@ -397,7 +397,7 @@ async function loadFundamentalTab(){
     el.innerHTML =
       '<div class="card">'
       + '<div class="sec"><span class="badge">'+escapeHtml(f.name||t)+'</span>'+fuBadge+'</div>'
-      + '<p class="muted" style="margin:-4px 0 14px;font-size:12px">'+escapeHtml([f.sector,f.industry].filter(Boolean).join(' · '))+'</p>'
+      + '<p class="muted" style="margin:-4px 0 14px;font-size:12px">'+escapeHtml([f.sector_band,f.sector,f.industry].filter(Boolean).join(' · '))+'</p>'
       + '<div class="grid">'+verdict+'</div>'
       + hd+'Valuasi</div>'
       + '<div class="grid">'
