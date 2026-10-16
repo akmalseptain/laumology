@@ -168,7 +168,7 @@ function recoLine(d, cc){
   const body = buyish
     ? `${d.action} — entry ${zone}, SL ${idr(d.stop_loss)}, TP1 ${idr(d.tp1)}.`
     : `${d.action} — jangan entry baru dulu.`;
-  return `<div class="hero-reco" style="color:${cc}">Rekomendasi ${d.signal}: ${body}</div>`;
+  return `<div class="hero-reco" style="color:${cc}">Sinyal aturan ${d.signal}: ${body}</div>`;
 }
 
 function render(d, opts={}){
@@ -192,7 +192,7 @@ function render(d, opts={}){
   $("#result").innerHTML = `
     <div class="card hero">
       <div class="ring" style="background:conic-gradient(${cc} ${d.score*3.6}deg, var(--border) 0)">
-        <div class="val"><b style="color:${cc}">${d.score}</b><span>/100</span></div>
+        <div class="val"><b style="color:${cc}">${d.score}</b><span>aturan</span></div>
       </div>
       <div class="headline">
         <span class="badge-lg s-${sc}">${d.signal}</span>
@@ -202,7 +202,7 @@ function render(d, opts={}){
           <span id="liveDot" class="live-dot" style="display:${d.live?'inline-block':'none'};vertical-align:middle;margin-left:8px"></span></div>
         <div class="meta">${d.trend} &middot; W:${d.weekly_trend} &middot; ${d.regime} &middot; Pasar:${d.market_regime||'-'} &middot; ${d.last_date} &middot; ${d.bars} bar${d.model_used?' &middot; <b>SKOR OPT</b>':''}
           <span id="liveStamp" class="mono" style="color:var(--muted)">${d.live?("· LIVE "+(d.quote_source||"")):""}</span></div>
-        <div class="hero-sub">Keyakinan Faktor ${d.confidence}% &middot; Grade <b style="color:${cc}">${d.grade}</b> &middot; ${passed}/${d.checklist.length} faktor${(d.model_used && d.prob_up!=null)?` &middot; Prob ML ${fmt(d.prob_up*100,0)}%${d.score_opt!=null?' · opt '+fmt(d.score_opt,0):''}`:''}</div>
+        <div class="hero-sub">Skor ${d.score}/100 adalah aturan indikator, bukan probabilitas naik. ${(d.model_used && d.prob_up!=null)?`Peluang model ${fmt(d.prob_up*100,0)}% (walk-forward, bukan janji).`:`Peluang terkalibrasi belum ada.`} Konfluensi ${d.confidence}% · ${passed}/${d.checklist.length} faktor lolos.</div>
         ${recoLine(d, cc)}
       </div>
     </div>
