@@ -3040,6 +3040,9 @@ class TestFundamentalsSanitize(unittest.TestCase):
         again = store.save_fund_snap("ZZSNAP", {"pe": 11.0, "pb": 1.2, "roe": 0.2, "eps": 100.0, "price": 1100.0})
         self.assertGreaterEqual(again["days"], 1)
         self.assertEqual(again["first"], again["last"])
+        hist = store.fund_snap_history("ZZSNAP", limit=5)
+        self.assertEqual(hist[0]["pe"], 11.0)
+        self.assertEqual(hist[0]["day"], again["last"])
 
     def test_partial_info_not_available_and_short_ttl(self):
         from unittest.mock import patch

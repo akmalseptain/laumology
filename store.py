@@ -81,6 +81,27 @@ def save_fund_snap(ticker: str, fields: dict) -> dict:
     return {"days": int(row["n"] or 0), "first": row["first"], "last": row["last"]}
 
 
+def fund_snap_history(ticker: str, limit: int = 30) -> list[dict]:
+    """Cuplikan terbaru dulu. Kosong bila emiten belum pernah disimpan."""
+    init()
+    code = (ticker or "").upper().strip()
+    try:
+        limit = max(1, min(int(limit), 120))
+    except (TypeError, ValueError):
+        limit = 30
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT day, pe, pb, roe, der, eps, price FROM fund_snap"
+            " WHERE ticker=? ORDER BY day DESC LIMIT ?",
+            (code, limit),
+        ).fetchall()
+    return [
+        {"day": r["day"], "pe": r["pe"], "pb": r["pb"], "roe": r["roe"],
+         "der": r["der"], "eps": r["eps"], "price": r["price"]}
+        for r in rows
+    ]
+
+
 def add_signal(payload: dict, source: str = "manual") -> None:
     with _lock, _conn() as c:
         c.execute(

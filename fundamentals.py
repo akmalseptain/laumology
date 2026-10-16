@@ -566,6 +566,7 @@ def get_fundamentals(ticker: str) -> dict:
                 + (f", mulai {span['first']}" if span.get("first") else "")
                 + ". Belum dipakai untuk backtest."
             ]
+            out["snap_history"] = store.fund_snap_history(ticker)
         except Exception:
             pass
     ttl = _TTL if out["available"] else _NEGATIVE_TTL

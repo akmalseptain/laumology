@@ -387,6 +387,14 @@ async function loadFundamentalTab(){
       : (priceOnly ? ' <span class="badge" style="color:var(--muted)">Hanya harga tersedia; rasio fundamental kosong</span>' : '');
     const num=(v,d=2)=> v==null?"-":Number(v).toFixed(d);
     const pct=(v)=> v==null?"-":(Number(v)*100).toFixed(2)+"%";
+    function snapTable(rows){
+      if(!rows || !rows.length) return "";
+      var body = rows.slice(0, 14).map(function(r){
+        return '<tr><td>'+escapeHtml(r.day||"")+'</td><td class="mono">'+num(r.pe)+'</td><td class="mono">'+num(r.pb)+'</td><td class="mono">'+pct(r.roe)+'</td></tr>';
+      }).join("");
+      return '<div class="sec"><span class="badge">Arsip harian</span></div>'
+        + '<table><thead><tr><th>Tanggal</th><th>PER</th><th>PBV</th><th>ROE</th></tr></thead><tbody>'+body+'</tbody></table>';
+    }
     const dy=(v)=> v==null?"-":Number(v).toFixed(2)+"%";
     const cap=(v)=> v==null?"-":(Math.abs(Number(v))>=1e12? (Number(v)/1e12).toFixed(2)+" T": (Number(v)/1e9).toFixed(2)+" M");
     const rp=(v)=> v==null?"-":idr(v);
@@ -442,6 +450,7 @@ async function loadFundamentalTab(){
       + m("52w Low", rp(f.low_52w), "v-up")
       + m("Posisi 52w", rangePos==null?"-":rangePos+"%")
       + '</div>'
+      + snapTable(f.snap_history)
       + '<p class="note">'+(unavailable?'Data fundamental tidak tersedia dari sumber (kosong/rate-limit); angka "-" bukan berarti nol. ':(priceOnly?'Hanya harga tersedia dari sumber; rasio fundamental (PER/PBV/ROE) kosong. ':''))
       + escapeHtml(f.valuation_note||"")+" "+escapeHtml(f.quality_note||"")
       + ((f.checks&&f.checks.length)?" "+f.checks.map(escapeHtml).join(" "):"")
