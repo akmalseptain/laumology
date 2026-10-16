@@ -1,5 +1,9 @@
 /* ---------- Musyawarah (multi-agent consensus) ---------- */
 $("#myRun").onclick = runMusyawarah;
+if($("#myTicker")) $("#myTicker").addEventListener("input", function(){
+  var el=document.getElementById("myIdle"); if(!el) return;
+  el.textContent=(($("#myTicker").value||"").trim().toUpperCase())||"—";
+});
 async function runMusyawarah(){
   const t=($("#myTicker").value||"").trim().toUpperCase(); if(!t) return;
   const useLlm = $("#myLlm") && $("#myLlm").checked;
@@ -14,23 +18,36 @@ async function runMusyawarah(){
     const wu=d.weights_used||{};
     const wlabel=Object.keys(wu).length?Object.keys(wu).map(k=>k[0].toUpperCase()+k.slice(1)+' '+(wu[k]*100).toFixed(0)+'%').join(' · '):'bobot 40/30/15/15';
     const vrow=(label,val)=>'<div class="check" style="justify-content:space-between"><span>'+label+'</span><span class="mono '+(val>0?'v-up':(val<0?'v-red':'v-muted'))+'">'+(val>0?'+':'')+Number(val).toFixed(2)+'</span></div>';
+    const cmp=(d.external&&d.external.x_compare)||null;
+    const alignCls = cmp && cmp.alignment==="searah" ? "v-up" : (cmp && cmp.alignment==="berlawanan" ? "v-red" : "v-muted");
+    const cmpHtml = cmp ? (
+      '<div class="cmp"><div class="sec"><span class="badge">Komparasi '+escapeHtml(cmp.ticker||t)+'</span></div>'
+      + '<div class="cmp-row">'
+      + '<div><div class="k">Sinyal kita</div><div class="v">'+escapeHtml(cmp.our_signal||d.decision||"-")+'</div></div>'
+      + '<div><div class="k">Suara X</div><div class="v">'+escapeHtml(cmp.theirs||"-")+'</div></div>'
+      + '<div><div class="k">Hasil</div><div class="v '+alignCls+'">'+escapeHtml(cmp.alignment||"-")+'</div></div>'
+      + '</div><p class="note">'+escapeHtml(cmp.note||"")+'</p></div>'
+    ) : '';
     window.__myText = d.text;
     $("#myResult").innerHTML =
-      '<div class="grid">'
-      +'<div class="metric hl"><div class="k">Keputusan</div><div class="v '+cls+'">'+d.decision+'</div></div>'
-      +'<div class="metric"><div class="k">Conviction</div><div class="v v-white">'+d.conviction+'%</div></div>'
-      +'<div class="metric"><div class="k">Konsensus</div><div class="v '+(d.consensus>0?'v-up':(d.consensus<0?'v-red':'v-muted'))+'">'+(d.consensus>0?'+':'')+d.consensus+'</div></div>'
-      +'<div class="metric"><div class="k">Prob. ML</div><div class="v v-muted">'+(d.ml_prob_up!=null?(d.ml_prob_up*100).toFixed(1)+'%':'-')+'</div></div>'
+      '<div class="cmp-row">'
+      +'<div><div class="k">Keputusan</div><div class="v '+cls+'">'+escapeHtml(d.decision)+'</div></div>'
+      +'<div><div class="k">Konsensus</div><div class="v '+(d.consensus>0?'v-up':(d.consensus<0?'v-red':'v-muted'))+'">'+(d.consensus>0?'+':'')+d.consensus+'</div></div>'
+      +'<div><div class="k">Conviction</div><div class="v">'+d.conviction+'%</div></div>'
+      +'</div>'
+      +'<div class="grid" style="margin-top:12px">'
+      +'<div class="metric"><div class="k">Prob. model</div><div class="v v-muted">'+(d.ml_prob_up!=null?(d.ml_prob_up*100).toFixed(1)+'%':'belum ada')+'</div></div>'
       +'<div class="metric"><div class="k">Risk/Reward</div><div class="v v-muted">1:'+d.rr+'</div></div>'
-      +'<div class="metric"><div class="k">Bandarmologi</div><div class="v '+(bstat==='DISTRIBUSI MASIF'?'v-red':'v-muted')+'">'+bstat+'</div></div>'
-      +'<div class="metric"><div class="k">Entry</div><div class="v v-white">'+idr(d.entry)+'</div></div>'
+      +'<div class="metric"><div class="k">Bandarmologi</div><div class="v '+(bstat==='DISTRIBUSI MASIF'?'v-red':'v-muted')+'">'+escapeHtml(bstat)+'</div></div>'
+      +'<div class="metric"><div class="k">Entry</div><div class="v">'+idr(d.entry)+'</div></div>'
       +'<div class="metric"><div class="k">Target</div><div class="v v-up">'+idr(d.target)+'</div></div>'
       +'</div>'
-      + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Voting agen ('+wlabel+')'+(d.has_financials===false?' <span class="badge" style="color:var(--muted)">fundamental dikecualikan: rasio tidak tersedia</span>':'')+'</div>'
-      + '<div class="checks" style="grid-template-columns:1fr 1fr">'+vrow('@technical',v.technical||0)+vrow('@bandarmologi',v.bandarmologi||0)+vrow('@fundamental',v.fundamental||0)+vrow('@sentiment',v.sentiment||0)+'</div>'
-      + (d.external && d.external.summary ? '<div class="mono" style="margin-top:12px;font-size:12px;line-height:1.6"><b>@luar</b> '+escapeHtml(d.external.label||"")+' — '+escapeHtml(d.external.summary)+'</div>' : '')
-      + '<div class="mono" style="background:var(--surface);border:1px solid var(--border);color:var(--foreground);border-radius:8px;padding:14px;margin-top:16px;white-space:pre-wrap;font-size:12px;line-height:1.7;overflow-x:auto">'+String(d.text).replace(/</g,"&lt;")+'</div>'
-      + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Engine: '+d.engine+'</div>';
+      + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Vote agen ('+escapeHtml(wlabel)+')'+(d.has_financials===false?' · fundamental dikecualikan':'')+'</div>'
+      + '<div class="my-votes">'+vrow('@technical',v.technical||0)+vrow('@bandarmologi',v.bandarmologi||0)+vrow('@fundamental',v.fundamental||0)+vrow('@sentiment',v.sentiment||0)+'</div>'
+      + (d.external && d.external.summary ? '<p class="note" style="margin-top:12px"><b>@luar</b> '+escapeHtml(d.external.label||"")+' — '+escapeHtml(d.external.summary)+'</p>' : '')
+      + cmpHtml
+      + '<div class="my-log">'+String(d.text).replace(/</g,"&lt;")+'</div>'
+      + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Engine: '+escapeHtml(d.engine||"")+'</div>';
     showStatus("Selesai");
   }catch(e){ $("#myResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
   finally{ $("#myRun").disabled=false; }

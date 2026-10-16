@@ -449,6 +449,9 @@ body.more-sheet-open{overflow:hidden}
 .xposts li{display:flex;gap:10px;align-items:baseline;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.45}
 .xposts li:last-child{border-bottom:0}
 .tag-side{flex:0 0 auto;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.my-votes{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);margin-top:12px}
+.my-votes .check{margin:0;padding:8px 10px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);border-radius:0;background:transparent}
+.my-log{border:1px solid var(--border);margin-top:14px;padding:14px;white-space:pre-wrap;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:1.65;overflow-x:auto}
 
 /* ---------------- Utilities ---------------- */
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
