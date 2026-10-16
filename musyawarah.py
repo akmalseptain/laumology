@@ -287,17 +287,25 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     except Exception:
         luar = {"status": "tidak_tersedia", "label": "Belum bisa dinilai",
                 "summary": "Tekanan luar belum bisa dinilai.", "drivers": []}
-    luar_summary = luar.get("summary") or "Tekanan luar belum bisa dinilai."
     cmp = luar.get("x_compare") if isinstance(luar.get("x_compare"), dict) else {}
+    luar_bits = []
     if cmp.get("note"):
-        luar_summary += f" Komparasi X: {cmp.get('alignment')}. {cmp.get('note')}"
+        luar_bits.append(f"Komparasi X: {cmp.get('alignment')}. {cmp.get('note')}")
+    luar_bits.append(luar.get("summary") or "Tekanan luar belum bisa dinilai.")
+    luar_summary = " ".join(luar_bits)
 
     # --- ML probability (quant input) ---
     ml_prob = None
+    ml_base = None
+    ml_acc = None
+    ml_error = None
     try:
-        ml_prob = float(ml.predict(df, ticker, horizon=settings.swing_horizon_days)["current_prob_up"])
-    except Exception:
-        ml_prob = None
+        pred = ml.predict(df, ticker, horizon=settings.swing_horizon_days)
+        ml_prob = float(pred["current_prob_up"])
+        ml_base = pred.get("base_rate")
+        ml_acc = pred.get("test_accuracy")
+    except Exception as exc:
+        ml_error = str(exc)[:160]
 
     # --- Agent votes (-1..+1) + weighted consensus ---
     sig_vote = 1.0 if a.signal in ("BUY", "STRONG BUY") else (
@@ -469,6 +477,9 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
         "fundamental_available": fund_available,
         "has_financials": fund_has_financials,
         "ml_prob_up": ml_prob,
+        "ml_base_rate": ml_base,
+        "ml_test_accuracy": ml_acc,
+        "ml_error": ml_error,
         "vetoes": vetoes,
         "engine": engine,
         "decision_engine": {

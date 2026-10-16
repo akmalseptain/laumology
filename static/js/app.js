@@ -36,12 +36,17 @@ async function runMusyawarah(){
       +'<div><div class="k">Conviction</div><div class="v">'+d.conviction+'%</div></div>'
       +'</div>'
       +'<div class="grid" style="margin-top:12px">'
-      +'<div class="metric"><div class="k">Prob. model</div><div class="v v-muted">'+(d.ml_prob_up!=null?(d.ml_prob_up*100).toFixed(1)+'%':'belum ada')+'</div></div>'
+      +'<div class="metric"><div class="k">Prob. model</div><div class="v v-muted">'+(d.ml_prob_up!=null?(d.ml_prob_up*100).toFixed(1)+'%':'tidak jalan')+'</div></div>'
       +'<div class="metric"><div class="k">Risk/Reward</div><div class="v v-muted">1:'+d.rr+'</div></div>'
       +'<div class="metric"><div class="k">Bandarmologi</div><div class="v '+(bstat==='DISTRIBUSI MASIF'?'v-red':'v-muted')+'">'+escapeHtml(bstat)+'</div></div>'
       +'<div class="metric"><div class="k">Entry</div><div class="v">'+idr(d.entry)+'</div></div>'
       +'<div class="metric"><div class="k">Target</div><div class="v v-up">'+idr(d.target)+'</div></div>'
       +'</div>'
+      + '<p class="note">'+escapeHtml(d.ml_prob_up!=null
+          ? ('Model uji '+((d.ml_test_accuracy!=null)?(d.ml_test_accuracy*100).toFixed(0)+'%':'-')
+             +', dasar historis '+((d.ml_base_rate!=null)?(d.ml_base_rate*100).toFixed(0)+'%':'-')+'.')
+          : ('Model tidak jalan: '+(d.ml_error||'tidak tersedia')+'.'))
+        +' Bandarmologi dari volume, OBV, dan MFI, bukan transaksi sekuritas.</p>'
       + '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:16px 0 4px">Vote agen ('+escapeHtml(wlabel)+')'+(d.has_financials===false?' · fundamental dikecualikan':'')+'</div>'
       + '<div class="my-votes">'+vrow('@technical',v.technical||0)+vrow('@bandarmologi',v.bandarmologi||0)+vrow('@fundamental',v.fundamental||0)+vrow('@sentiment',v.sentiment||0)+'</div>'
       + (d.external && d.external.summary ? '<p class="note" style="margin-top:12px"><b>@luar</b> '+escapeHtml(d.external.label||"")+' — '+escapeHtml(d.external.summary)+'</p>' : '')
