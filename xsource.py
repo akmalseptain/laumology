@@ -79,8 +79,8 @@ def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "")
         title = str(post.get("title") or "")
         side = post.get("stance") if post.get("stance") in counts else stance_of(title)
         counts[side] += 1
-        if side not in ("netral",) and len(samples) < 8:
-            samples.append(title[:160])
+        if len(samples) < 8:
+            samples.append(f"[{side}] {title[:150]}")
     voiced = {k: counts[k] for k in ("beli", "jual", "tahan")}
     nama = subject or "emiten ini"
     if not posts:
@@ -90,7 +90,10 @@ def compare_signal(our_signal: str | None, posts: list[dict], subject: str = "")
         note = (f"Pos X tentang {nama} membahas aksi korporasi "
                 f"({counts['peristiwa']} dari {len(posts)}), bukan ajakan beli atau jual.")
     elif max(voiced.values()) == 0:
-        theirs, note = "netral", f"Ada pos X tentang {nama}, tetapi arah beli atau jualnya tidak terbaca."
+        theirs, note = "netral", (
+            f"{len(posts)} pos menyebut {nama}. Tidak ada kata beli atau jual. "
+            "Judulnya tercantum di bawah, bukan dibuang."
+        )
     else:
         theirs = max(voiced, key=voiced.get)
         if list(voiced.values()).count(voiced[theirs]) > 1:
@@ -249,6 +252,7 @@ def headlines_for(ticker: str) -> tuple[list[dict], bool]:
         if cached and now - cached[0] < _TTL:
             return list(cached[1]), bool(cached[2])
     queries = (
+        f"{code} saham site:x.com",
         f"{code} (beli OR jual OR tahan OR IHSG OR saham) site:x.com",
         f"{code} (analisis OR target OR support OR resistance) site:x.com",
     )
