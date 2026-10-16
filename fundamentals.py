@@ -551,6 +551,23 @@ def get_fundamentals(ticker: str) -> dict:
         if flag not in suspects:
             suspects.append(flag)
     out["suspect"] = suspects
+    if out["has_financials"]:
+        try:
+            import store
+            span = store.save_fund_snap(ticker, {
+                "pe": out.get("pe"), "pb": out.get("pb"), "roe": out.get("roe"),
+                "der": out.get("der"), "eps": out.get("eps"), "price": out.get("price"),
+            })
+            out["snap_days"] = span["days"]
+            out["snap_first"] = span["first"]
+            out["snap_last"] = span["last"]
+            out["checks"] = list(out.get("checks") or []) + [
+                f"Arsip fundamental {span['days']} hari"
+                + (f", mulai {span['first']}" if span.get("first") else "")
+                + ". Belum dipakai untuk backtest."
+            ]
+        except Exception:
+            pass
     ttl = _TTL if out["available"] else _NEGATIVE_TTL
     with _cache_lock:
         _cache[yt] = (now, out, ttl)

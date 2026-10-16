@@ -3034,6 +3034,13 @@ class TestFundamentalsSanitize(unittest.TestCase):
         self.assertTrue(out["has_financials"])
         self.assertTrue(any("laporan" in note for note in out["checks"]))
 
+    def test_fund_snap_keeps_one_row_per_day(self):
+        import store
+        store.save_fund_snap("ZZSNAP", {"pe": 10.0, "pb": 1.2, "roe": 0.2, "eps": 100.0, "price": 1000.0})
+        again = store.save_fund_snap("ZZSNAP", {"pe": 11.0, "pb": 1.2, "roe": 0.2, "eps": 100.0, "price": 1100.0})
+        self.assertGreaterEqual(again["days"], 1)
+        self.assertEqual(again["first"], again["last"])
+
     def test_partial_info_not_available_and_short_ttl(self):
         from unittest.mock import patch
 

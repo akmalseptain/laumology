@@ -44,12 +44,41 @@ def init() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_signals_ticker ON signals(ticker);
             CREATE INDEX IF NOT EXISTS idx_signals_ts ON signals(ts);
+            CREATE TABLE IF NOT EXISTS fund_snap(
+              day TEXT NOT NULL,
+              ticker TEXT NOT NULL,
+              pe REAL, pb REAL, roe REAL, der REAL, eps REAL, price REAL,
+              PRIMARY KEY(day, ticker)
+            );
             """
         )
 
 
 def _now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def save_fund_snap(ticker: str, fields: dict) -> dict:
+    """Simpan satu cuplikan fundamental per emiten per hari. Tidak menimpa hari lain."""
+    init()
+    day = time.strftime("%Y-%m-%d")
+    code = (ticker or "").upper().strip()
+    with _lock, _conn() as c:
+        c.execute(
+            "INSERT INTO fund_snap(day,ticker,pe,pb,roe,der,eps,price) VALUES(?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(day,ticker) DO UPDATE SET pe=excluded.pe, pb=excluded.pb,"
+            " roe=excluded.roe, der=excluded.der, eps=excluded.eps, price=excluded.price",
+            (
+                day, code,
+                fields.get("pe"), fields.get("pb"), fields.get("roe"),
+                fields.get("der"), fields.get("eps"), fields.get("price"),
+            ),
+        )
+        row = c.execute(
+            "SELECT COUNT(*) AS n, MIN(day) AS first, MAX(day) AS last FROM fund_snap WHERE ticker=?",
+            (code,),
+        ).fetchone()
+    return {"days": int(row["n"] or 0), "first": row["first"], "last": row["last"]}
 
 
 def add_signal(payload: dict, source: str = "manual") -> None:
