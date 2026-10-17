@@ -37,3 +37,37 @@ def dispatch(text: str, payload: dict | None = None) -> dict:
     if not hook:
         return {"webhook": {"ok": False, "reason": "not_configured"}}
     return {"webhook": send_webhook(hook, payload or {"text": text})}
+
+
+def signal_alert(row: dict) -> dict:
+    """Kirim satu sinyal sebagai alert terstruktur ke webhook (opsional).
+
+    ``row`` adalah dict sinyal ala baris DB (ticker, signal, action, score,
+    confidence, grade, price, entry, stop_loss, tp1, source, ts). Payload
+    dikirim sebagai field terstruktur supaya penerima (bot/relay) bisa
+    memformat sendiri, bukan cuma teks yang sudah dirangkai.
+    """
+    def _num(v):
+        return None if v is None else float(v)
+
+    payload = {
+        "type": "signal",
+        "ticker": row.get("ticker"),
+        "signal": row.get("signal"),
+        "action": row.get("action"),
+        "score": row.get("score"),
+        "confidence": row.get("confidence"),
+        "grade": row.get("grade"),
+        "price": _num(row.get("price")),
+        "entry": _num(row.get("entry")),
+        "stop_loss": _num(row.get("stop_loss")),
+        "tp1": _num(row.get("tp1")),
+        "source": row.get("source"),
+        "ts": row.get("ts"),
+    }
+    text = (
+        f"[{payload['signal']}] {payload['ticker']} | skor {payload['score']} "
+        f"conf {payload['confidence']}% | harga {payload['price']:,.0f} "
+        f"| SL {payload['stop_loss']:,.0f} TP1 {payload['tp1']:,.0f}"
+    )
+    return dispatch(text, payload)

@@ -46,10 +46,13 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
     except Exception:
         pass
     for a in buys:
-        text = (f"[{a.signal}] {a.ticker} | skor {a.score} conf {a.confidence}% "
-                f"| harga {a.price:,.0f} | SL {a.stop_loss:,.0f} TP1 {a.tp1:,.0f}")
-        notify.dispatch(text, {"ticker": a.ticker, "signal": a.signal, "score": a.score})
-        print(f"ALERT {text}")
+        notify.signal_alert({
+            "ticker": a.ticker, "signal": a.signal, "action": a.action,
+            "score": a.score, "confidence": a.confidence, "grade": a.grade,
+            "price": a.price, "entry": a.entry, "stop_loss": a.stop_loss, "tp1": a.tp1,
+            "source": "scan",
+        })
+        print(f"ALERT {a.ticker} {a.signal} skor {a.score} conf {a.confidence}%")
     return len(buys)
 
 
