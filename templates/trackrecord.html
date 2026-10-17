@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Record — LAUMOLOGY</title>
+<meta name="description" content="Track record transparan LAUMOLOGY: setiap sinyal dan hasil paper trading, tanpa angka yang disembunyikan.">
+<style>
+  :root {
+    --bg: #0b1220; --card: #111a2e; --line: #1d2a44;
+    --text: #e8edf5; --muted: #8fa0b8;
+    --green: #2ecc71; --red: #e74c3c; --amber: #f5a623; --blue: #4aa3ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: .5px; }
+  h2 { font-size: 17px; margin: 34px 0 12px; color: var(--blue); letter-spacing: .3px; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .kpi .lab { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .8px; }
+  .kpi .val { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .pos { color: var(--green); } .neg { color: var(--red); } .neu { color: var(--amber); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+  .b-buy { background: rgba(46,204,113,.15); color: var(--green); }
+  .b-sell { background: rgba(231,76,60,.15); color: var(--red); }
+  .b-open { background: rgba(74,163,255,.15); color: var(--blue); }
+  .empty { color: var(--muted); font-style: italic; padding: 14px 4px; }
+  .disc { margin-top: 40px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 16px; }
+  svg curve { stroke: var(--blue); }
+  a.back { color: var(--blue); text-decoration: none; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">&#8592; Beranda LAUMOLOGY</a>
+  <h1>Track Record</h1>
+  <p class="sub">Setiap sinyal yang pernah dikeluarkan sistem dan hasil paper trading-nya.
+    Tidak ada angka yang disembunyikan: kalau rugi, tampil rugi.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Sinyal tercatat</div><div class="val">{{ n_signals }}</div></div>
+    <div class="kpi"><div class="lab">Posisi ditutup</div><div class="val">{{ n_closed }}</div></div>
+    <div class="kpi"><div class="lab">Win rate</div>
+      <div class="val {{ 'pos' if win_rate >= 0.5 else ('neu' if win_rate > 0 else 'neu') }}">{{ "%.0f"|format(win_rate * 100) }}%</div></div>
+    <div class="kpi"><div class="lab">Expectancy / trade</div>
+      <div class="val {{ 'pos' if expectancy_pct > 0 else ('neg' if expectancy_pct < 0 else 'neu') }}">{{ "%+.2f"|format(expectancy_pct) }}%</div></div>
+    <div class="kpi"><div class="lab">Payoff (avg win/loss)</div><div class="val">{{ "%.2f"|format(payoff) }}</div></div>
+    <div class="kpi"><div class="lab">Total PnL paper</div>
+      <div class="val {{ 'pos' if total_pnl > 0 else ('neg' if total_pnl < 0 else 'neu') }}">{{ "%+,.0f"|format(total_pnl) }}</div></div>
+  </div>
+
+  <h2>Kurva ekuitas (paper trading, ternormalisasi 100)</h2>
+  <div class="card">
+    {% if equity_curve|length > 1 %}
+      {% set w, h, pad = 720, 220, 24 %}
+      {% set xs = range(equity_curve|length) %}
+      {% set minv = equity_curve|min %} {% set maxv = equity_curve|max %}
+      {% set span = maxv - minv if maxv > minv else 1 %}
+      <svg viewBox="0 0 {{ w }} {{ h }}" width="100%" height="{{ h }}" role="img" aria-label="Kurva ekuitas paper trading">
+        <line x1="{{ pad }}" y1="{{ h - pad }}" x2="{{ w - pad }}" y2="{{ h - pad }}" stroke="#1d2a44"/>
+        <polyline fill="none" stroke="#4aa3ff" stroke-width="2.5"
+          points="{% for i in xs %}{{ pad + (w - 2*pad) * (i / (xs|length - 1)) if xs|length > 1 else pad }},{{ h - pad - (h - 2*pad) * ((equity_curve[i] - minv) / span) }} {% endfor %}"/>
+        <text x="{{ pad }}" y="{{ h - 6 }}" fill="#8fa0b8" font-size="11">awal</text>
+        <text x="{{ w - pad }}" y="{{ h - 6 }}" fill="#8fa0b8" font-size="11" text-anchor="end">terbaru</text>
+      </svg>
+    {% else %}
+      <p class="empty">Belum ada posisi yang ditutup — kurva ekuitas akan muncul setelah trade pertama selesai.</p>
+    {% endif %}
+  </div>
+
+  <h2>Posisi ditutup ({{ n_closed }})</h2>
+  <div class="card">
+    {% if closed_trades %}
+    <table>
+      <thead><tr><th>Waktu tutup</th><th>Kode</th><th>Arah</th><th>Entry</th><th>Exit</th><th>Return</th><th>PnL</th></tr></thead>
+      <tbody>
+      {% for t in closed_trades %}
+        {% set r = t.exit and t.entry %}
+        <tr>
+          <td>{{ t.closed or t.opened or "?" }}</td>
+          <td><strong>{{ t.ticker }}</strong></td>
+          <td><span class="badge {{ 'b-sell' if (t.side or 'BUY')|upper.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
+          <td>{{ "%.2f"|format(t.entry) if t.entry else "?" }}</td>
+          <td>{{ "%.2f"|format(t.exit) if t.exit else "?" }}</td>
+          {% if t.exit and t.entry %}
+            {% set raw = (t.exit - t.entry) / t.entry * 100.0 %}
+            {% set ret = -raw if (t.side or 'BUY')|upper.startswith('SELL') else raw %}
+            <td class="{{ 'pos' if ret > 0 else ('neg' if ret < 0 else 'neu') }}">{{ "%+.2f"|format(ret) }}%</td>
+          {% else %}<td>?</td>{% endif %}
+          <td class="{{ 'pos' if t.pnl and t.pnl > 0 else ('neg' if t.pnl and t.pnl < 0 else 'neu') }}">{{ "%+,.0f"|format(t.pnl) if t.pnl is not none else "?" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Belum ada posisi yang ditutup.</p>{% endif %}
+  </div>
+
+  <h2>Posisi berjalan ({{ n_open }})</h2>
+  <div class="card">
+    {% if open_trades %}
+    <table>
+      <thead><tr><th>Dibuka</th><th>Kode</th><th>Arah</th><th>Entry</th><th>Stop</th><th>Target</th></tr></thead>
+      <tbody>
+      {% for t in open_trades %}
+        <tr>
+          <td>{{ t.opened or "?" }}</td>
+          <td><strong>{{ t.ticker }}</strong></td>
+          <td><span class="badge {{ 'b-sell' if (t.side or 'BUY')|upper.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
+          <td>{{ "%.2f"|format(t.entry) if t.entry else "?" }}</td>
+          <td>{{ "%.2f"|format(t.stop) if t.stop else "?" }}</td>
+          <td>{{ "%.2f"|format(t.tp) if t.tp else "?" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Tidak ada posisi berjalan.</p>{% endif %}
+  </div>
+
+  <h2>Rekap per saham</h2>
+  <div class="card">
+    {% if per_ticker %}
+    <table>
+      <thead><tr><th>Kode</th><th>Trade</th><th>Menang</th><th>Win rate</th><th>Total return</th></tr></thead>
+      <tbody>
+      {% for s in per_ticker %}
+        <tr>
+          <td><strong>{{ s.ticker }}</strong></td>
+          <td>{{ s.n }}</td>
+          <td>{{ s.wins }}</td>
+          <td>{{ "%.0f"|format(s.wins / s.n * 100) }}%</td>
+          <td class="{{ 'pos' if s.ret > 0 else ('neg' if s.ret < 0 else 'neu') }}">{{ "%+.2f"|format(s.ret) }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Belum ada rekap per saham.</p>{% endif %}
+  </div>
+
+  <h2>Riwayat sinyal terbaru ({{ n_signals }} tercatat)</h2>
+  <div class="card">
+    {% if signals %}
+    <table>
+      <thead><tr><th>Waktu</th><th>Kode</th><th>Aksi</th><th>Skor</th><th>Confidence</th><th>Grade</th><th>Harga saat sinyal</th><th>Sumber</th></tr></thead>
+      <tbody>
+      {% for s in signals %}
+        <tr>
+          <td>{{ s.ts or "?" }}</td>
+          <td><strong>{{ s.ticker }}</strong></td>
+          <td><span class="badge {{ 'b-sell' if (s.action or s.signal or '')|upper.startswith('SELL') else 'b-buy' }}">{{ s.action or s.signal or "?" }}</span></td>
+          <td>{{ s.score if s.score is not none else "?" }}</td>
+          <td>{{ s.confidence if s.confidence is not none else "?" }}</td>
+          <td>{{ s.grade or "-" }}</td>
+          <td>{{ "%.2f"|format(s.price) if s.price else "?" }}</td>
+          <td>{{ s.source or "-" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Belum ada sinyal tercatat.</p>{% endif %}
+  </div>
+
+  <p class="disc">
+    Angka pada halaman ini dihitung dari paper trading internal LAUMOLOGY — bukan rekomendasi
+    dan bukan hasil trading uang sungguhan. Data historis tidak menjamin hasil di masa depan.
+    API publik: <code>/api/trackrecord</code>.
+  </p>
+</div>
+</body>
+</html>
