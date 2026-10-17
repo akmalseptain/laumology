@@ -34,6 +34,7 @@ CANDIDATE_FACTORS = [
     "harga>hma20", "hma20_naik", "harga>kama", "kama_naik",
     "aroon_bull", "vortex_bull", "ao>0", "ao_naik", "uo_bull", "rvol>1.2",
     "williams_r_bull", "stoch_k_cross", "cci_bull", "efi_bull", "gk_vol_rendah",
+    "psar_bull", "harga>ema50", "ema21>ema50", "ha_bull", "bb_pct>0.5",
 ]
 
 CANDIDATE_LABELS = {
@@ -52,12 +53,21 @@ CANDIDATE_LABELS = {
     "cci_bull": "CCI > 100 (tren kuat)",
     "efi_bull": "Elder Force Index > signal",
     "gk_vol_rendah": "Volatilitas GK < median 60-bar",
+    "psar_bull": "Parabolic SAR di bawah harga",
+    "harga>ema50": "Harga > EMA50",
+    "ema21>ema50": "EMA21 di atas EMA50",
+    "ha_bull": "Heikin Ashi naik",
+    "bb_pct>0.5": "Bollinger %B > 0.5 (di atas pita tengah)",
 }
 
 # Ambang boolean kandidat baru — didokumentasikan (bukan angka sihir):
 # - Williams %R ∈ [-100, 0]; > -50 berarti close di separuh atas rentang 14-bar.
 # - CCI > 100 = tren naik kuat (klasik), beda dari `cci > 0` yang sudah di skor inti.
 # - gk_vol dibanding median 60-bar dirinya sendiri (adaptif, tanpa ambang absolut).
+# - psar_bull: arah Wilder = 1 (titik SAR di bawah harga). AF 0.02 / 0.20.
+# - EMA50 dan EMA21 memakai rumus EMA yang sama dengan ema9/ema21.
+# - ha_bull: close Heikin Ashi di atas open-nya (lilin naik).
+# - bb_pct>0.5: harga di atas garis tengah Bollinger, bukan di luar pita.
 WILLIAMS_R_BULL = -50.0
 CCI_BULL = 100.0
 GK_VOL_WINDOW = 60
@@ -188,5 +198,10 @@ def candidate_frame(d: pd.DataFrame) -> pd.DataFrame:
     f["gk_vol_rendah"] = d["gk_vol"] < d["gk_vol"].rolling(
         GK_VOL_WINDOW, min_periods=GK_VOL_WINDOW // 3
     ).median()
+    f["psar_bull"] = d["psar_dir"] == 1
+    f["harga>ema50"] = close > d["ema50"]
+    f["ema21>ema50"] = d["ema21"] > d["ema50"]
+    f["ha_bull"] = d["ha_close"] > d["ha_open"]
+    f["bb_pct>0.5"] = d["bb_pct"] > 0.5
     f["confidence"] = f[CANDIDATE_FACTORS].sum(axis=1) / len(CANDIDATE_FACTORS) * 100.0
     return f

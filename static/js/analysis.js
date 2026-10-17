@@ -254,6 +254,10 @@ function render(d, opts={}){
         <div class="metric"><div class="k">Choppiness</div><div class="v ${d.chop>=61.8?'v-red':(d.chop<38?'v-up':'v-muted')}">${fmt(d.chop,1)}</div></div>
         <div class="metric"><div class="k">MTF (D/W/M)</div><div class="v v-muted">${d.mtf||'-'}</div></div>
         <div class="metric"><div class="k">RVOL</div><div class="v ${d.rvol>=1.2?'v-up':'v-muted'}">${fmt(d.rvol,2)}x</div></div>
+        <div class="metric"><div class="k">Parabolic SAR</div><div class="v ${d.psar_up?'v-up':'v-red'}">${d.psar_up?'DI BAWAH':'DI ATAS'}</div></div>
+        <div class="metric"><div class="k">EMA50</div><div class="v ${(d.ema50&&d.price>d.ema50)?'v-up':'v-muted'}">${fmt(d.ema50,0)}</div></div>
+        <div class="metric"><div class="k">Bollinger %B</div><div class="v v-muted">${fmt(d.bb_pct,2)}</div></div>
+        <div class="metric"><div class="k">Heikin Ashi</div><div class="v ${d.ha_bull?'v-up':'v-red'}">${d.ha_bull?'NAIK':'TURUN'}</div></div>
       </div>`)}
     ${acc("05","Level Kunci", `
       <div class="grid">
@@ -365,7 +369,7 @@ function renderScanRows(dataRows, totalUniverse, scanned){
     </tr>`;
   }).join("");
   $("#scResult").innerHTML = `<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">${dataRows.length} hasil dari ${totalUniverse} saham (dipindai ${scanned})${dataRows.length>shown.length?' · menampilkan '+shown.length:''} &middot; klik baris untuk detail ${dataRows.length>shown.length?'<button class="btn ghost sm" data-action="scShowAll" style="margin-left:8px">Tampilkan semua</button>':''}</div>
-    <div style="overflow-x:auto"><table>
+    <div style="overflow-x:auto"><table data-keep-scroll>
     <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Reko</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }

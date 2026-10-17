@@ -23,6 +23,9 @@ function exportCsv(){
     ["Aroon Up", d.aroon_up], ["Aroon Down", d.aroon_down],
     ["Vortex+", d.vortex_plus], ["Vortex-", d.vortex_minus],
     ["Awesome Osc", d.ao], ["Ultimate Osc", d.uo], ["RVOL", d.rvol],
+    ["Parabolic SAR", d.psar], ["PSAR di bawah harga", d.psar_up ? "YA" : "TIDAK"],
+    ["EMA50", d.ema50], ["Bollinger %B", d.bb_pct],
+    ["Heikin Ashi naik", d.ha_bull ? "YA" : "TIDAK"],
     ["POC", d.vp ? d.vp.poc : ""], ["VAH", d.vp ? d.vp.vah : ""], ["VAL", d.vp ? d.vp.val : ""],
     ["Support", d.support], ["Resistance", d.resistance],
   ];

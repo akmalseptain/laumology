@@ -49,7 +49,8 @@ class TestIndicators(unittest.TestCase):
         d = indicators.add_indicators(make_df())
         for col in ["ma20", "ma50", "ma200", "rsi", "macd", "atr", "supertrend",
                     "squeeze_on", "sqz_mom", "chop", "adr_pct", "avwap",
-                    "dc_upper", "dc_lower", "efi", "gk_vol"]:
+                    "dc_upper", "dc_lower", "efi", "gk_vol",
+                    "psar", "psar_dir", "ema50", "bb_pct", "ha_open", "ha_close"]:
             self.assertIn(col, d.columns, col)
 
     def test_pivot_no_lookahead(self):
@@ -168,7 +169,30 @@ class TestSignals(unittest.TestCase):
         self.assertGreaterEqual(a.aroon_up, 0)
         self.assertGreaterEqual(a.vortex_plus, 0)
         self.assertGreaterEqual(a.rvol, 0)
+        self.assertGreater(a.ema50, 0)
+        self.assertGreater(a.psar, 0)
+        self.assertIsInstance(a.psar_up, bool)
+        self.assertIsInstance(a.ha_bull, bool)
+        self.assertTrue(np.isfinite(a.bb_pct))
         self.assertIsInstance(a.market_regime, str)
+
+    def test_psar_follows_clear_trend(self):
+        import indicators
+        idx = pd.date_range("2024-01-02", periods=40, freq="B")
+        up = np.linspace(100.0, 180.0, 40)
+        df = pd.DataFrame({
+            "Open": up, "High": up + 1.0, "Low": up - 1.0, "Close": up, "Volume": 1_000.0,
+        }, index=idx)
+        d = indicators.add_indicators(df)
+        self.assertEqual(int(d["psar_dir"].iloc[-1]), 1)
+        self.assertLess(float(d["psar"].iloc[-1]), float(d["Close"].iloc[-1]))
+        down = up[::-1].copy()
+        df2 = pd.DataFrame({
+            "Open": down, "High": down + 1.0, "Low": down - 1.0, "Close": down, "Volume": 1_000.0,
+        }, index=idx)
+        d2 = indicators.add_indicators(df2)
+        self.assertEqual(int(d2["psar_dir"].iloc[-1]), -1)
+        self.assertGreater(float(d2["psar"].iloc[-1]), float(d2["Close"].iloc[-1]))
 
 
 class TestCandidates(unittest.TestCase):
@@ -1231,6 +1255,8 @@ class TestIndikatorSahamPageSeo(unittest.TestCase):
         self.assertIn("indikator saham", html)
         self.assertIn("RSI (Relative Strength Index)", html)
         self.assertIn("MACD", html)
+        self.assertIn("Parabolic SAR", html)
+        self.assertIn("belum masuk skor", html)
         self.assertIn('"@type": "Article"', html)
         self.assertIn('"@type": "FAQPage"', html)
         self.assertIn('"@type": "BreadcrumbList"', html)
@@ -3036,6 +3062,9 @@ class TestFundamentalsSanitize(unittest.TestCase):
 
     def test_fund_snap_keeps_one_row_per_day(self):
         import store
+        store.init()
+        with store._lock, store._conn() as c:
+            c.execute("DELETE FROM fund_snap WHERE ticker=?", ("ZZSNAP",))
         store.save_fund_snap("ZZSNAP", {"pe": 10.0, "pb": 1.2, "roe": 0.2, "eps": 100.0, "price": 1000.0})
         again = store.save_fund_snap("ZZSNAP", {"pe": 11.0, "pb": 1.2, "roe": 0.2, "eps": 100.0, "price": 1100.0})
         self.assertGreaterEqual(again["days"], 1)

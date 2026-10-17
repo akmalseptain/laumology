@@ -638,6 +638,93 @@ def rvol(volume: pd.Series, n: int = 20) -> pd.Series:
     return volume / sma(volume, n).replace(0.0, np.nan)
 
 
+def parabolic_sar(
+    high: pd.Series, low: pd.Series, close: pd.Series,
+    step: float = 0.02, max_step: float = 0.20,
+) -> tuple[pd.Series, pd.Series]:
+    """Parabolic SAR Wilder. AF awal = langkah = 0.02, batas AF = 0.20.
+
+    Arah awal naik. Bar 0–1 adalah pemanasan (SAR = close). Mulai bar ke-2
+    SAR hanya memakai high/low sebelumnya, jadi aman untuk backtest.
+    ``direction`` 1 = titik di bawah harga, -1 = titik di atas harga.
+    """
+    h = high.to_numpy(dtype=float)
+    lo = low.to_numpy(dtype=float)
+    c = close.to_numpy(dtype=float)
+    n = len(c)
+    sar = c.copy()
+    direction = np.ones(n, dtype=int)
+    if n < 3:
+        return pd.Series(sar, index=close.index), pd.Series(direction, index=close.index)
+
+    up = True
+    af = step
+    ep_high = h[0]
+    ep_low = lo[0]
+    for i in range(2, n):
+        if not (np.isfinite(h[i]) and np.isfinite(lo[i]) and np.isfinite(sar[i - 1])):
+            sar[i] = sar[i - 1]
+            direction[i] = 1 if up else -1
+            continue
+        hi_i = h[i]
+        lo_i = lo[i]
+        if up:
+            sar[i] = sar[i - 1] + af * (ep_high - sar[i - 1])
+            if lo_i < sar[i]:
+                sar[i] = ep_high
+                ep_low = lo_i
+                af = step
+                up = False
+            else:
+                if hi_i > ep_high:
+                    ep_high = hi_i
+                    af = min(af + step, max_step)
+                if lo[i - 2] < sar[i]:
+                    sar[i] = lo[i - 2]
+                elif lo[i - 1] < sar[i]:
+                    sar[i] = lo[i - 1]
+        else:
+            sar[i] = sar[i - 1] - af * (sar[i - 1] - ep_low)
+            if hi_i > sar[i]:
+                sar[i] = ep_low
+                ep_high = hi_i
+                af = step
+                up = True
+            else:
+                if lo_i < ep_low:
+                    ep_low = lo_i
+                    af = min(af + step, max_step)
+                if h[i - 2] > sar[i]:
+                    sar[i] = h[i - 2]
+                elif h[i - 1] > sar[i]:
+                    sar[i] = h[i - 1]
+        direction[i] = 1 if up else -1
+    return pd.Series(sar, index=close.index), pd.Series(direction, index=close.index)
+
+
+def heikin_ashi(
+    open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series,
+) -> tuple[pd.Series, pd.Series]:
+    """Open dan close Heikin Ashi. Tiap bar hanya bergantung pada bar sebelumnya."""
+    o = open_.to_numpy(dtype=float)
+    h = high.to_numpy(dtype=float)
+    lo = low.to_numpy(dtype=float)
+    c = close.to_numpy(dtype=float)
+    n = len(c)
+    ha_close = (o + h + lo + c) / 4.0
+    ha_open = np.empty(n, dtype=float)
+    if n == 0:
+        empty = pd.Series(ha_open, index=close.index)
+        return empty, pd.Series(ha_close, index=close.index)
+    ha_open[0] = (o[0] + c[0]) / 2.0
+    for i in range(1, n):
+        if np.isfinite(ha_open[i - 1]) and np.isfinite(ha_close[i - 1]):
+            ha_open[i] = (ha_open[i - 1] + ha_close[i - 1]) / 2.0
+        else:
+            ha_open[i] = (o[i] + c[i]) / 2.0
+    return pd.Series(ha_open, index=close.index), pd.Series(ha_close, index=close.index)
+
+
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
     d.columns = [str(c).title() for c in d.columns]
@@ -758,6 +845,19 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["uo"] = ultimate_oscillator(high, low, close)
     d["rvol"] = rvol(volume)
 
-    d["month"] = pd.DatetimeIndex(d.index).month
-
-    return d
+    band = (d["bb_upper"] - d["bb_lower"]).replace(0.0, np.nan)
+    psar_line, psar_dir = parabolic_sar(high, low, close)
+    ha_open, ha_close = heikin_ashi(d["Open"], high, low, close)
+    extra = pd.DataFrame(
+        {
+            "ema50": ema(close, 50),
+            "bb_pct": ((close - d["bb_lower"]) / band).fillna(0.5),
+            "psar": psar_line,
+            "psar_dir": psar_dir,
+            "ha_open": ha_open,
+            "ha_close": ha_close,
+            "month": pd.DatetimeIndex(d.index).month,
+        },
+        index=d.index,
+    )
+    return pd.concat([d, extra], axis=1)

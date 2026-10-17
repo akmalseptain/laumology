@@ -201,6 +201,11 @@ class Analysis:
     ao: float = 0.0
     uo: float = 0.0
     rvol: float = 0.0
+    psar: float = 0.0
+    psar_up: bool = False
+    ema50: float = 0.0
+    bb_pct: float = 0.5
+    ha_bull: bool = False
     vp: dict = field(default_factory=dict)
     zones: list = field(default_factory=list)
 
@@ -572,6 +577,11 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
     ao_val = float(last["ao"]) if np.isfinite(last["ao"]) else 0.0
     uo_val = float(last["uo"]) if np.isfinite(last["uo"]) else 50.0
     rvol_val = float(last["rvol"]) if np.isfinite(last["rvol"]) else 1.0
+    psar_val = float(last["psar"]) if np.isfinite(last["psar"]) else price
+    psar_up = int(last["psar_dir"]) == 1
+    ema50_val = float(last["ema50"]) if np.isfinite(last["ema50"]) else price
+    bb_pct_val = float(last["bb_pct"]) if np.isfinite(last["bb_pct"]) else 0.5
+    ha_bull = bool(last["ha_close"] > last["ha_open"]) if np.isfinite(last["ha_close"]) and np.isfinite(last["ha_open"]) else False
 
     checklist = [(k, bool(crow[k])) for k in FACTOR_KEYS]
 
@@ -604,6 +614,10 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
         reasons.append("Squeeze release + momentum naik (potensi breakout)")
     if price > avwap_val:
         reasons.append("Harga di atas Anchored VWAP (bias bullish)")
+    if psar_up:
+        reasons.append("Parabolic SAR di bawah harga (tren naik)")
+    if price > ema50_val and float(last["ema21"]) > ema50_val:
+        reasons.append("Harga dan EMA21 di atas EMA50")
     if chop_val < 38:
         reasons.append("Choppiness rendah (pasar cenderung trending)")
     if mtf.startswith("Selaras Bullish"):
@@ -730,6 +744,11 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
         ao=ao_val,
         uo=uo_val,
         rvol=rvol_val,
+        psar=psar_val,
+        psar_up=psar_up,
+        ema50=ema50_val,
+        bb_pct=bb_pct_val,
+        ha_bull=ha_bull,
         vp=vp,
         zones=zones,
     )

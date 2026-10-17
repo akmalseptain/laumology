@@ -183,6 +183,11 @@ def analysis_payload(ticker: str, refresh: bool, bars: int, interval: str) -> di
         "ao": a.ao,
         "uo": a.uo,
         "rvol": a.rvol,
+        "psar": a.psar,
+        "psar_up": a.psar_up,
+        "ema50": a.ema50,
+        "bb_pct": a.bb_pct,
+        "ha_bull": a.ha_bull,
         "vp": a.vp,
         "zones": a.zones,
     }
@@ -249,15 +254,23 @@ def ohlc_payload(ticker: str, interval: str, bars: int, refresh: bool = False) -
 
     st_up: list[dict] = []
     st_down: list[dict] = []
+    psar_up: list[dict] = []
+    psar_down: list[dict] = []
     for ts, row in d.iterrows():
         sv = num_or_none(row.get("supertrend"))
-        if sv is None:
-            continue
-        point = {"time": fmt_time(ts), "value": round(sv, 4)}
-        if num_or_none(row.get("st_dir")) == 1.0:
-            st_up.append(point)
-        else:
-            st_down.append(point)
+        if sv is not None:
+            point = {"time": fmt_time(ts), "value": round(sv, 4)}
+            if num_or_none(row.get("st_dir")) == 1.0:
+                st_up.append(point)
+            else:
+                st_down.append(point)
+        pv = num_or_none(row.get("psar"))
+        if pv is not None:
+            pp = {"time": fmt_time(ts), "value": round(pv, 4)}
+            if num_or_none(row.get("psar_dir")) == 1.0:
+                psar_up.append(pp)
+            else:
+                psar_down.append(pp)
 
     levels = [
         {"price": a.entry, "color": "#2962ff", "title": "ENTRY"},
@@ -304,6 +317,9 @@ def ohlc_payload(ticker: str, interval: str, bars: int, refresh: bool = False) -
             "avwap": line("avwap"),
             "supertrend_up": st_up,
             "supertrend_down": st_down,
+            "ema50": line("ema50"),
+            "psar_up": psar_up,
+            "psar_down": psar_down,
         },
         "rsi": line("rsi"),
         "macd": line("macd"),

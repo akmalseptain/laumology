@@ -163,10 +163,13 @@ const ChartKit = (function () {
       ma50: lineSeries(chart, "#42a5f5", 1),
       ma200: lineSeries(chart, "#ab47bc", 2),
       ema21: lineSeries(chart, "#26c6da", 1, true),
+      ema50: lineSeries(chart, "#ffb74d", 1, true),
       avwap: lineSeries(chart, "#0f766e", 1, true),
       bench: lineSeries(chart, "#94a3b8", 1, true),
       supertrend_up: lineSeries(chart, "#26a69a", 2),
       supertrend_down: lineSeries(chart, "#ef5350", 2),
+      psar_up: lineSeries(chart, "#7e57c2", 1),
+      psar_down: lineSeries(chart, "#8d6e63", 1),
     };
 
     const rsi = rsiChart.addLineSeries({ color: "#ab47bc", lineWidth: 1, priceLineVisible: false,
