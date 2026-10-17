@@ -364,9 +364,12 @@ function reachHtml(data, opts){
       const title = escapeHtml(it.title || "");
       const url = String(it.url || "");
       const safe = /^https?:\/\//i.test(url) ? url : "";
-      const host = (c.id === "web" && safe)
-        ? '<span class="host mono">'+escapeHtml(reachHost(safe))+"</span>" : "";
-      const inner = '<span class="reach-title">'+title+"</span>"+host;
+      const bits = [];
+      if(c.id === "web" && safe) bits.push(reachHost(safe));
+      if(it.when) bits.push(String(it.when));
+      const meta = bits.length
+        ? '<span class="host mono">'+bits.map(escapeHtml).join(" · ")+"</span>" : "";
+      const inner = '<span class="reach-title">'+title+"</span>"+meta;
       return safe
         ? '<a class="reach-row" href="'+escapeHtml(safe)+'" target="_blank" rel="noopener noreferrer">'+inner+"</a>"
         : '<div class="reach-row">'+inner+"</div>";

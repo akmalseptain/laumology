@@ -1930,12 +1930,14 @@ class TestReach(unittest.TestCase):
                     "videoRenderer": {
                         "videoId": "abcdefghijk",
                         "title": {"simpleText": "Analisis BBCA hari ini"},
+                        "publishedTimeText": {"simpleText": "2 hari yang lalu"},
                     }
                 }).encode()
             if "news.google.com" in url:
                 return (
                     b"<?xml version='1.0'?><rss><channel>"
-                    b"<item><title>BBCA menguat</title><link>https://example.com/bbca</link></item>"
+                    b"<item><title>BBCA menguat</title><link>https://example.com/bbca</link>"
+                    b"<pubDate>Sat, 17 Oct 2026 01:00:00 GMT</pubDate></item>"
                     b"<item><title>IHSG campuran</title><link>https://example.com/ihsg</link></item>"
                     b"</channel></rss>"
                 )
@@ -1955,9 +1957,8 @@ class TestReach(unittest.TestCase):
                 return json.dumps({"code": 0, "data": {"result": [{
                     "title": "<em class='keyword'>BBCA</em> review",
                     "arcurl": "https://www.bilibili.com/video/BV1xx",
+                    "pubdate": 1792170000,
                 }]}}).encode()
-            if "v2ex.com" in url:
-                return json.dumps([{"title": "topik lain", "url": "https://www.v2ex.com/t/1"}]).encode()
             raise AssertionError(url)
 
         out = reach.for_ticker("BBCA", fetcher=fetcher)
@@ -1966,8 +1967,10 @@ class TestReach(unittest.TestCase):
         self.assertEqual(by_id["web"]["status"], "ok")
         self.assertEqual(by_id["web"]["items"][0]["url"], "https://example.com/BBCA")
         self.assertEqual(by_id["youtube"]["items"][0]["url"], "https://www.youtube.com/watch?v=abcdefghijk")
+        self.assertEqual(by_id["youtube"]["items"][0]["when"], "2 hari yang lalu")
         self.assertEqual(by_id["rss"]["status"], "ok")
         self.assertEqual(len(by_id["rss"]["items"]), 1)
+        self.assertEqual(by_id["rss"]["items"][0]["when"], "17 Okt 2026")
         self.assertEqual(by_id["github"]["status"], "ok")
         self.assertEqual(len(by_id["github"]["items"]), 1)
         gh = reach.parse_github({"items": [
@@ -1975,12 +1978,15 @@ class TestReach(unittest.TestCase):
              "html_url": "https://github.com/a/file"},
             {"full_name": "a/prediksi-harga-saham", "name": "prediksi-harga-saham",
              "description": "Prediksi harga saham BBCA menggunakan LSTM",
-             "html_url": "https://github.com/a/prediksi-harga-saham"},
+             "html_url": "https://github.com/a/prediksi-harga-saham",
+             "pushed_at": "2026-10-16T17:00:00Z"},
         ]}, "BBCA")
         self.assertEqual(len(gh), 1)
         self.assertIn("LSTM", gh[0]["title"])
+        self.assertEqual(gh[0]["when"], "17 Okt 2026")
         self.assertNotIn("<em", by_id["bilibili"]["items"][0]["title"])
-        self.assertEqual(by_id["v2ex"]["status"], "kosong")
+        self.assertEqual(by_id["bilibili"]["items"][0]["when"], "17 Okt 2026")
+        self.assertNotIn("v2ex", by_id)
         self.assertEqual(by_id["reddit"]["status"], "perlu_login")
         self.assertEqual(by_id["reddit"]["items"], [])
         self.assertEqual(by_id["twitter"]["status"], "perlu_login")
@@ -1991,6 +1997,10 @@ class TestReach(unittest.TestCase):
         }, "BBCA")
         self.assertEqual(len(yt), 1)
         self.assertIn("BCA", yt[0]["title"])
+        unrelated = reach.parse_youtube({
+            "videoRenderer": {"videoId": "zzzzzzzzzzz", "title": {"simpleText": "Resep masakan"}},
+        }, "BBCA")
+        self.assertEqual(unrelated, [])
 
     def test_route_and_page(self):
         from unittest import mock
@@ -2006,6 +2016,58 @@ class TestReach(unittest.TestCase):
         html = client.get("/").get_data(as_text=True)
         self.assertIn('id="reachResult"', html)
         self.assertIn("Sumber internet", html)
+
+    def test_failed_channel_retries_before_ok_channel(self):
+        import json
+        from unittest.mock import patch
+
+        import reach
+
+        reach._CACHE.clear()
+        clock = {"t": 1_700_000_000.0}
+        calls = {"yt": 0, "web": 0}
+
+        def fetch(url, *, headers=None, data=None, timeout=6.0, max_bytes=400_000):
+            if "youtube.com" in url:
+                calls["yt"] += 1
+                if calls["yt"] == 1:
+                    raise OSError("putus")
+                return json.dumps({
+                    "videoRenderer": {
+                        "videoId": "abcdefghijk",
+                        "title": {"simpleText": "Analisis ZZCACH"},
+                    }
+                }).encode()
+            calls["web"] += 1
+            return b"[Saham ZZCACH](https://example.com/ZZCACH)"
+
+        live = (
+            ("web", "Web", reach._web),
+            ("youtube", "YouTube", reach._youtube),
+        )
+        try:
+            with patch.object(reach, "_LIVE", live), patch.object(reach, "_fetch", fetch), \
+                 patch("reach.time.time", side_effect=lambda: clock["t"]):
+                first = {c["id"]: c for c in reach.for_ticker("ZZCACH")["channels"]}
+                self.assertEqual(first["youtube"]["status"], "gagal")
+                self.assertEqual(first["web"]["status"], "ok")
+                self.assertEqual(calls["yt"], 1)
+                self.assertEqual(calls["web"], 1)
+                clock["t"] += 60
+                reach.for_ticker("ZZCACH")
+                self.assertEqual(calls["yt"], 1)
+                self.assertEqual(calls["web"], 1)
+                clock["t"] += 70
+                second = {c["id"]: c for c in reach.for_ticker("ZZCACH")["channels"]}
+                self.assertEqual(calls["yt"], 2)
+                self.assertEqual(calls["web"], 1)
+                self.assertEqual(second["youtube"]["status"], "ok")
+                clock["t"] += 30
+                reach.for_ticker("ZZCACH")
+                self.assertEqual(calls["yt"], 2)
+                self.assertEqual(calls["web"], 1)
+        finally:
+            reach._CACHE.clear()
 
 
 class TestWiring(unittest.TestCase):

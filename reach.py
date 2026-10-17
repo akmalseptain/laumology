@@ -1,9 +1,10 @@
 """Sumber internet gratis untuk satu kode saham.
 
-Kanal tanpa kunci (web lewat Jina Reader, YouTube, RSS, GitHub, Bilibili, V2EX,
-Reddit) diambil lewat HTTP. Kanal yang butuh cookie browser hanya ditandai,
-tidak pernah dijalankan di server. Hasilnya konteks bacaan, bukan harga bursa
-dan tidak masuk skor.
+Kanal tanpa kunci (web lewat Jina Reader, YouTube, RSS, GitHub, Bilibili,
+Reddit) diambil lewat HTTP. V2EX tidak dipanggil: API publiknya hanya topik
+panas global, bukan pencarian kode. Kanal yang butuh cookie browser hanya
+ditandai, tidak pernah dijalankan di server. Hasilnya konteks bacaan, bukan
+harga bursa dan tidak masuk skor.
 """
 from __future__ import annotations
 
@@ -15,6 +16,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from email.utils import parsedate_to_datetime
+from zoneinfo import ZoneInfo
 
 import news
 
@@ -23,7 +27,9 @@ _CACHE: dict[str, tuple[float, dict]] = {}
 _CACHE_LOCK = threading.Lock()
 _TTL_OK = 600.0
 _TTL_THIN = 120.0
-_CACHE_MAX = 128
+_CACHE_MAX = 384
+_JKT = ZoneInfo("Asia/Jakarta")
+_MONTHS = ("", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
 _MAX_BYTES = 400_000
 _UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -35,7 +41,6 @@ _HOSTS = frozenset({
     "www.youtube.com",
     "api.github.com",
     "api.bilibili.com",
-    "www.v2ex.com",
     "www.reddit.com",
 })
 _NOTE = (
@@ -90,6 +95,48 @@ def _clean_title(text: str) -> str:
     return title[:180]
 
 
+def _format_date(dt: datetime) -> str:
+    local = dt.astimezone(_JKT) if dt.tzinfo else dt.replace(tzinfo=_JKT)
+    return f"{local.day} {_MONTHS[local.month]} {local.year}"
+
+
+def _when_phrase(text: str) -> str:
+    """Teks relatif pendek dari sumber, misalnya '2 hari yang lalu'."""
+    phrase = _clean_title(text)
+    if not phrase or len(phrase) > 40 or "://" in phrase:
+        return ""
+    return phrase
+
+
+def _when_stamp(text: str) -> str:
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    try:
+        return _format_date(parsedate_to_datetime(raw))
+    except (TypeError, ValueError, OverflowError, OSError):
+        pass
+    try:
+        return _format_date(datetime.fromisoformat(raw.replace("Z", "+00:00")))
+    except ValueError:
+        return ""
+
+
+def _when_unix(value: object) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return ""
+    if not (1_000_000_000 <= float(value) <= 4_000_000_000):
+        return ""
+    try:
+        return _format_date(datetime.fromtimestamp(int(value), _JKT))
+    except (OverflowError, OSError, ValueError):
+        return ""
+
+
+def _row(title: str, url: str, when: str = "") -> dict:
+    return {"title": title, "url": url, "when": when}
+
+
 def _http_url(url: str) -> str:
     raw = (url or "").strip()
     try:
@@ -127,16 +174,15 @@ def parse_web_markdown(text: str, ticker: str) -> list[dict]:
         if not (_about_ticker(title, ticker) or _has_code(url, ticker)):
             continue
         seen.add(url)
-        out.append({"title": title, "url": url})
+        out.append(_row(title, url))
         if len(out) >= 5:
             break
     return out
 
 
 def parse_youtube(payload: dict, ticker: str) -> list[dict]:
-    """Video teratas dari pencarian. Judul yang memuat kode didahulukan."""
+    """Video yang judulnya menyebut kode. Hasil lain tidak ditampilkan."""
     matched: list[dict] = []
-    rest: list[dict] = []
 
     def walk(node: object) -> None:
         if isinstance(node, dict):
@@ -151,12 +197,10 @@ def parse_youtube(payload: dict, ticker: str) -> list[dict]:
                     title = title or str(raw.get("simpleText") or "")
                 vid = str(video.get("videoId") or "")
                 title = _clean_title(title)
-                if re.fullmatch(r"[A-Za-z0-9_-]{11}", vid) and title:
-                    row = {"title": title, "url": f"https://www.youtube.com/watch?v={vid}"}
-                    if _about_ticker(title, ticker):
-                        matched.append(row)
-                    else:
-                        rest.append(row)
+                published = video.get("publishedTimeText") or {}
+                when = _when_phrase(str(published.get("simpleText") or "") if isinstance(published, dict) else "")
+                if re.fullmatch(r"[A-Za-z0-9_-]{11}", vid) and title and _about_ticker(title, ticker):
+                    matched.append(_row(title, f"https://www.youtube.com/watch?v={vid}", when))
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -164,7 +208,7 @@ def parse_youtube(payload: dict, ticker: str) -> list[dict]:
                 walk(value)
 
     walk(payload)
-    return (matched or rest)[:5]
+    return matched[:5]
 
 
 def parse_bilibili(payload: dict, ticker: str) -> list[dict]:
@@ -184,7 +228,7 @@ def parse_bilibili(payload: dict, ticker: str) -> list[dict]:
             continue
         if not _has_code(title, ticker):
             continue
-        out.append({"title": title, "url": url})
+        out.append(_row(title, url, _when_unix(item.get("pubdate"))))
         if len(out) >= 5:
             break
     return out
@@ -207,8 +251,9 @@ def parse_github(payload: dict, ticker: str) -> list[dict]:
         if not url.startswith("https://github.com/"):
             continue
         title = desc if described and not named else _clean_title(full_name or name)
+        when = _when_stamp(str(item.get("pushed_at") or item.get("updated_at") or ""))
         if title:
-            out.append({"title": title, "url": url})
+            out.append(_row(title, url, when))
         if len(out) >= 5:
             break
     return out
@@ -287,7 +332,7 @@ def _rss(ticker: str, fetcher) -> dict:
         link = _http_url(str(row.get("url") or ""))
         if not title or not _about_ticker(title, ticker):
             continue
-        items.append({"title": title, "url": link})
+        items.append(_row(title, link, _when_stamp(str(row.get("time") or ""))))
         if len(items) >= 5:
             break
     return _from_items("rss", "RSS", items)
@@ -324,28 +369,6 @@ def _bilibili(ticker: str, fetcher) -> dict:
     return _from_items("bilibili", "Bilibili", parse_bilibili(json.loads(text), ticker))
 
 
-def _v2ex(ticker: str, fetcher) -> dict:
-    raw = fetcher(
-        "https://www.v2ex.com/api/topics/hot.json",
-        headers={"User-Agent": "laumology", "Accept": "application/json"},
-        data=None,
-        timeout=6.0,
-    )
-    rows = json.loads(raw.decode("utf-8", "replace") or "[]")
-    items = []
-    if isinstance(rows, list):
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            title = _clean_title(str(row.get("title") or ""))
-            if not _has_code(title, ticker):
-                continue
-            url = _http_url(str(row.get("url") or ""))
-            if title and url:
-                items.append({"title": title, "url": url})
-    return _from_items("v2ex", "V2EX", items)
-
-
 def _reddit(ticker: str, fetcher) -> dict:
     q = urllib.parse.quote(_query(ticker))
     url = f"https://www.reddit.com/search.json?q={q}&limit=5&sort=new"
@@ -367,7 +390,8 @@ def _reddit(ticker: str, fetcher) -> dict:
             continue
         link = _http_url("https://www.reddit.com" + str(data.get("permalink") or ""))
         if title and link:
-            items.append({"title": title, "url": link})
+            created = data.get("created_utc")
+            items.append(_row(title, link, _when_unix(created)))
     return _from_items("reddit", "Reddit", items)
 
 
@@ -377,7 +401,6 @@ _LIVE = (
     ("rss", "RSS", _rss),
     ("github", "GitHub", _github),
     ("bilibili", "Bilibili", _bilibili),
-    ("v2ex", "V2EX", _v2ex),
     ("reddit", "Reddit", _reddit),
 )
 
@@ -396,40 +419,61 @@ def _gather(ticker: str, fetcher) -> dict:
     return {"ticker": ticker, "note": _NOTE, "channels": channels}
 
 
-def _cache_get(ticker: str) -> dict | None:
+def _ttl_for(channel: dict) -> float:
+    """Kanal gagal diulang lebih cepat. Kanal yang berhasil tetap 10 menit."""
+    return _TTL_THIN if channel.get("status") == "gagal" else _TTL_OK
+
+
+def _channel_get(ticker: str, cid: str) -> dict | None:
     now = time.time()
+    key = f"{ticker}:{cid}"
     with _CACHE_LOCK:
-        row = _CACHE.get(ticker)
+        row = _CACHE.get(key)
         if not row:
             return None
-        ts, payload = row
-        ttl = _TTL_OK if any(c.get("status") == "ok" for c in payload.get("channels") or []) else _TTL_THIN
-        if now - ts < ttl:
-            return payload
-        _CACHE.pop(ticker, None)
+        ts, channel = row
+        if now - ts < _ttl_for(channel):
+            return channel
+        _CACHE.pop(key, None)
     return None
 
 
-def _cache_set(ticker: str, payload: dict) -> None:
+def _channel_set(ticker: str, cid: str, channel: dict) -> None:
     now = time.time()
+    key = f"{ticker}:{cid}"
     with _CACHE_LOCK:
-        _CACHE[ticker] = (now, payload)
+        _CACHE[key] = (now, channel)
         if len(_CACHE) > _CACHE_MAX:
             oldest = sorted(_CACHE.items(), key=lambda kv: kv[1][0])[: len(_CACHE) - _CACHE_MAX]
-            for key, _row in oldest:
-                _CACHE.pop(key, None)
+            for old, _row in oldest:
+                _CACHE.pop(old, None)
 
 
 def for_ticker(ticker: str, fetcher=None) -> dict:
-    """Kumpulkan kanal untuk satu kode. ``fetcher`` hanya untuk uji."""
+    """Kumpulkan kanal untuk satu kode. ``fetcher`` hanya untuk uji, tanpa cache."""
     code = (ticker or "").strip().upper()
     if not _TICKER_RE.fullmatch(code):
         return {"ticker": code, "error": "Kode saham tidak valid", "channels": []}
-    if fetcher is None:
-        hit = _cache_get(code)
+    if fetcher is not None:
+        return _gather(code, fetcher)
+    by_id: dict[str, dict] = {}
+    pending = []
+    for cid, label, fn in _LIVE:
+        hit = _channel_get(code, cid)
         if hit is not None:
-            return hit
-        payload = _gather(code, _fetch)
-        _cache_set(code, payload)
-        return payload
-    return _gather(code, fetcher)
+            by_id[cid] = hit
+        else:
+            pending.append((cid, label, fn))
+    if pending:
+        with ThreadPoolExecutor(max_workers=len(pending)) as pool:
+            futures = {
+                pool.submit(_call, cid, label, fn, code, _fetch): cid
+                for cid, label, fn in pending
+            }
+            for fut, cid in futures.items():
+                channel = fut.result()
+                by_id[cid] = channel
+                _channel_set(code, cid, channel)
+    channels = [by_id[cid] for cid, _label, _fn in _LIVE]
+    channels.extend(_locked(cid, label, detail) for cid, label, detail in _LOCKED)
+    return {"ticker": code, "note": _NOTE, "channels": channels}
