@@ -161,6 +161,7 @@ def sitemap():
     about_loc = f"{base}/tentang" if base else "/tentang"
     panduan_loc = f"{base}/panduan" if base else "/panduan"
     indikator_loc = f"{base}/indikator-saham" if base else "/indikator-saham"
+    track_loc = f"{base}/track-record" if base else "/track-record"
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -176,6 +177,9 @@ def sitemap():
         f"  <url><loc>{indikator_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
         "<changefreq>weekly</changefreq>"
         "<priority>0.7</priority></url>\n"
+        f"  <url><loc>{track_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
+        "<changefreq>daily</changefreq>"
+        "<priority>0.9</priority></url>\n"
         "</urlset>\n"
     )
     return Response(body, mimetype="application/xml")
@@ -241,6 +245,7 @@ def api_schema():
         {"method": "POST", "path": "/api/paper/close", "params": ["id", "exit"]},
         {"method": "GET", "path": "/api/data/quality", "params": ["list"]},
         {"method": "GET", "path": "/api/seasonality", "params": ["ticker"]},
+        {"method": "GET", "path": "/api/trackrecord", "params": []},
         {"method": "GET", "path": "/health", "params": []},
         {"method": "GET", "path": "/api/metrics", "params": []},
     ])
