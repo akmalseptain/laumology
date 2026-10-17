@@ -44,6 +44,20 @@ def init() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_signals_ticker ON signals(ticker);
             CREATE INDEX IF NOT EXISTS idx_signals_ts ON signals(ts);
+            CREATE TABLE IF NOT EXISTS signal_outcomes(
+              signal_id INTEGER NOT NULL,
+              horizon INTEGER NOT NULL,
+              evaluated_at TEXT NOT NULL,
+              n_bars INTEGER,
+              fwd_return_pct REAL,
+              bench_fwd_pct REAL,
+              excess_pct REAL,
+              tp1_hit INTEGER,
+              sl_hit INTEGER,
+              outcome TEXT,
+              PRIMARY KEY(signal_id, horizon)
+            );
+            CREATE INDEX IF NOT EXISTS idx_outcomes_signal ON signal_outcomes(signal_id);
             CREATE TABLE IF NOT EXISTS fund_snap(
               day TEXT NOT NULL,
               ticker TEXT NOT NULL,
@@ -165,6 +179,90 @@ def paper_rows(status: str | None = None) -> list[dict]:
         else:
             rows = c.execute("SELECT * FROM paper ORDER BY id DESC").fetchall()
     return [dict(r) for r in rows]
+
+
+def pending_signals(horizon: int, lookback_days: int, limit: int = 500) -> list[dict]:
+    """Sinyal cukup tua untuk dievaluasi pada `horizon` tapi belum punya hasil.
+
+    Usia minimum = horizon*2+2 hari kalender (buffer akhir pekan/libur);
+    sinyal yang belum cukup tua tidak dikembalikan — dievaluasi nanti, bukan
+    spekulatif. Sinyal tanpa ticker/harga dilewati (tak bisa dievaluasi).
+    """
+    init()
+    try:
+        horizon = int(horizon)
+        lookback_days = int(lookback_days)
+        limit = max(1, int(limit))
+    except (TypeError, ValueError):
+        return []
+    now = time.time()
+    oldest = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - lookback_days * 86400))
+    youngest = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - (horizon * 2 + 2) * 86400))
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT s.* FROM signals s"
+            " LEFT JOIN signal_outcomes o ON o.signal_id=s.id AND o.horizon=?"
+            " WHERE o.signal_id IS NULL AND s.ts BETWEEN ? AND ?"
+            "   AND s.ticker IS NOT NULL AND s.price IS NOT NULL"
+            " ORDER BY s.id DESC LIMIT ?",
+            (horizon, oldest, youngest, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def outcome_upsert(signal_id: int, horizon: int, n_bars: int,
+                   fwd_return_pct: float, bench_fwd_pct: float | None,
+                   excess_pct: float | None, tp1_hit: bool, sl_hit: bool,
+                   outcome: str) -> None:
+    """Simpan hasil evaluasi sinyal. Evaluasi pertama bersifat final (DO NOTHING):
+    jendela waktu sudah fix, tidak pernah ditimpa ulang."""
+    with _lock, _conn() as c:
+        c.execute(
+            "INSERT INTO signal_outcomes(signal_id,horizon,evaluated_at,n_bars,fwd_return_pct,"
+            "bench_fwd_pct,excess_pct,tp1_hit,sl_hit,outcome) VALUES(?,?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(signal_id,horizon) DO NOTHING",
+            (signal_id, horizon, _now(), n_bars, fwd_return_pct, bench_fwd_pct, excess_pct,
+             1 if tp1_hit else 0, 1 if sl_hit else 0, outcome),
+        )
+
+
+def outcomes_summary(horizon: int = 5) -> dict:
+    """Rekap hasil evaluasi (feedback loop). n=0 bila belum ada yang dievaluasi."""
+    init()
+    try:
+        horizon = int(horizon)
+    except (TypeError, ValueError):
+        horizon = 5
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT o.*, s.ticker, s.signal, s.action, s.score, s.ts AS signal_ts"
+            " FROM signal_outcomes o JOIN signals s ON s.id=o.signal_id"
+            " WHERE o.horizon=? ORDER BY o.signal_id DESC",
+            (horizon,),
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+    n = len(rows)
+    if not n:
+        return {"horizon": horizon, "n": 0}
+    rets = [float(r["fwd_return_pct"]) for r in rows if r.get("fwd_return_pct") is not None]
+    exc = [float(r["excess_pct"]) for r in rows if r.get("excess_pct") is not None]
+    n_tp1 = sum(1 for r in rows if r.get("outcome") == "TP1")
+    n_sl = sum(1 for r in rows if r.get("outcome") == "SL")
+    n_none = sum(1 for r in rows if r.get("outcome") == "NONE")
+    return {
+        "horizon": horizon,
+        "n": n,
+        "win_rate": round(100.0 * sum(1 for x in rets if x > 0) / len(rets), 2) if rets else 0.0,
+        "avg_fwd_pct": round(sum(rets) / len(rets), 3) if rets else 0.0,
+        "avg_excess_pct": round(sum(exc) / len(exc), 3) if exc else 0.0,
+        "n_tp1": n_tp1,
+        "n_sl": n_sl,
+        "n_none": n_none,
+        "tp1_first_rate": round(100.0 * n_tp1 / n, 2),
+        "sl_first_rate": round(100.0 * n_sl / n, 2),
+        "none_rate": round(100.0 * n_none / n, 2),
+        "rows": rows[:60],
+    }
 
 
 def paper_close(pid: int, exit_price: float, pnl: float, note: str = "") -> None:

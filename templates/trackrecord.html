@@ -167,6 +167,23 @@
     {% else %}<p class="empty">Belum ada sinyal tercatat.</p>{% endif %}
   </div>
 
+  <h2>Akurasi sinyal terukur (H+{{ outcomes.horizon }}, feedback loop)</h2>
+  {% if outcomes.n %}
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Sinyal dievaluasi</div><div class="val">{{ outcomes.n }}</div></div>
+    <div class="kpi"><div class="lab">Return + (H+{{ outcomes.horizon }})</div>
+      <div class="val {{ 'pos' if outcomes.win_rate > 50 else ('neg' if outcomes.win_rate < 50 else 'neu') }}">{{ '%.1f'|format(outcomes.win_rate) }}%</div></div>
+    <div class="kpi"><div class="lab">Rata-rata return</div>
+      <div class="val {{ 'pos' if outcomes.avg_fwd_pct > 0 else ('neg' if outcomes.avg_fwd_pct < 0 else 'neu') }}">{{ '%+.2f'|format(outcomes.avg_fwd_pct) }}%</div></div>
+    <div class="kpi"><div class="lab">Excess vs IHSG</div>
+      <div class="val {{ 'pos' if outcomes.avg_excess_pct > 0 else ('neg' if outcomes.avg_excess_pct < 0 else 'neu') }}">{{ '%+.2f'|format(outcomes.avg_excess_pct) }}%</div></div>
+    <div class="kpi"><div class="lab">TP1 sebelum SL</div><div class="val">{{ '%.1f'|format(outcomes.tp1_first_rate) }}%</div></div>
+  </div>
+  <p class="sub">Metode: forward return {{ outcomes.horizon }} hari perdagangan setelah hari sinyal, dari harga saat sinyal dibuat (kausal, tanpa proyeksi). Sinyal yang belum cukup tua tidak ikut dihitung. Sentuh TP1/SL di bar yang sama dihitung SL dulu (konservatif). Skor dan ambang TIDAK diubah oleh pengukuran ini.</p>
+  {% else %}
+  <p class="empty">Belum ada sinyal yang cukup tua untuk dievaluasi. Setiap sinyal diukur setelah {{ outcomes.horizon }}+ hari perdagangan berlalu — tanpa proyeksi.</p>
+  {% endif %}
+
   <p class="disc">
     Angka pada halaman ini dihitung dari paper trading internal LAUMOLOGY — bukan rekomendasi
     dan bukan hasil trading uang sungguhan. Data historis tidak menjamin hasil di masa depan.

@@ -77,6 +77,8 @@ def summary() -> dict:
         s["ret"] = round(s["ret"] + r, 2)
     rows_ticker = sorted(per_ticker.values(), key=lambda s: s["ret"], reverse=True)
 
+    outcomes = store.outcomes_summary(5)
+
     signals_by_action: dict[str, int] = {}
     for s in signals:
         a = str(s.get("action") or s.get("signal") or "?")
@@ -101,6 +103,7 @@ def summary() -> dict:
         "equity_curve": equity,
         "per_ticker": rows_ticker,
         "signals_by_action": signals_by_action,
+        "outcomes": outcomes,
     }
 
 

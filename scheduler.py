@@ -37,6 +37,14 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
         except Exception as exc:
             print(f"  ! {t}: {exc}")
     store.add_scan(universe, n, len(buys))
+
+    # Feedback loop akurasi: evaluasi sinyal lama (best-effort, jangan ganggu scan).
+    try:
+        import outcomes as outcomes_mod
+
+        outcomes_mod.evaluate_signals(limit=25)
+    except Exception:
+        pass
     for a in buys:
         text = (f"[{a.signal}] {a.ticker} | skor {a.score} conf {a.confidence}% "
                 f"| harga {a.price:,.0f} | SL {a.stop_loss:,.0f} TP1 {a.tp1:,.0f}")
