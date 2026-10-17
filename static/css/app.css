@@ -226,6 +226,8 @@ main{max-width:1200px;margin:0 auto;padding:24px 20px 56px}
 .ok{color:var(--foreground)} .no{color:var(--muted)}
 
 ul.list{list-style:none;margin:4px 0 0;padding:0}
+ul.list.reach li{white-space:normal}
+ul.list.reach a{color:var(--foreground);text-decoration:underline;text-underline-offset:2px}
 ul.list li{padding:7px 0 7px 10px;margin:0;border-radius:0;font-size:12.5px;
   background:transparent;border-left:2px solid var(--border)}
 ul.list.warn li{background:transparent;border-left-color:var(--down)}

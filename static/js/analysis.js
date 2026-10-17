@@ -280,7 +280,8 @@ function render(d, opts={}){
 
     <div id="fundCard"></div>
     <div id="mlCard"></div>
-    <div id="newsCard"></div>`;
+    <div id="newsCard"></div>
+    <div id="reachCard"></div>`;
   document.querySelectorAll("#result details.acc").forEach(el=>{
     const n = el.querySelector(".num");
     if(n) el.open = !!openAcc[n.textContent];

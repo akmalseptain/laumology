@@ -218,7 +218,7 @@
   <section class="panel" id="panel-berita" role="tabpanel" aria-labelledby="tab-berita">
     <div class="panel-head">
       <h2>Berita</h2>
-      <p>Sentimen berita terkini per emiten sebagai konteks tambahan analisa.</p>
+      <p>Sentimen berita terkini per emiten, plus sumber internet gratis (web, YouTube, RSS, dan kanal lain).</p>
     </div>
     <div class="card">
       <div class="sec"><span class="badge">Berita Pasar / IHSG</span>
@@ -234,6 +234,13 @@
         <span class="muted" style="font-size:12px">Sumber yfinance · cache 1 jam</span>
       </div>
       <div id="beResult" class="result-block"><div class="empty">Masukkan kode lalu tekan Muat.</div></div>
+    </div>
+    <div class="card">
+      <div class="sec"><span class="badge">Sumber internet</span>
+        <button class="btn ghost sm" id="reachRun" type="button">Muat</button>
+      </div>
+      <p class="muted note" style="margin-top:-4px">Kanal gratis tanpa kunci. Yang butuh login browser hanya ditandai, tidak dijalankan di server. Bukan harga bursa dan tidak mengubah skor.</p>
+      <div id="reachResult" class="result-block"><div class="empty sm">Tekan Muat. Kode mengikuti kolom berita di atas.</div></div>
     </div>
   </section>
 

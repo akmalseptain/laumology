@@ -11,6 +11,7 @@ import llm
 import market
 import musyawarah as musyawarah_mod
 import news
+import reach
 import screener
 import store
 import ttlcache
@@ -29,6 +30,20 @@ def api_news():
         return jsonify(news.get_news(ticker))
     except Exception as exc:
         return jsonify(error=str(exc)), 502
+
+
+@bp.route("/api/reach")
+def api_reach():
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify(error="Kode saham kosong"), 400
+    try:
+        payload = reach.for_ticker(ticker)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+    if payload.get("error"):
+        return jsonify(payload), 400
+    return jsonify(payload)
 
 
 @bp.route("/api/news/market")

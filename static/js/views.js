@@ -342,6 +342,57 @@ async function loadNews(t){
       + (items ? '<div style="margin-top:12px">'+items+'</div>' : (n.degraded ? '<div class="empty" style="padding:20px">Gagal memuat berita (sumber tidak tersedia).</div>' : '<div class="empty" style="padding:20px">Tidak ada berita.</div>'))
       + '</div>';
   }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sentimen Berita</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
+  loadReachInto(t, document.getElementById("reachCard"));
+}
+
+function reachHtml(data){
+  const channels = Array.isArray(data.channels) ? data.channels : [];
+  const live = channels.filter(c => c.status !== "perlu_login");
+  const locked = channels.filter(c => c.status === "perlu_login");
+  const blocks = live.map(c => {
+    const items = (c.items || []).map(it => {
+      const title = escapeHtml(it.title || "");
+      const url = String(it.url || "");
+      const safe = /^https?:\/\//i.test(url) ? url : "";
+      const body = safe
+        ? '<a href="'+escapeHtml(safe)+'" target="_blank" rel="noopener noreferrer">'+title+'</a>'
+        : title;
+      return '<li>'+body+'</li>';
+    }).join("");
+    const state = c.status === "ok" ? ((c.items || []).length + " judul") : (c.status === "kosong" ? "belum ada" : "gagal");
+    const empty = c.status === "kosong"
+      ? "Belum ada bahasan untuk kode ini."
+      : escapeHtml(c.detail || "Sumber tidak membalas.");
+    return '<div style="margin-top:14px"><div class="sec"><span class="badge">'+escapeHtml(c.label || c.id || "")+'</span>'
+      + '<span class="muted" style="font-size:12px;margin-left:8px">'+escapeHtml(state)+'</span></div>'
+      + (items ? '<ul class="list reach">'+items+'</ul>' : '<p class="note">'+empty+'</p>')
+      + '</div>';
+  }).join("");
+  const lock = locked.length
+    ? '<p class="note">Belum tersambung. Butuh login di browser dan tidak dijalankan di server: '
+      + locked.map(c => escapeHtml(c.label || c.id)).join(", ") + '.</p>'
+    : "";
+  return '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div>'
+    + '<p class="note">'+escapeHtml(data.note || "")+'</p>'
+    + blocks + lock + '</div>';
+}
+
+async function loadReachInto(t, el){
+  if(!el) return;
+  const code = (t || "").trim().toUpperCase();
+  if(!code){
+    el.innerHTML = '<div class="card empty">Masukkan kode saham.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div><div class="empty">Memuat sumber untuk '+escapeHtml(code)+'...</div></div>';
+  try{
+    const resp = await fetch("/api/reach?ticker=" + encodeURIComponent(code));
+    const data = await resp.json();
+    if(!resp.ok || data.error) throw new Error(data.error || "Gagal memuat sumber");
+    el.innerHTML = reachHtml(data);
+  }catch(e){
+    el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div><div class="empty">Gagal: '+escapeHtml(e.message)+'</div></div>';
+  }
 }
 
 /* ---------- Tab: Fundamental ---------- */
@@ -489,8 +540,13 @@ async function loadNewsTab(){
                              : '<div class="empty" style="padding:24px">Tidak ada berita untuk '+escapeHtml(t)+'.</div>'))
       + '</div>';
     showStatus("Selesai");
+    loadReachInto(t, document.getElementById("reachResult"));
   }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
 }
+if($("#reachRun")) $("#reachRun").onclick = function(){
+  const t = (($("#beTicker") && $("#beTicker").value) || "").trim().toUpperCase();
+  loadReachInto(t, document.getElementById("reachResult"));
+};
 if($("#fuRun")) $("#fuRun").onclick=loadFundamentalTab;
 if($("#fuTicker")){
   $("#fuTicker").addEventListener("keydown",e=>{ if(e.key==="Enter") loadFundamentalTab(); });

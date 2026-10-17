@@ -1903,6 +1903,94 @@ class TestNewsRssFallback(unittest.TestCase):
         self.assertEqual(news._cache["t:BBCA.JK"][2], news._NEGATIVE_TTL)
 
 
+class TestReach(unittest.TestCase):
+    def test_rejects_bad_ticker_without_network(self):
+        import reach
+        out = reach.for_ticker("BB CA", fetcher=lambda *a, **k: (_ for _ in ()).throw(AssertionError("fetch")))
+        self.assertEqual(out["error"], "Kode saham tidak valid")
+        self.assertEqual(out["channels"], [])
+
+    def test_collects_free_channels_and_marks_login_ones(self):
+        import json
+        import urllib.error
+        from email.message import Message
+
+        import reach
+
+        def fetcher(url, *, headers=None, data=None, timeout=6.0, max_bytes=None):
+            if "reddit.com" in url:
+                raise urllib.error.HTTPError(url, 403, "Blocked", Message(), None)
+            if "r.jina.ai" in url:
+                return (
+                    b"[Harga Saham BBCA](https://duckduckgo.com/l/?uddg="
+                    b"https%3A%2F%2Fexample.com%2FBBCA&rut=1)"
+                )
+            if "youtube.com" in url:
+                return json.dumps({
+                    "videoRenderer": {
+                        "videoId": "abcdefghijk",
+                        "title": {"simpleText": "Analisis BBCA hari ini"},
+                    }
+                }).encode()
+            if "news.google.com" in url:
+                return (
+                    b"<?xml version='1.0'?><rss><channel><item>"
+                    b"<title>BBCA menguat</title><link>https://example.com/bbca</link>"
+                    b"</item></channel></rss>"
+                )
+            if "api.github.com" in url:
+                return json.dumps({"items": [{
+                    "full_name": "org/bbca-notes",
+                    "name": "bbca-notes",
+                    "description": "catatan BBCA",
+                    "html_url": "https://github.com/org/bbca-notes",
+                }, {
+                    "full_name": "org/file",
+                    "name": "file",
+                    "description": "bukan emiten",
+                    "html_url": "https://github.com/org/file",
+                }]}).encode()
+            if "api.bilibili.com" in url:
+                return json.dumps({"code": 0, "data": {"result": [{
+                    "title": "<em class='keyword'>BBCA</em> review",
+                    "arcurl": "https://www.bilibili.com/video/BV1xx",
+                }]}}).encode()
+            if "v2ex.com" in url:
+                return json.dumps([{"title": "topik lain", "url": "https://www.v2ex.com/t/1"}]).encode()
+            raise AssertionError(url)
+
+        out = reach.for_ticker("BBCA", fetcher=fetcher)
+        self.assertNotIn("score", out)
+        by_id = {c["id"]: c for c in out["channels"]}
+        self.assertEqual(by_id["web"]["status"], "ok")
+        self.assertEqual(by_id["web"]["items"][0]["url"], "https://example.com/BBCA")
+        self.assertEqual(by_id["youtube"]["items"][0]["url"], "https://www.youtube.com/watch?v=abcdefghijk")
+        self.assertEqual(by_id["rss"]["status"], "ok")
+        self.assertEqual(by_id["github"]["status"], "ok")
+        self.assertEqual(len(by_id["github"]["items"]), 1)
+        self.assertNotIn("<em", by_id["bilibili"]["items"][0]["title"])
+        self.assertEqual(by_id["v2ex"]["status"], "kosong")
+        self.assertEqual(by_id["reddit"]["status"], "perlu_login")
+        self.assertEqual(by_id["reddit"]["items"], [])
+        self.assertEqual(by_id["twitter"]["status"], "perlu_login")
+        self.assertEqual(by_id["xueqiu"]["items"], [])
+
+    def test_route_and_page(self):
+        from unittest import mock
+
+        import webapp
+        client = webapp.app.test_client()
+        bad = client.get("/api/reach?ticker=BAD%20CODE")
+        self.assertEqual(bad.status_code, 400)
+        with mock.patch("reach.for_ticker", return_value={"ticker": "BBCA", "note": "bukan skor", "channels": []}):
+            ok = client.get("/api/reach?ticker=BBCA")
+        self.assertEqual(ok.status_code, 200)
+        self.assertNotIn("score", ok.get_json())
+        html = client.get("/").get_data(as_text=True)
+        self.assertIn('id="reachResult"', html)
+        self.assertIn("Sumber internet", html)
+
+
 class TestWiring(unittest.TestCase):
     def test_factor_reexport(self):
         import factors
@@ -1914,7 +2002,8 @@ class TestWiring(unittest.TestCase):
         import webapp
         paths = {str(r) for r in webapp.app.url_map.iter_rules()}
         for p in ["/", "/health", "/api/analyze", "/api/ohlc", "/api/screen",
-                  "/api/calibrate", "/api/news/market", "/api/external", "/api/scan/start", "/api/paper"]:
+                  "/api/calibrate", "/api/news/market", "/api/external", "/api/reach",
+                  "/api/scan/start", "/api/paper"]:
             self.assertIn(p, paths)
 
     def test_security_headers_on_html(self):
