@@ -1934,9 +1934,10 @@ class TestReach(unittest.TestCase):
                 }).encode()
             if "news.google.com" in url:
                 return (
-                    b"<?xml version='1.0'?><rss><channel><item>"
-                    b"<title>BBCA menguat</title><link>https://example.com/bbca</link>"
-                    b"</item></channel></rss>"
+                    b"<?xml version='1.0'?><rss><channel>"
+                    b"<item><title>BBCA menguat</title><link>https://example.com/bbca</link></item>"
+                    b"<item><title>IHSG campuran</title><link>https://example.com/ihsg</link></item>"
+                    b"</channel></rss>"
                 )
             if "api.github.com" in url:
                 return json.dumps({"items": [{
@@ -1966,14 +1967,30 @@ class TestReach(unittest.TestCase):
         self.assertEqual(by_id["web"]["items"][0]["url"], "https://example.com/BBCA")
         self.assertEqual(by_id["youtube"]["items"][0]["url"], "https://www.youtube.com/watch?v=abcdefghijk")
         self.assertEqual(by_id["rss"]["status"], "ok")
+        self.assertEqual(len(by_id["rss"]["items"]), 1)
         self.assertEqual(by_id["github"]["status"], "ok")
         self.assertEqual(len(by_id["github"]["items"]), 1)
+        gh = reach.parse_github({"items": [
+            {"full_name": "a/file", "name": "file", "description": "saham BBCA",
+             "html_url": "https://github.com/a/file"},
+            {"full_name": "a/prediksi-harga-saham", "name": "prediksi-harga-saham",
+             "description": "Prediksi harga saham BBCA menggunakan LSTM",
+             "html_url": "https://github.com/a/prediksi-harga-saham"},
+        ]}, "BBCA")
+        self.assertEqual(len(gh), 1)
+        self.assertIn("LSTM", gh[0]["title"])
         self.assertNotIn("<em", by_id["bilibili"]["items"][0]["title"])
         self.assertEqual(by_id["v2ex"]["status"], "kosong")
         self.assertEqual(by_id["reddit"]["status"], "perlu_login")
         self.assertEqual(by_id["reddit"]["items"], [])
         self.assertEqual(by_id["twitter"]["status"], "perlu_login")
         self.assertEqual(by_id["xueqiu"]["items"], [])
+        yt = reach.parse_youtube({
+            "a": {"videoRenderer": {"videoId": "abcdefghijk", "title": {"simpleText": "Prospek Bank BCA"}}},
+            "b": {"videoRenderer": {"videoId": "zzzzzzzzzzz", "title": {"simpleText": "Resep masakan"}}},
+        }, "BBCA")
+        self.assertEqual(len(yt), 1)
+        self.assertIn("BCA", yt[0]["title"])
 
     def test_route_and_page(self):
         from unittest import mock

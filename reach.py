@@ -75,6 +75,15 @@ def _has_code(text: str, ticker: str) -> bool:
     ) is not None
 
 
+def _about_ticker(text: str, ticker: str) -> bool:
+    """Kode utuh, atau 'BCA' bila kodenya BBCA (judul berita sering menyingkat)."""
+    if _has_code(text, ticker):
+        return True
+    if ticker == "BBCA":
+        return re.search(r"(?<![A-Z0-9])BCA(?![A-Z0-9])", (text or "").upper()) is not None
+    return False
+
+
 def _clean_title(text: str) -> str:
     title = re.sub(r"<[^>]+>", "", text or "")
     title = re.sub(r"\s+", " ", title).strip()
@@ -115,7 +124,7 @@ def parse_web_markdown(text: str, ticker: str) -> list[dict]:
         url = _unwrap_ddg(match.group(2))
         if not title or not url or url in seen:
             continue
-        if not _has_code(f"{title} {url}", ticker):
+        if not (_about_ticker(title, ticker) or _has_code(url, ticker)):
             continue
         seen.add(url)
         out.append({"title": title, "url": url})
@@ -144,7 +153,7 @@ def parse_youtube(payload: dict, ticker: str) -> list[dict]:
                 title = _clean_title(title)
                 if re.fullmatch(r"[A-Za-z0-9_-]{11}", vid) and title:
                     row = {"title": title, "url": f"https://www.youtube.com/watch?v={vid}"}
-                    if _has_code(title, ticker):
+                    if _about_ticker(title, ticker):
                         matched.append(row)
                     else:
                         rest.append(row)
@@ -186,18 +195,18 @@ def parse_github(payload: dict, ticker: str) -> list[dict]:
     for item in (payload.get("items") or [])[:20]:
         if not isinstance(item, dict):
             continue
-        blob = " ".join(
-            str(item.get(key) or "") for key in ("full_name", "name", "description")
-        )
-        if not _has_code(blob, ticker):
+        name = str(item.get("name") or "")
+        full_name = str(item.get("full_name") or "")
+        desc = _clean_title(str(item.get("description") or ""))
+        named = _has_code(name, ticker) or _has_code(full_name, ticker)
+        # Deskripsi pendek seperti "saham BBCA" pada repo bernama "file" dibuang.
+        described = _has_code(desc, ticker) and len(desc) >= 24
+        if not named and not described:
             continue
         url = _http_url(str(item.get("html_url") or ""))
         if not url.startswith("https://github.com/"):
             continue
-        title = _clean_title(str(item.get("full_name") or item.get("name") or ""))
-        desc = _clean_title(str(item.get("description") or ""))
-        if desc:
-            title = _clean_title(f"{title} — {desc}")
+        title = desc if described and not named else _clean_title(full_name or name)
         if title:
             out.append({"title": title, "url": url})
         if len(out) >= 5:
@@ -276,7 +285,7 @@ def _rss(ticker: str, fetcher) -> dict:
     for row in news._parse_rss(raw)[:8]:
         title = _clean_title(str(row.get("title") or ""))
         link = _http_url(str(row.get("url") or ""))
-        if not title:
+        if not title or not _about_ticker(title, ticker):
             continue
         items.append({"title": title, "url": link})
         if len(items) >= 5:

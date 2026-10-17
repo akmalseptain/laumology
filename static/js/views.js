@@ -345,53 +345,69 @@ async function loadNews(t){
   loadReachInto(t, document.getElementById("reachCard"));
 }
 
-function reachHtml(data){
+function reachHost(url){
+  try{ return new URL(url).hostname.replace(/^www\./, ""); }
+  catch(e){ return ""; }
+}
+function reachHtml(data, opts){
+  const bare = !!(opts && opts.bare);
   const channels = Array.isArray(data.channels) ? data.channels : [];
   const live = channels.filter(c => c.status !== "perlu_login");
-  const locked = channels.filter(c => c.status === "perlu_login");
-  const blocks = live.map(c => {
-    const items = (c.items || []).map(it => {
+  const ready = live.filter(c => c.status === "ok" && (c.items || []).length);
+  const kosong = live.filter(c => c.status === "kosong").map(c => c.label || c.id);
+  const gagal = live.filter(c => c.status === "gagal").map(c => c.label || c.id);
+  const locked = channels.filter(c => c.status === "perlu_login").map(c => c.label || c.id);
+  let groups = "";
+  ready.forEach(c => {
+    const items = c.items || [];
+    const links = items.map(it => {
       const title = escapeHtml(it.title || "");
       const url = String(it.url || "");
       const safe = /^https?:\/\//i.test(url) ? url : "";
-      const body = safe
-        ? '<a href="'+escapeHtml(safe)+'" target="_blank" rel="noopener noreferrer">'+title+'</a>'
-        : title;
-      return '<li>'+body+'</li>';
+      const host = (c.id === "web" && safe)
+        ? '<span class="host mono">'+escapeHtml(reachHost(safe))+"</span>" : "";
+      const inner = '<span class="reach-title">'+title+"</span>"+host;
+      return safe
+        ? '<a class="reach-row" href="'+escapeHtml(safe)+'" target="_blank" rel="noopener noreferrer">'+inner+"</a>"
+        : '<div class="reach-row">'+inner+"</div>";
     }).join("");
-    const state = c.status === "ok" ? ((c.items || []).length + " judul") : (c.status === "kosong" ? "belum ada" : "gagal");
-    const empty = c.status === "kosong"
-      ? "Belum ada bahasan untuk kode ini."
-      : escapeHtml(c.detail || "Sumber tidak membalas.");
-    return '<div style="margin-top:14px"><div class="sec"><span class="badge">'+escapeHtml(c.label || c.id || "")+'</span>'
-      + '<span class="muted" style="font-size:12px;margin-left:8px">'+escapeHtml(state)+'</span></div>'
-      + (items ? '<ul class="list reach">'+items+'</ul>' : '<p class="note">'+empty+'</p>')
-      + '</div>';
-  }).join("");
-  const lock = locked.length
-    ? '<p class="note">Belum tersambung. Butuh login di browser dan tidak dijalankan di server: '
-      + locked.map(c => escapeHtml(c.label || c.id)).join(", ") + '.</p>'
-    : "";
+    groups += '<div class="reach-grp"><div class="reach-k">'+escapeHtml(c.label || c.id || "")
+      +'<span class="mono">'+items.length+"</span></div><div class=\"reach-links\">"+links+"</div></div>";
+  });
+  const board = groups
+    ? '<div class="reach-board">'+groups+"</div>"
+    : '<p class="note">Belum ada judul untuk '+escapeHtml(data.ticker || "kode ini")+".</p>";
+  function bit(label, names){
+    if(!names.length) return "";
+    return '<span class="reach-bit"><b>'+label+"</b> "+names.map(escapeHtml).join(" · ")+"</span>";
+  }
+  const footHtml = [bit("Kosong", kosong), bit("Tidak membalas", gagal), bit("Perlu login", locked)].filter(Boolean).join("");
+  const foot = footHtml ? '<p class="reach-foot">'+footHtml+"</p>" : "";
+  const body = board + foot;
+  if(bare) return body;
   return '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div>'
-    + '<p class="note">'+escapeHtml(data.note || "")+'</p>'
-    + blocks + lock + '</div>';
+    + '<p class="note">'+escapeHtml(data.note || "")+'</p>' + body + "</div>";
 }
 
-async function loadReachInto(t, el){
+async function loadReachInto(t, el, opts){
   if(!el) return;
+  const bare = !!(opts && opts.bare);
   const code = (t || "").trim().toUpperCase();
   if(!code){
-    el.innerHTML = '<div class="card empty">Masukkan kode saham.</div>';
+    el.innerHTML = bare ? '<div class="empty">Masukkan kode saham.</div>' : '<div class="card empty">Masukkan kode saham.</div>';
     return;
   }
-  el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div><div class="empty">Memuat sumber untuk '+escapeHtml(code)+'...</div></div>';
+  el.innerHTML = bare
+    ? '<div class="empty">Memuat sumber untuk '+escapeHtml(code)+'...</div>'
+    : '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div><div class="empty">Memuat sumber untuk '+escapeHtml(code)+'...</div></div>';
   try{
     const resp = await fetch("/api/reach?ticker=" + encodeURIComponent(code));
     const data = await resp.json();
     if(!resp.ok || data.error) throw new Error(data.error || "Gagal memuat sumber");
-    el.innerHTML = reachHtml(data);
+    el.innerHTML = reachHtml(data, {bare: bare});
   }catch(e){
-    el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div><div class="empty">Gagal: '+escapeHtml(e.message)+'</div></div>';
+    const msg = '<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>';
+    el.innerHTML = bare ? msg : '<div class="card"><div class="sec"><span class="badge">Sumber internet</span></div>'+msg+'</div>';
   }
 }
 
@@ -540,12 +556,12 @@ async function loadNewsTab(){
                              : '<div class="empty" style="padding:24px">Tidak ada berita untuk '+escapeHtml(t)+'.</div>'))
       + '</div>';
     showStatus("Selesai");
-    loadReachInto(t, document.getElementById("reachResult"));
+    loadReachInto(t, document.getElementById("reachResult"), {bare: true});
   }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
 }
 if($("#reachRun")) $("#reachRun").onclick = function(){
   const t = (($("#beTicker") && $("#beTicker").value) || "").trim().toUpperCase();
-  loadReachInto(t, document.getElementById("reachResult"));
+  loadReachInto(t, document.getElementById("reachResult"), {bare: true});
 };
 if($("#fuRun")) $("#fuRun").onclick=loadFundamentalTab;
 if($("#fuTicker")){

@@ -1,4 +1,4 @@
-const CACHE = "laumology-v6";
+const CACHE = "laumology-v7";
 
 self.addEventListener("install", () => self.skipWaiting());
 
