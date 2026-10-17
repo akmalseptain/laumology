@@ -1,9 +1,5 @@
 /* ---------- Musyawarah (multi-agent consensus) ---------- */
 $("#myRun").onclick = runMusyawarah;
-if($("#myTicker")) $("#myTicker").addEventListener("input", function(){
-  var el=document.getElementById("myIdle"); if(!el) return;
-  el.textContent=(($("#myTicker").value||"").trim().toUpperCase())||"—";
-});
 async function runMusyawarah(){
   const t=($("#myTicker").value||"").trim().toUpperCase(); if(!t) return;
   const useLlm = $("#myLlm") && $("#myLlm").checked;
@@ -104,6 +100,7 @@ async function runDataQuality(){
 /* ===================== UI/UX v2 ===================== */
 function enhanceTables(){
   document.querySelectorAll("table:not(.as-cards)").forEach(function(tbl){
+    if(tbl.hasAttribute("data-keep-scroll")) return;
     var heads = Array.prototype.map.call(tbl.querySelectorAll("thead th"), function(th){ return th.textContent.trim(); });
     if(!heads.length) return;
     tbl.querySelectorAll("tbody tr").forEach(function(tr){
@@ -206,7 +203,7 @@ document.addEventListener("keydown",function(e){
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/static/sw.js", {updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}); }
   const yr = document.getElementById("yr"); if(yr) yr.textContent = new Date().getFullYear();
   const q = new URLSearchParams(location.search);
-  if(q.get("ticker")) $("#ticker").value = q.get("ticker").toUpperCase();
+  if(q.get("ticker")){ $("#ticker").value = q.get("ticker").toUpperCase(); syncTicker(); }
   if(q.get("interval")) $("#interval").value = q.get("interval");
   const tab = q.get("tab");
   if(tab){

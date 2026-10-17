@@ -88,6 +88,7 @@ header.topbar{position:sticky;top:0;z-index:50;background:var(--surface);border-
 .search input:focus,.search select:focus{box-shadow:none}
 .search input{flex:1;text-transform:uppercase;font-weight:600;letter-spacing:.06em;
   font-family:'JetBrains Mono',ui-monospace,monospace}
+#fuTicker,#beTicker,#btTicker,#tvSym,#acTicker,#myTicker{text-transform:uppercase}
 .search select{width:auto;flex:0 0 auto;color:var(--muted);font-family:'JetBrains Mono',ui-monospace,monospace}
 .search .btn{border-radius:4px;margin-left:2px}
 .search:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--ring)}

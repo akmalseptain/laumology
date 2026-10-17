@@ -415,12 +415,27 @@ async function loadReachInto(t, el, opts){
 }
 
 /* ---------- Tab: Fundamental ---------- */
-function resetPanelTouched(){
-  ["#fuTicker","#beTicker","#btTicker","#acTicker","#myTicker","#tvSym"].forEach(sel=>{ const el=$(sel); if(el) delete el.dataset.touched; });
-}
-function syncFuInputs(){
-  const src=($("#ticker").value||"").trim().toUpperCase();
-  ["#fuTicker","#beTicker","#btTicker","#acTicker","#myTicker","#tvSym"].forEach(sel=>{ const el=$(sel); if(el && !el.dataset.touched && src) el.value=src; });
+const PANEL_TICKERS = ["#fuTicker","#beTicker","#btTicker","#acTicker","#myTicker","#tvSym"];
+/* Satu sumber kebenaran ticker: #ticker + 6 panel + placeholder idle (#idleCode/#myIdle).
+   Tulis .value programatik tanpa event `input` sintetis (hindari loop/event ganda);
+   #idleCode/#myIdle ditulis langsung. Source & field aktif tak ditulis ulang
+   agar caret tak lompat (mobile/IME). */
+function syncTicker(src){
+  const sourceEl = (src && src.nodeType === 1) ? src : null;
+  const val = ((sourceEl ? sourceEl.value : ($("#ticker") && $("#ticker").value)) || "").trim().toUpperCase();
+  if(!val) return;
+  const active = document.activeElement;
+  const master = $("#ticker");
+  if(master && active !== master && master !== sourceEl) master.value = val;
+  PANEL_TICKERS.forEach(sel=>{
+    const el=$(sel);
+    if(!el || el === sourceEl || active === el) return;
+    el.value = val;
+  });
+  const idleCode = document.getElementById("idleCode");
+  if(idleCode) idleCode.textContent = val;
+  const myIdle = document.getElementById("myIdle");
+  if(myIdle) myIdle.textContent = val;
 }
 function fuVerdict(f){
   const out=[];
@@ -569,15 +584,15 @@ if($("#reachRun")) $("#reachRun").onclick = function(){
 if($("#fuRun")) $("#fuRun").onclick=loadFundamentalTab;
 if($("#fuTicker")){
   $("#fuTicker").addEventListener("keydown",e=>{ if(e.key==="Enter") loadFundamentalTab(); });
-  $("#fuTicker").addEventListener("input",e=>{ e.target.dataset.touched="1"; });
+  $("#fuTicker").addEventListener("input",e=>{ syncTicker(e.target); });
 }
 if($("#beRun")) $("#beRun").onclick=loadNewsTab;
 if($("#beTicker")){
   $("#beTicker").addEventListener("keydown",e=>{ if(e.key==="Enter") loadNewsTab(); });
-  $("#beTicker").addEventListener("input",e=>{ e.target.dataset.touched="1"; });
+  $("#beTicker").addEventListener("input",e=>{ syncTicker(e.target); });
 }
 ["#btTicker","#acTicker","#myTicker","#tvSym"].forEach(sel=>{
-  const el=$(sel); if(el) el.addEventListener("input",e=>{ e.target.dataset.touched="1"; });
+  const el=$(sel); if(el) el.addEventListener("input",e=>{ syncTicker(e.target); });
 });
 
 $("#optRun").onclick = runOptimize;

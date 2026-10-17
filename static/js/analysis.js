@@ -87,11 +87,11 @@ function activateTab(name, source){
   document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
   const panel = $("#panel-"+name); if(panel) panel.classList.add("active");
   setIntro(name);
-  if(name==="live"){ syncFuInputs(); loadLiveChart(); }
+  if(name==="live"){ syncTicker(); loadLiveChart(); }
   if(name==="portofolio") refreshPortfolio();
-  if(name==="fundamental"){ syncFuInputs(); loadFundamentalTab(); }
-  if(name==="berita"){ syncFuInputs(); loadNewsTab(); }
-  if(name==="backtest" || name==="akurasi" || name==="musyawarah") syncFuInputs();
+  if(name==="fundamental"){ syncTicker(); loadFundamentalTab(); }
+  if(name==="berita"){ syncTicker(); loadNewsTab(); }
+  if(name==="backtest" || name==="akurasi" || name==="musyawarah") syncTicker();
   if(name==="analisis" && charts.analysis) setTimeout(()=>ChartKit.resize(charts.analysis), 80);
   const sel = source || document.querySelector('.tab[data-tab="'+name+'"]');
   if(sel){
@@ -124,11 +124,7 @@ document.querySelectorAll(".tab").forEach(t=>{
 });
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{ $("#ticker").value=c.dataset.t; document.querySelectorAll(".chip").forEach(x=>x.classList.remove("active")); c.classList.add("active"); analyze(); });
 $("#goBtn").onclick = () => analyze();
-function syncIdle(){
-  var el=document.getElementById("idleCode"); if(!el) return;
-  el.textContent=(($("#ticker").value||"").trim().toUpperCase())||"—";
-}
-$("#ticker").addEventListener("input", syncIdle);
+$("#ticker").addEventListener("input", function(){ syncTicker(); });
 $("#ticker").addEventListener("keydown", e => { if(e.key==="Enter") analyze(); });
 $("#interval").onchange = () => analyze();
 $("#auto").onchange = (e) => {
@@ -139,7 +135,7 @@ $("#auto").onchange = (e) => {
 async function analyze(silent=false){
   const ticker = ($("#ticker").value||"").trim().toUpperCase();
   if(!ticker) return;
-  if(!silent){ activateTab("analisis"); resetPanelTouched(); syncFuInputs(); }
+  if(!silent){ activateTab("analisis"); syncTicker(); }
   const interval = $("#interval").value;
   current = { ticker, interval };
   if(!silent) showStatus("Mengambil " + ticker + " (" + interval + ")...", true);
