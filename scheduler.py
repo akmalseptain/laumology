@@ -42,7 +42,10 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
     try:
         import outcomes as outcomes_mod
 
-        outcomes_mod.evaluate_signals(limit=25)
+        # Multi-horizon: ukur H+5 dan H+10 agar track record tidak menyetir
+        # satu horizon saja; keduanya best-effort, jangan ganggu scan.
+        for horizon in (5, 10):
+            outcomes_mod.evaluate_signals(horizon=horizon, limit=25)
     except Exception:
         pass
     for a in buys:

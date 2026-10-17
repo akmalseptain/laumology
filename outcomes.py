@@ -14,7 +14,7 @@ Murni pengukuran atas apa yang SUDAH terjadi:
   (indikator mana yang layak masuk skoring, ambang berapa).
 
 CLI:
-    python outcomes.py --horizon 5 --lookback 90
+    python outcomes.py --horizons 5,10 --lookback 90
 """
 from __future__ import annotations
 
@@ -210,31 +210,39 @@ def evaluate_signals(
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="LAUMOLOGY evaluasi hasil sinyal (feedback loop)")
-    ap.add_argument("--horizon", type=int, default=DEFAULT_HORIZON,
-                    help="jumlah hari perdagangan setelah sinyal (default 5)")
+    ap.add_argument("--horizons", default="5",
+                    help="daftar horizon hari perdagangan, dipisah koma (mis. 5,10)")
     ap.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK_DAYS,
                     help="batas usia sinyal dalam hari kalender (default 90)")
     ap.add_argument("--limit", type=int, default=500, help="maksimum sinyal per eksekusi")
     args = ap.parse_args()
 
+    try:
+        horizons = sorted({int(h) for h in str(args.horizons).replace(" ", "").split(",") if h})
+    except ValueError:
+        raise SystemExit("--horizons harus daftar angka dipisah koma, mis. 5,10")
+    if not horizons:
+        raise SystemExit("--horizons kosong; isi minimal satu horizon, mis. 5")
+
     store.init()
-    r = evaluate_signals(args.horizon, args.lookback, args.limit)
-    print(
-        f"H+{r['horizon']}: dievaluasi {r['evaluated']}/{r['eligible']} "
-        f"(pending {r['still_pending']}, gagal fetch {r['failed']})"
-    )
-    s = store.outcomes_summary(args.horizon)
-    if s.get("n"):
+    for horizon in horizons:
+        r = evaluate_signals(horizon, args.lookback, args.limit)
         print(
-            f"  Benar (return +): {s['win_rate']:.1f}%  |  "
-            f"rata-rata {s['avg_fwd_pct']:+.2f}%  |  excess vs IHSG {s['avg_excess_pct']:+.2f}%"
+            f"H+{r['horizon']}: dievaluasi {r['evaluated']}/{r['eligible']} "
+            f"(pending {r['still_pending']}, gagal fetch {r['failed']})"
         )
-        print(
-            f"  TP1 sebelum SL: {s['tp1_first_rate']:.1f}%  |  SL dulu: {s['sl_first_rate']:.1f}%"
-            f"  |  netral: {s['none_rate']:.1f}%"
-        )
-    else:
-        print("  Belum ada sinyal yang cukup tua untuk dievaluasi (jujur, tanpa proyeksi).")
+        s = store.outcomes_summary(horizon)
+        if s.get("n"):
+            print(
+                f"  Benar (return +): {s['win_rate']:.1f}%  |  "
+                f"rata-rata {s['avg_fwd_pct']:+.2f}%  |  excess vs IHSG {s['avg_excess_pct']:+.2f}%"
+            )
+            print(
+                f"  TP1 sebelum SL: {s['tp1_first_rate']:.1f}%  |  SL dulu: {s['sl_first_rate']:.1f}%"
+                f"  |  netral: {s['none_rate']:.1f}%"
+            )
+        else:
+            print("  Belum ada sinyal yang cukup tua untuk dievaluasi (jujur, tanpa proyeksi).")
 
 
 if __name__ == "__main__":
