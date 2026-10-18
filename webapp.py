@@ -7,6 +7,7 @@ Semua endpoint ada di paket `routes/`.
 from __future__ import annotations
 
 import argparse
+import datetime
 import logging
 import os
 import threading
@@ -233,6 +234,29 @@ def _apply_proxy_fix(wsgi_app, hops: int):
 app.wsgi_app = _apply_proxy_fix(app.wsgi_app, _trusted_proxy_hops())
 
 
+_WIB_OFFSET = datetime.timedelta(hours=7)  # UTC+7 (WIB)
+
+
+def in_market_window(now_utc: datetime.datetime, window: str = "market") -> bool:
+    """Jendela aktif scheduler — murni/deterministik dari argumen (bisa dites).
+
+    Mode 'market' (default): Senin–Jumat 08:45–16:20 WIB inklusif; Sabtu/Minggu
+    idle. Mode '24h'/'all'/'always': selalu aktif. Kesalahan internal
+    dianggap AKTIF (fail-open, jangan mematikan scan diam-diam) — perilaku
+    sama dengan implementasi lama di dalam loop.
+    """
+    if str(window or "").lower() in ("24h", "all", "always"):
+        return True
+    try:
+        now = now_utc + _WIB_OFFSET
+        if now.weekday() >= 5:  # Sabtu/Minggu
+            return False
+        minutes = now.hour * 60 + now.minute
+        return (8 * 60 + 45) <= minutes <= (16 * 60 + 20)
+    except Exception:
+        return True
+
+
 def _maybe_start_scheduler() -> None:
     """Jalankan auto-scanner in-process (untuk Render/VPS). Aktifkan via ENABLE_SCHEDULER=1.
 
@@ -254,16 +278,7 @@ def _maybe_start_scheduler() -> None:
     warm_interval = max(600, _env_int("WARM_INTERVAL", 1800))
 
     def _in_window() -> bool:
-        if window in ("24h", "all", "always"):
-            return True
-        try:
-            now = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=7)  # WIB
-            if now.weekday() >= 5:  # Sabtu/Minggu
-                return False
-            minutes = now.hour * 60 + now.minute
-            return (8 * 60 + 45) <= minutes <= (16 * 60 + 20)
-        except Exception:
-            return True
+        return in_market_window(_dt.datetime.now(_dt.timezone.utc), window)
 
     def loop() -> None:
         time.sleep(start_delay)  # beri waktu server siap sebelum kerja berat
