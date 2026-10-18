@@ -65,9 +65,13 @@ def signal_alert(row: dict) -> dict:
         "source": row.get("source"),
         "ts": row.get("ts"),
     }
+    def _fmt(v):
+        # Field harga bisa absen (mis. sinyal manual): tampilkan "n/a", jangan crash.
+        return "n/a" if v is None else f"{v:,.0f}"
+
     text = (
         f"[{payload['signal']}] {payload['ticker']} | skor {payload['score']} "
-        f"conf {payload['confidence']}% | harga {payload['price']:,.0f} "
-        f"| SL {payload['stop_loss']:,.0f} TP1 {payload['tp1']:,.0f}"
+        f"conf {payload['confidence']}% | harga {_fmt(payload['price'])} "
+        f"| SL {_fmt(payload['stop_loss'])} TP1 {_fmt(payload['tp1'])}"
     )
     return dispatch(text, payload)
