@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from flask import Flask
 
-from . import analysis, backtest, meta, portfolio, research, screener, warroom
+from . import analysis, backtest, edge, meta, portfolio, research, screener, trackrecord, warroom
 
-BLUEPRINTS = [analysis.bp, screener.bp, backtest.bp, research.bp, portfolio.bp, meta.bp, warroom.bp]
+BLUEPRINTS = [analysis.bp, screener.bp, backtest.bp, research.bp, portfolio.bp, meta.bp, warroom.bp, trackrecord.bp, edge.bp]
 
 
 def register(app: Flask) -> None:
