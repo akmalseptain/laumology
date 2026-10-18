@@ -15,11 +15,11 @@ import unittest
 import store
 
 
-def _insert_signal(conn, ticker):
+def _insert_signal(conn, ticker, signal="BUY", action="BELI"):
     cur = conn.execute(
         "INSERT INTO signals(ts,ticker,signal,action,score,confidence,grade,"
         "price,entry,stop_loss,tp1,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-        ("2026-09-01 10:00:00", ticker, "BUY", "BELI", 75, 65, "B",
+        ("2026-09-01 10:00:00", ticker, signal, action, 75, 65, "B",
          100.0, 100.0, 95.0, 110.0, "test"),
     )
     return cur.lastrowid
@@ -49,9 +49,12 @@ class VerdictTestBase(unittest.TestCase):
         self.tmp.cleanup()
 
     def _seed(self, rows, horizon=5):
-        """rows: list of (ticker, fwd, excess, outcome)."""
-        for (ticker, fwd, excess, outcome) in rows:
-            sid = _insert_signal(self.conn, ticker)
+        """rows: list of (ticker, fwd, excess, outcome) atau (ticker, fwd, excess, outcome, signal, action)."""
+        for row in rows:
+            ticker, fwd, excess, outcome = row[0], row[1], row[2], row[3]
+            signal = row[4] if len(row) > 4 else "BUY"
+            action = row[5] if len(row) > 5 else "BELI"
+            sid = _insert_signal(self.conn, ticker, signal, action)
             _insert_outcome(self.conn, sid, horizon, fwd, excess, outcome)
         self.conn.commit()
 
@@ -67,14 +70,14 @@ class TestOutcomeVerdicts(VerdictTestBase):
         self._seed([
             ("TSTA", 2.0, 1.0, "TP1"),    # benar_nyata
             ("TSTB", 1.0, -0.5, "TP1"),   # untung_ikut_pasar
-            ("TSTC", -1.0, 0.5, "NONE"),  # turun_lebih_baik
+            ("TSTC", -1.0, 0.5, "NONE"),  # salah_relatif_ok
             ("TSTD", -2.0, -1.0, "SL"),   # salah
         ])
         rep = store.outcome_verdicts(5)
         self.assertEqual(rep["n"], 4)
         self.assertAlmostEqual(rep["verdict_pct"]["benar_nyata"], 25.0)
         self.assertAlmostEqual(rep["verdict_pct"]["untung_ikut_pasar"], 25.0)
-        self.assertAlmostEqual(rep["verdict_pct"]["turun_lebih_baik"], 25.0)
+        self.assertAlmostEqual(rep["verdict_pct"]["salah_relatif_ok"], 25.0)
         self.assertAlmostEqual(rep["verdict_pct"]["salah"], 25.0)
 
     def test_letak_kesalahan_hanya_dari_sinyal_salah(self):
@@ -105,6 +108,37 @@ class TestOutcomeVerdicts(VerdictTestBase):
         self._seed([("TSTA", 2.0, 1.0, "TP1")], horizon=10)
         self.assertEqual(store.outcome_verdicts(5)["n"], 0)
         self.assertEqual(store.outcome_verdicts(10)["n"], 1)
+
+
+class TestDirectionAwareVerdicts(VerdictTestBase):
+    def test_sinyal_sell_dibalik(self):
+        # "Disuruh tutup/turun ternyata harga naik" = SALAH.
+        self._seed([
+            ("TSTA", 2.0, 1.0, "NONE", "SELL", "JUAL"),   # naik -> salah
+            ("TSTB", -2.0, -1.0, "NONE", "SELL", "JUAL"), # turun -> benar_nyata
+        ])
+        rep = store.outcome_verdicts(5)
+        v = {x["signal_id"]: x for x in rep["recent"]}
+        self.assertEqual(rep["n"], 2)
+        self.assertAlmostEqual(rep["verdict_pct"]["salah"], 50.0)
+        self.assertAlmostEqual(rep["verdict_pct"]["benar_nyata"], 50.0)
+        self.assertEqual(rep["wrong_n"], 1)
+        self.assertAlmostEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
+        self.assertAlmostEqual(rep["wrong_where_pct"]["kalah_dari_ihsg"], 100.0)
+
+    def test_sell_turun_tapi_ikut_pasar_tetap_tidak_unggul(self):
+        # SELL & harga turun, tapi IHSG turun lebih dalam -> cuma ikut pasar.
+        self._seed([
+            ("TSTA", -1.0, 1.0, "NONE", "AVOID", "AVOID"),  # excess>0: saham turun kurang dr IHSG
+        ])
+        rep = store.outcome_verdicts(5)
+        self.assertAlmostEqual(rep["verdict_pct"]["untung_ikut_pasar"], 100.0)
+
+    def test_avoid_bernilai_avoid(self):
+        self._seed([("TSTA", 1.5, 0.5, "NONE", "AVOID", "AVOID")])
+        rep = store.outcome_verdicts(5)
+        self.assertAlmostEqual(rep["verdict_pct"]["salah"], 100.0)
+        self.assertEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
 
 
 if __name__ == "__main__":
