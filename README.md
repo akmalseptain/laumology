@@ -10,7 +10,7 @@ Live: <https://laumology.onrender.com>
 - **Skoring & sinyal 0–100** (`signals.py`) — dari STRONG BUY sampai AVOID, lengkap dengan harga entry, stop loss, dan take profit.
 - **Screening & universe** (`screener.py`, `universe.py`) — misalnya daftar LQ45.
 - **Paper trading & track record** (`store.py`, `routes/trackrecord.py`, `templates/trackrecord.html`) — riwayat sinyal dan hasil paper trading: win rate, expectancy, payoff, Kelly, kurva ekuitas. Semua angka murni dari DB lokal, tanpa proyeksi.
-- **Feedback loop akurasi** (`outcomes.py`) — mengevaluasi sinyal yang sudah tercatat: return nyata per horizon (mis. H+5/H+10), TP1 vs SL mana yang lebih dulu, excess return vs IHSG, plus atribusi win rate per kelompok (skor/confidence/grade/sinyal) via `--attribution` dan seksi khusus di halaman track record — bukti kelompok mana yang benar-benar menang; plus vonis per sinyal (`--diagnosa`): benar nyata / hanya ikut pasar / salah, dan salahnya di mana (SL duluan, harga nyalet, kalah dari IHSG). Murni pengukuran kausal tanpa proyeksi; menjadi bukti empiris sebelum skor 0–100 diubah (sinyal didedup per saham per hari — scan berulang tidak dihitung ganda). Bukti yang sama tersedia sebagai JSON: `GET /api/attribution?horizon=5&min_n=5` (kelompok mana yang menang) dan `GET /api/verdicts?horizon=5&limit=200` (vonis per sinyal + letak kesalahan).
+- **Feedback loop akurasi** (`outcomes.py`) — mengevaluasi sinyal yang sudah tercatat: return nyata per horizon (mis. H+5/H+10), TP1 vs SL mana yang lebih dulu, excess return vs IHSG, plus atribusi win rate per kelompok (skor/confidence/grade/sinyal) via `--attribution` dan seksi khusus di halaman track record — bukti kelompok mana yang benar-benar menang; plus vonis per sinyal (`--diagnosa`): benar nyata / hanya ikut pasar / salah, dan salahnya di mana (SL duluan, harga nyalet, kalah dari IHSG). Murni pengukuran kausal tanpa proyeksi; menjadi bukti empiris sebelum skor 0–100 diubah (sinyal didedup per saham per hari — scan berulang tidak dihitung ganda). Diagnosa juga tersedia per kelompok (`--diagnosa-kelompok`): vonis × letak kesalahan untuk tiap bucket skor/confidence/grade/sinyal — kelompok mana yang paling sering salah dan salahnya di mana. Bukti yang sama tersedia sebagai JSON: `GET /api/attribution?horizon=5&min_n=5` (kelompok mana yang menang) dan `GET /api/verdicts?horizon=5&limit=200` (vonis per sinyal + letak kesalahan).
 - **Uji edge indikator** (`indicator_edge.py`) — event study 22 event a priori: hit rate vs baseline, uplift, stabilitas antar semester (worst-half hit rate), masking bar pemanasan. Tersedia juga sebagai endpoint: `GET /api/edge?universe=lq45&horizon=5&top=10` (JSON ringkas, server-side).
 - **Backtest & validasi** (`backtest.py`, `validation.py`, `consensus_backtest.py`) — desain walk-forward, jujur terhadap data.
 - **Berita, fundamental & data eksternal** (`news.py`, `fundamentals.py`, `external.py`, `realtime.py`).
@@ -50,6 +50,9 @@ python outcomes.py --horizons 5,10 --lookback 90 --attribution
 
 # Vonis per sinyal: benar/salah dan letak kesalahannya
 python outcomes.py --horizons 5,10 --lookback 90 --diagnosa
+
+# Diagnosa per kelompok: bucket mana yang paling sering salah, dan salahnya di mana
+python outcomes.py --horizons 5,10 --lookback 90 --diagnosa-kelompok
 
 # Ringkasan edge via API web (jika server jalan)
 curl "http://localhost:5000/api/edge?universe=lq45&horizon=5&top=10"
