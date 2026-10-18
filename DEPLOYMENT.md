@@ -11,18 +11,28 @@ ENABLE_SCHEDULER=1, SCAN_INTERVAL=900).
 2. **Spin-down saat idle** — scheduler ikut pause; sinyal tidak direkam
    saat tidak ada pengunjung.
 
-## Opsi A — GRATIS, tetap di Render (rekomendasi hemat)
-a) **Replikasi SQLite via Litestream** ke object storage gratis (Cloudflare R2
-   free 10GB / Backblaze B2). Alur: saat boot → `litestream restore` DB dari
-   replica; saat jalan → `litestream replicate` streaming terus-menerus.
-   Contoh konfigurasi: lihat `litestream.yml.example`.
-b) **Ping /health berkala** dari UptimeRobot / cron-job.org (gratis) supaya
-   instance tidak tidur dan scheduler terus merekam sinyal (sesuai catatan
-   di render.yaml).
-c) Set env `DATA_DIR` (opsional) untuk lokasi DB yang konsisten.
+## Opsi A — GRATIS, tetap di Render (rekomendasi hemat) — SUDAH OTOMATIS DI REPO
+Repo sudah membawa bootstrap-nya: `scripts/render-start.sh` (aman dua arah:
+env belum diisi = jalan seperti biasa; env lengkap = restore + streaming).
+Langkah kamu (sekali saja, ±10 menit):
+1. **Cloudflare R2** (console.cloudflare.com → R2): buat bucket (mis.
+   `laumology-db`) → Manage API Tokens → buat token Object Read & Write →
+   catat Access Key ID, Secret Access Key, dan Endpoint
+   (`https://<ACCOUNT_ID>.r2.cloudflarestorage.com`).
+2. **Render Dashboard** → service `laumology` → Environment, tambahkan:
+   - `LITESTREAM_BUCKET` = nama bucket
+   - `LITESTREAM_ACCESS_KEY_ID` = access key R2
+   - `LITESTREAM_SECRET_ACCESS_KEY` = secret R2
+   - `LITESTREAM_ENDPOINT` = endpoint R2
+   (opsional: `LITESTREAM_PATH`, `LITESTREAM_RETENTION`, `LITESTREAM_SYNC_INTERVAL`)
+3. **Deploy ulang** (Manual Deploy → Deploy latest commit setelah merge).
+   Log harus menampilkan `[render-start] Litestream AKTIF`.
+4. **Anti tidur**: daftar UptimeRobot (free) → monitor HTTP
+   `https://laumology.onrender.com/health` interval 5 menit.
+   (cron-job.org juga bisa.) Tanpa ini, sinyal hanya terekam saat ada pengunjung.
 
-Tanpa (a), DB hilang tiap restart. Tanpa (b), sinyal hanya terekam saat ada
-pengunjung. Keduanya gratis.
+Verifikasi: setelah beberapa hari, `/api/trackrecord` → `n_signals` harus
+bertambah DAN tidak kembali ke 0 setelah restart (DB pulih dari replica).
 
 ## Opsi B — PALING SIMPEL, berbayar murah (±$7/bulan)
 Upgrade ke **Render Starter** + **Persistent Disk 1GB**, set `DATA_DIR` ke
