@@ -10,6 +10,7 @@ Live: <https://laumology.vercel.app>
 - **Skoring & sinyal 0–100** (`signals.py`) — dari STRONG BUY sampai AVOID, lengkap dengan harga entry, stop loss, dan take profit.
 - **Screening & universe** (`screener.py`, `universe.py`) — misalnya daftar LQ45.
 - **Paper trading & track record** (`store.py`, `routes/trackrecord.py`, `templates/trackrecord.html`) — riwayat sinyal dan hasil paper trading: win rate, expectancy, payoff, Kelly, kurva ekuitas. Semua angka murni dari DB lokal, tanpa proyeksi.
+- **Feedback loop akurasi** (`outcomes.py`) — mengevaluasi sinyal yang sudah tercatat: return nyata per horizon (mis. H+5/H+10), TP1 vs SL mana yang lebih dulu, excess return vs IHSG. Murni pengukuran kausal tanpa proyeksi; menjadi bukti empiris sebelum skor 0–100 diubah.
 - **Uji edge indikator** (`indicator_edge.py`) — event study 22 event a priori: hit rate vs baseline, uplift, stabilitas antar semester (worst-half hit rate), masking bar pemanasan.
 - **Backtest & validasi** (`backtest.py`, `validation.py`, `consensus_backtest.py`) — desain walk-forward, jujur terhadap data.
 - **Berita, fundamental & data eksternal** (`news.py`, `fundamentals.py`, `external.py`, `realtime.py`).
@@ -40,6 +41,9 @@ python scheduler.py
 
 # Uji edge indikator terhadap data IDX
 python indicator_edge.py --list lq45 --horizon 5 --top 25 --out edge_report.json
+
+# Evaluasi hasil sinyal tercatat (feedback loop, multi-horizon)
+python outcomes.py --horizons 5,10 --lookback 90
 ```
 
 ## Pengujian
@@ -65,6 +69,7 @@ Suite di `tests/test_engine.py` memakai data sintetis dan mengosongkan `API_KEY`
 | `indicator_edge.py` | Event study edge indikator |
 | `backtest.py`, `validation.py` | Backtest & validasi |
 | `scheduler.py` | Job scan berkala |
+| `outcomes.py` | Feedback loop: evaluasi hasil sinyal tercatat |
 | `templates/`, `static/` | Tampilan web |
 
 ## Prinsip proyek
