@@ -226,6 +226,24 @@ def print_attribution(horizon: int) -> None:
                   f"TP1={e['tp1_rate']:.0f}%  SL={e['sl_rate']:.0f}%")
 
 
+def print_diagnosis(horizon: int) -> None:
+    """Cetak vonis benar/salah + letak kesalahan analisa untuk horizon ini."""
+    rep = store.outcome_verdicts(horizon)
+    if not rep.get("n"):
+        print("  Diagnosa: belum ada sinyal tervalidasi (jujur, tanpa proyeksi).")
+        return
+    vp = rep["verdict_pct"]
+    print(f"  Vonis H+{horizon} (n={rep['n']}): benar nyata {vp.get('benar_nyata', 0):.1f}%  "
+          f"untung ikut pasar {vp.get('untung_ikut_pasar', 0):.1f}%  "
+          f"turun tapi relatif {vp.get('turun_lebih_baik', 0):.1f}%  salah {vp.get('salah', 0):.1f}%")
+    if rep.get("wrong_n"):
+        wp = rep["wrong_where_pct"]
+        print(f"  Dari {rep['wrong_n']} sinyal salah/turun — letak kesalahannya:")
+        print(f"    SL tersentuh duluan: {wp.get('sl_duluan', 0):.1f}%  |  "
+              f"tak sentuh TP1/SL (nyalet): {wp.get('tanpa_tp1_dan_sl', 0):.1f}%  |  "
+              f"kalah dari IHSG: {wp.get('kalah_dari_ihsg', 0):.1f}%")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="LAUMOLOGY evaluasi hasil sinyal (feedback loop)")
     ap.add_argument("--horizons", default="5",
@@ -235,6 +253,8 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=500, help="maksimum sinyal per eksekusi")
     ap.add_argument("--attribution", action="store_true",
                     help="cetak win rate per kelompok (skor/confidence/grade/sinyal) — bukti untuk keputusan ambang")
+    ap.add_argument("--diagnosa", action="store_true",
+                    help="cetak vonis per sinyal (benar/salah) + letak kesalahan (SL duluan/tanpa TP1/kalah dari IHSG)")
     args = ap.parse_args()
 
     try:
@@ -265,6 +285,8 @@ def main() -> None:
             print("  Belum ada sinyal yang cukup tua untuk dievaluasi (jujur, tanpa proyeksi).")
         if args.attribution:
             print_attribution(horizon)
+        if args.diagnosa:
+            print_diagnosis(horizon)
 
 
 if __name__ == "__main__":
