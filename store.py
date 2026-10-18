@@ -69,13 +69,13 @@ def init() -> None:
 
 
 def _now() -> str:
-    return time.strftime("%Y-%m-%d %H:%M:%S")
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
 
 def save_fund_snap(ticker: str, fields: dict) -> dict:
     """Simpan satu cuplikan fundamental per emiten per hari. Tidak menimpa hari lain."""
     init()
-    day = time.strftime("%Y-%m-%d")
+    day = time.strftime("%Y-%m-%d", time.gmtime())
     code = (ticker or "").upper().strip()
     with _lock, _conn() as c:
         c.execute(
@@ -226,8 +226,8 @@ def pending_signals(horizon: int, lookback_days: int, limit: int = 500) -> list[
     except (TypeError, ValueError):
         return []
     now = time.time()
-    oldest = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - lookback_days * 86400))
-    youngest = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now - (horizon * 2 + 2) * 86400))
+    oldest = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(now - lookback_days * 86400))
+    youngest = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(now - (horizon * 2 + 2) * 86400))
     with _lock, _conn() as c:
         rows = c.execute(
             "SELECT s.* FROM signals s"
