@@ -116,15 +116,36 @@ def fund_snap_history(ticker: str, limit: int = 30) -> list[dict]:
     ]
 
 
-def add_signal(payload: dict, source: str = "manual") -> None:
+def add_signal(payload: dict, source: str = "manual") -> bool:
+    """Catat sinyal; return False bila duplikat (ticker+sinyal sama, hari sama).
+
+    Dedup HULU (jaga kejujuran statistik): scheduler memindai tiap
+    SCAN_INTERVAL — satu ticker bisa di-pindai puluhan kali per hari
+    dengan keadaan sinyal yang sama. Tanpa dedup per (ticker, signal,
+    hari), feedback loop mengevaluasi salinan duplikat (pseudo-
+    replikasi) dan win rate/vonis jadi bias oleh "berapa lama sinyal
+    bertahan", bukan oleh kejadian sinyal independen. Skor/ambang tidak
+    diubah.
+    """
+    ticker = payload.get("ticker")
+    signal = payload.get("signal")
+    day = _now()[:10]
     with _lock, _conn() as c:
+        if ticker and signal:
+            dup = c.execute(
+                "SELECT 1 FROM signals WHERE ticker=? AND signal=? AND substr(ts,1,10)=?"
+                " ORDER BY id DESC LIMIT 1",
+                (ticker, signal, day),
+            ).fetchone()
+            if dup:
+                return False
         c.execute(
             "INSERT INTO signals(ts,ticker,signal,action,score,confidence,grade,price,entry,stop_loss,tp1,source)"
             " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 _now(),
-                payload.get("ticker"),
-                payload.get("signal"),
+                ticker,
+                signal,
                 payload.get("action"),
                 payload.get("score"),
                 payload.get("confidence"),
@@ -136,6 +157,7 @@ def add_signal(payload: dict, source: str = "manual") -> None:
                 source,
             ),
         )
+        return True
 
 
 def add_scan(universe: str, n: int, buys: int, note: str = "") -> None:
