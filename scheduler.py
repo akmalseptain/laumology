@@ -11,7 +11,7 @@ import store
 from signals import analyze
 
 
-def run_once(universe: str = "lq45", min_score: int = 65) -> int:
+def run_once(universe: str = "lq45") -> int:
     tickers = screener.resolve_watchlist(universe)
     data.prefetch(tickers)  # batch: percepat + hangatkan cache
     prev = {r["ticker"]: r["signal"] for r in store.recent_signals(limit=800)}
@@ -49,12 +49,15 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
     except Exception:
         pass
     for a in buys:
-        notify.signal_alert({
-            "ticker": a.ticker, "signal": a.signal, "action": a.action,
-            "score": a.score, "confidence": a.confidence, "grade": a.grade,
-            "price": a.price, "entry": a.entry, "stop_loss": a.stop_loss, "tp1": a.tp1,
-            "source": "scan",
-        })
+        try:
+            notify.signal_alert({
+                "ticker": a.ticker, "signal": a.signal, "action": a.action,
+                "score": a.score, "confidence": a.confidence, "grade": a.grade,
+                "price": a.price, "entry": a.entry, "stop_loss": a.stop_loss, "tp1": a.tp1,
+                "source": "scan",
+            })
+        except Exception:
+            pass  # best-effort: satu alert gagal tidak boleh memutus sisa alert
         print(f"ALERT {a.ticker} {a.signal} skor {a.score} conf {a.confidence}%")
     return len(buys)
 
