@@ -1263,6 +1263,16 @@ class TestTrackRecordSeo(unittest.TestCase):
         home = self.client.get("/").get_data(as_text=True)
         self.assertIn('href="/track-record"', home)
 
+    def test_ui_menggunakan_chrome_situs_utama(self):
+        """/track-record wajib pakai chrome & design system situs utama
+        (topbar brand, app.css, site-footer) — bukan tema mandiri."""
+        html = self.client.get("/track-record").get_data(as_text=True)
+        self.assertIn('<link rel="stylesheet" href="/static/css/app.css">', html)
+        self.assertIn('class="topbar"', html)
+        self.assertIn('LAUMO<i>LOGY</i>', html)
+        self.assertIn('class="site-footer"', html)
+        self.assertIn('Space+Grotesk', html)
+
 
 class TestIndikatorSahamPageSeo(unittest.TestCase):
     """Halaman konten statis ``/indikator-saham`` yang terindeks (W-0026 lanjutan).
