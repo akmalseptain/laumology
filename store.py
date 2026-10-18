@@ -179,6 +179,14 @@ def recent_signals(limit: int = 100, ticker: str | None = None) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def count_signals() -> int:
+    """Jumlah sinyal tercatat (COUNT asli — tanpa batas LIMIT tampilan)."""
+    init()
+    with _lock, _conn() as c:
+        (n,) = c.execute("SELECT COUNT(*) FROM signals").fetchone()
+    return int(n)
+
+
 def recent_scans(limit: int = 30) -> list[dict]:
     with _lock, _conn() as c:
         rows = c.execute("SELECT * FROM scans ORDER BY id DESC LIMIT ?", (limit,)).fetchall()

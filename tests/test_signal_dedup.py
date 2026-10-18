@@ -82,5 +82,31 @@ class SignalDedupTest(unittest.TestCase):
         self.assertEqual(self._count(), 1)
 
 
+class CountSignalsTest(unittest.TestCase):
+    """count_signals = COUNT asli, bukan panjang daftar tampilan."""
+
+    def setUp(self):
+        self._orig_db = store.DB_PATH
+        self.tmp = tempfile.TemporaryDirectory(prefix="lm-count-test-")
+        store.DB_PATH = pathlib.Path(self.tmp.name) / "t.db"
+        store.init()
+        self.conn = sqlite3.connect(store.DB_PATH)
+
+    def tearDown(self):
+        self.conn.close()
+        store.DB_PATH = self._orig_db
+        self.tmp.cleanup()
+
+    def test_count_asli_tanpa_batas_tampilan(self):
+        for i in range(7):
+            self.assertTrue(store.add_signal(_payload(ticker=f"TK{i}"), source="scan"))
+        self.assertEqual(store.count_signals(), 7)
+
+    def test_duplikat_tidak_menggelembungkan_count(self):
+        store.add_signal(_payload(ticker="AAA"), source="scan")
+        store.add_signal(_payload(ticker="AAA"), source="scan")  # dup hari sama -> skip
+        self.assertEqual(store.count_signals(), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

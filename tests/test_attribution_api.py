@@ -134,5 +134,15 @@ class TestVerdictsApi(AttributionApiTestBase):
         self.assertEqual(js["recent"], [])
 
 
+class TestTrackRecordCount(AttributionApiTestBase):
+    def test_n_signals_count_asli_bukan_cap_tampilan(self):
+        # 205 sinyal > limit tampilan 200 -> n_signals HARUS 205 (bukan 200).
+        for i in range(205):
+            _insert_signal(self.conn, f"TK{i:03d}", 85, 80, "A", "STRONG BUY")
+        self.conn.commit()
+        js = self.client.get("/api/trackrecord").get_json()
+        self.assertEqual(js["n_signals"], 205)
+
+
 if __name__ == "__main__":
     unittest.main()
