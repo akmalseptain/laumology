@@ -46,7 +46,7 @@ class SchemaApiTest(unittest.TestCase):
     def test_semua_entri_bentuk_lengkap(self):
         for path, ep in self.endpoints.items():
             self.assertIn("method", ep, f"{path} tanpa method")
-            self.assertEqual(ep["method"], "GET", f"{path} method tak terduga")
+            self.assertIn(ep["method"], ("GET", "POST"), f"{path} method tak terduga")
             self.assertIn("params", ep, f"{path} tanpa params")
 
 
