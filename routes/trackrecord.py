@@ -89,6 +89,7 @@ def summary() -> dict:
     outcomes = store.outcomes_summary(5)
     attribution = store.outcomes_by_bucket(5)
     verdicts = store.outcome_verdicts(5)
+    bucket_verdicts = store.outcome_bucket_verdicts(5)
 
     signals_by_action: dict[str, int] = {}
     for s in signals:
@@ -117,6 +118,7 @@ def summary() -> dict:
         "outcomes": outcomes,
         "attribution": attribution,
         "verdicts": verdicts,
+        "bucket_verdicts": bucket_verdicts,
     }
 
 
