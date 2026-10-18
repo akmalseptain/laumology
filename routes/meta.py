@@ -224,6 +224,8 @@ def api_schema():
         {"method": "GET", "path": "/api/accuracy", "params": ["ticker", "horizon"]},
         {"method": "GET", "path": "/api/calibrate", "params": ["list", "horizon", "min_edge", "refresh"]},
         {"method": "GET", "path": "/api/regime-edge", "params": ["list", "horizon", "refresh"]},
+        {"method": "GET", "path": "/api/edge", "params": ["universe", "horizon", "top", "min_count"]},
+        {"method": "GET", "path": "/api/trackrecord", "params": []},
         {"method": "GET", "path": "/api/train", "params": ["list", "horizon", "folds"]},
         {"method": "GET", "path": "/api/model", "params": []},
         {"method": "GET", "path": "/api/ml", "params": ["ticker", "horizon", "candidates"]},
