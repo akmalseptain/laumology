@@ -74,6 +74,38 @@ class TrackRecordBucketPageTest(unittest.TestCase):
         # Tidak ada sinyal salah -> tidak boleh ada "SL duluan" di seksi ini.
         self.assertNotIn("SL duluan", html)
 
+    def test_render_dengan_data_tidak_500(self):
+        """Regresi batch-15: loop sinyal + paper dengan data NYATA tidak boleh 500.
+
+        Bug: ekspresi badge 'X|upper.startswith(\'SELL\')' meledak saat loop
+        dijalankan — halaman ini sebelumnya selalu dirender dengan DB kosong
+        di CI sehingga loop tak pernah tereksekusi.
+        """
+        self._seed([(85, 2.0, 1.0, "TP1")] * 4 + [(85, -2.0, -1.0, "SL")] * 2)
+        self.conn.execute(
+            "INSERT INTO signals(ts,ticker,signal,action,score,confidence,grade,"
+            "price,entry,stop_loss,tp1,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("2026-09-01 10:00:00", "TSTS", "SELL", "SELL", 40, 40, "D",
+             100.0, 100.0, 95.0, 110.0, "test"),
+        )
+        self.conn.execute(
+            "INSERT INTO paper(ticker,side,entry,lots,stop,tp,opened,closed,exit,pnl,status,note)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("TST", "SELL", 100.0, 1, 95.0, 110.0, "2026-09-01 10:00:00",
+             "2026-09-05 10:00:00", 90.0, 100000.0, "CLOSED", "test"),
+        )
+        self.conn.execute(
+            "INSERT INTO paper(ticker,side,entry,lots,stop,tp,opened,status,note)"
+            " VALUES(?,?,?,?,?,?,?,?,?)",
+            ("TST", "BUY", 100.0, 1, 95.0, 110.0, "2026-09-01 10:00:00", "OPEN", "test"),
+        )
+        self.conn.commit()
+        resp = self.client.get("/track-record")
+        self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True)[-1500:])
+        html = resp.get_data(as_text=True)
+        self.assertIn("b-sell", html)
+        self.assertIn("TSTS", html)
+
     def test_db_kosong_empty_state_jujur(self):
         html = self.client.get("/track-record").get_data(as_text=True)
         self.assertIn("Diagnosa per kelompok", html)
