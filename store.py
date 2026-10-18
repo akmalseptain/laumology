@@ -265,6 +265,215 @@ def outcomes_summary(horizon: int = 5) -> dict:
     }
 
 
+def outcomes_by_bucket(horizon: int = 5, min_n: int = 5) -> dict:
+    """Atribusi win rate: hasil sinyal dikelompokkan per dimensi (skor,
+    confidence, grade, jenis sinyal).
+
+    Jujur: kelompok dengan sampel < min_n TIDAK dilaporkan (n kecil = noise,
+    bukan bukti). Semua angka dari signal_outcomes + signals — tanpa proyeksi,
+    tanpa mengubah skor/ambang. Tujuan: bukti empiris untuk memutuskan
+    ambang mana yang layak dinaikkan (mis. hanya keluar BELI di skor tinggi
+    bila kelompok itu terbukti menang lebih sering).
+    """
+    init()
+    try:
+        horizon = int(horizon)
+    except (TypeError, ValueError):
+        horizon = 5
+    try:
+        min_n = max(1, int(min_n))
+    except (TypeError, ValueError):
+        min_n = 5
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT o.fwd_return_pct, o.excess_pct, o.outcome,"
+            " s.score, s.confidence, s.grade, s.signal, s.action"
+            " FROM signal_outcomes o JOIN signals s ON s.id=o.signal_id"
+            " WHERE o.horizon=?",
+            (horizon,),
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+
+    def _bucket_score(v):
+        try:
+            s = int(v)
+        except (TypeError, ValueError):
+            return None
+        if s >= 80:
+            return "80-100"
+        if s >= 70:
+            return "70-79"
+        if s >= 60:
+            return "60-69"
+        return "0-59"
+
+    def _bucket_conf(v):
+        try:
+            x = int(v)
+        except (TypeError, ValueError):
+            return None
+        if x >= 75:
+            return "75-100"
+        if x >= 60:
+            return "60-74"
+        return "0-59"
+
+    def _bucket_text(v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+
+    dims = {
+        "skor": lambda r: _bucket_score(r.get("score")),
+        "confidence": lambda r: _bucket_conf(r.get("confidence")),
+        "grade": lambda r: _bucket_text(r.get("grade")),
+        "sinyal": lambda r: _bucket_text(r.get("signal")),
+    }
+    buckets: dict = {}
+    for dim, keyfn in dims.items():
+        vals: dict = {}
+        excs: dict = {}
+        outs: dict = {}
+        for r in rows:
+            if r.get("fwd_return_pct") is None:
+                continue
+            k = keyfn(r)
+            if k is None:
+                continue
+            vals.setdefault(k, []).append(float(r["fwd_return_pct"]))
+            if r.get("excess_pct") is not None:
+                excs.setdefault(k, []).append(float(r["excess_pct"]))
+            outs.setdefault(k, []).append(str(r.get("outcome") or "?"))
+        entries = []
+        for k in sorted(vals):
+            n = len(vals[k])
+            if n < min_n:
+                continue  # sampel kecil: jangan jadi "bukti"
+            e_vals = excs.get(k) or []
+            entries.append({
+                "bucket": k,
+                "n": n,
+                "win_rate": round(100.0 * sum(1 for x in vals[k] if x > 0) / n, 2),
+                "avg_fwd_pct": round(sum(vals[k]) / n, 3),
+                "avg_excess_pct": round(sum(e_vals) / len(e_vals), 3) if e_vals else None,
+                "tp1_rate": round(100.0 * sum(1 for o in outs[k] if o == "TP1") / n, 2),
+                "sl_rate": round(100.0 * sum(1 for o in outs[k] if o == "SL") / n, 2),
+            })
+        buckets[dim] = entries
+    return {"horizon": horizon, "n_total": len(rows), "min_n": min_n, "buckets": buckets}
+
+
+def outcome_verdicts(horizon: int = 5, limit: int = 200) -> dict:
+    """Vonis per sinyal: analisa BENAR atau SALAH — dan salahnya di mana.
+
+    SADAR-ARAH: sinyal menurunkan (SELL/JUAL/AVOID/TUTUP) dianggap benar bila
+    harga TURUN setelahnya; sinyal menaik benar bila harga NAIK. Semua return
+    dinilai relatif terhadap arah sinyal (dibalik untuk sinyal menurunkan),
+    sehingga kasus "disuruh tutup ternyata harga naik" terhitung SALAH.
+
+    Kategori vonis (a priori, pada return searah sinyal):
+    - benar_nyata: searah DAN mengalahkan IHSG (excess searah positif)
+    - untung_ikut_pasar: searah tapi tidak mengalahkan IHSG
+    - salah_relatif_ok: melawan arah tapi relatif lebih baik dari IHSG
+    - salah: melawan arah dan tidak mengalahkan IHSG
+
+    Ringkasan letak kesalahan (hanya dari sinyal yang salah arah):
+    - sl_duluan / tanpa_tp1_dan_sl: khusus sinyal menaik (semantik TP1/SL)
+    - naik_padahal_turun: sinyal menurunkan (SELL/AVOID) tapi harga naik
+    - kalah_dari_ihsg: kinerja lebih buruk dari IHSG relatif arah sinyal
+    """
+    init()
+    try:
+        horizon = int(horizon)
+    except (TypeError, ValueError):
+        horizon = 5
+    try:
+        limit = max(1, min(int(limit), 2000))
+    except (TypeError, ValueError):
+        limit = 200
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT o.fwd_return_pct, o.excess_pct, o.outcome, o.tp1_hit, o.sl_hit,"
+            " s.id AS signal_id, s.ticker, s.ts, s.score, s.confidence, s.grade, s.signal, s.action"
+            " FROM signal_outcomes o JOIN signals s ON s.id=o.signal_id"
+            " WHERE o.horizon=? ORDER BY o.signal_id DESC LIMIT ?",
+            (horizon, limit),
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+
+    _BEARISH = ("SELL", "JUAL", "AVOID", "TUTUP")
+
+    def _direction(signal, action):
+        txt = f"{action or ''} {signal or ''}".strip().upper()
+        return -1 if txt.startswith(_BEARISH) else 1
+
+    def _verdict(adj_fwd, adj_exc):
+        if adj_fwd is None:
+            return None
+        if adj_fwd > 0:
+            if adj_exc is not None and adj_exc <= 0:
+                return "untung_ikut_pasar"
+            return "benar_nyata"
+        if adj_exc is not None and adj_exc > 0:
+            return "salah_relatif_ok"
+        return "salah"
+
+    verdicts = []
+    counts = {"benar_nyata": 0, "untung_ikut_pasar": 0, "salah_relatif_ok": 0, "salah": 0}
+    wrong = {"sl_duluan": 0, "tanpa_tp1_dan_sl": 0, "naik_padahal_turun": 0, "kalah_dari_ihsg": 0}
+    n_wrong = 0
+    for r in rows:
+        fwd = r.get("fwd_return_pct")
+        exc = r.get("excess_pct")
+        d = _direction(r.get("signal"), r.get("action"))
+        adj_fwd = fwd * d if fwd is not None else None
+        adj_exc = exc * d if exc is not None else None
+        v = _verdict(adj_fwd, adj_exc)
+        if v is None:
+            continue
+        counts[v] += 1
+        outcome = str(r.get("outcome") or "?")
+        if adj_fwd is not None and adj_fwd <= 0:
+            n_wrong += 1
+            if d == 1:
+                if outcome == "SL":
+                    wrong["sl_duluan"] += 1
+                elif outcome == "NONE":
+                    wrong["tanpa_tp1_dan_sl"] += 1
+            else:
+                wrong["naik_padahal_turun"] += 1
+            if adj_exc is not None and adj_exc < 0:
+                wrong["kalah_dari_ihsg"] += 1
+        verdicts.append({
+            "signal_id": r.get("signal_id"),
+            "ticker": r.get("ticker"),
+            "ts": r.get("ts"),
+            "score": r.get("score"),
+            "grade": r.get("grade"),
+            "signal": r.get("signal"),
+            "arah_sinyal": "turun" if d == -1 else "naik",
+            "verdict": v,
+            "fwd_return_pct": fwd,
+            "excess_pct": exc,
+            "outcome": outcome,
+        })
+
+    n = len(verdicts)
+    if not n:
+        return {"horizon": horizon, "n": 0, "verdict_pct": {}, "wrong_where_pct": {}, "recent": []}
+    pct = {k: round(100.0 * v / n, 2) for k, v in counts.items()}
+    wrong_pct = {k: round(100.0 * v / n_wrong, 2) for k, v in wrong.items()} if n_wrong else {}
+    return {
+        "horizon": horizon,
+        "n": n,
+        "verdict_pct": pct,
+        "wrong_where_pct": wrong_pct,
+        "wrong_n": n_wrong,
+        "recent": verdicts[:60],
+    }
+
+
 def paper_close(pid: int, exit_price: float, pnl: float, note: str = "") -> None:
     with _lock, _conn() as c:
         c.execute(

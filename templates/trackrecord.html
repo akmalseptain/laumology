@@ -184,6 +184,66 @@
   <p class="empty">Belum ada sinyal yang cukup tua untuk dievaluasi. Setiap sinyal diukur setelah {{ outcomes.horizon }}+ hari perdagangan berlalu — tanpa proyeksi.</p>
   {% endif %}
 
+  <h2>Atribusi: kelompok sinyal mana yang menang (H+{{ attribution.horizon }})</h2>
+  <div class="card">
+    {% if attribution.n_total %}
+    {% for dim, entries in attribution.buckets.items() %}
+      {% if entries %}
+      <p class="sub">Per {{ dim }}:</p>
+      <table>
+        <thead><tr><th>{{ dim }}</th><th>n</th><th>Win rate</th><th>Rata-rata return</th><th>Excess vs IHSG</th><th>TP1 dulu</th><th>SL dulu</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          <tr>
+            <td><strong>{{ e.bucket }}</strong></td>
+            <td>{{ e.n }}</td>
+            <td class="{{ 'pos' if e.win_rate > 50 else ('neg' if e.win_rate < 50 else 'neu') }}">{{ '%.1f'|format(e.win_rate) }}%</td>
+            <td class="{{ 'pos' if e.avg_fwd_pct > 0 else ('neg' if e.avg_fwd_pct < 0 else 'neu') }}">{{ '%+.2f'|format(e.avg_fwd_pct) }}%</td>
+            <td class="{{ 'pos' if e.avg_excess_pct is not none and e.avg_excess_pct > 0 else ('neg' if e.avg_excess_pct is not none and e.avg_excess_pct < 0 else 'neu') }}">{{ '%+.2f'|format(e.avg_excess_pct) if e.avg_excess_pct is not none else 'n/a' }}</td>
+            <td>{{ '%.0f'|format(e.tp1_rate) }}%</td>
+            <td>{{ '%.0f'|format(e.sl_rate) }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
+    <p class="sub">Kelompok dengan sampel &lt; {{ attribution.min_n }} tidak ditampilkan (n kecil = noise, bukan bukti). Angka dari sinyal tercatat + hasil evaluasi H+{{ attribution.horizon }} — tanpa proyeksi, tanpa mengubah skor/ambang.</p>
+    {% else %}
+    <p class="empty">Belum ada hasil evaluasi untuk diatribusikan — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
+  <h2>Vonis: analisa benar atau salah — dan salahnya di mana (H+{{ verdicts.horizon }})</h2>
+  <div class="card">
+    {% if verdicts.n %}
+    <div class="kpis">
+      <div class="kpi"><div class="lab">Benar nyata (+ &amp; kalahkan IHSG)</div>
+        <div class="val pos">{{ '%.1f'|format(verdicts.verdict_pct.get('benar_nyata', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Untung, cuma ikut pasar</div>
+        <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('untung_ikut_pasar', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Salah arah, tapi relatif oke vs IHSG</div>
+        <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('salah_relatif_ok', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Salah</div>
+        <div class="val neg">{{ '%.1f'|format(verdicts.verdict_pct.get('salah', 0)) }}%</div></div>
+    </div>
+    {% if verdicts.wrong_n %}
+    <table>
+      <thead><tr><th>Dari {{ verdicts.wrong_n }} sinyal salah/turun, letak kesalahannya</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td>Stop loss tersentuh duluan (timing/risk terlalu ketat)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('sl_duluan', 0)) }}%</td></tr>
+        <tr><td>Tak pernah sentuh TP1/SL — harga nyalet (momentum tidak muncul)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('tanpa_tp1_dan_sl', 0)) }}%</td></tr>
+        <tr><td>Kalah dari IHSG di jendela yang sama (salah pilih saham)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('kalah_dari_ihsg', 0)) }}%</td></tr>
+        <tr><td>Naik padahal sinyal menurunkan/tutup (SELL/AVOID salah)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('naik_padahal_turun', 0)) }}%</td></tr>
+      </tbody>
+    </table>
+    {% endif %}
+    <p class="sub">Vonis sadar-arah: sinyal SELL/AVOID dinilai benar bila harga TURUN setelahnya. Vonis didefinisikan a priori dari hasil terukur (forward return H+{{ verdicts.horizon }} + excess vs IHSG); tanpa proyeksi, tanpa mengubah skor/ambang. "Untung ikut pasar" = naik tapi tidak mengalahkan IHSG — bukan keunggulan analisa.</p>
+    {% else %}
+    <p class="empty">Belum ada sinyal tervalidasi untuk divonis — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
   <p class="disc">
     Angka pada halaman ini dihitung dari paper trading internal LAUMOLOGY — bukan rekomendasi
     dan bukan hasil trading uang sungguhan. Data historis tidak menjamin hasil di masa depan.

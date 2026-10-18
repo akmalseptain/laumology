@@ -208,6 +208,44 @@ def evaluate_signals(
     }
 
 
+def print_attribution(horizon: int) -> None:
+    """Cetak win rate per kelompok (atribusi) — bukti empiris untuk keputusan ambang."""
+    rep = store.outcomes_by_bucket(horizon)
+    if not rep["buckets"] or not any(rep["buckets"].values()):
+        print("  Atribusi: belum ada kelompok dengan sampel cukup (jujur, tanpa proyeksi).")
+        return
+    print(f"  Atribusi win rate per kelompok (n>={rep['min_n']}):")
+    for dim, entries in rep["buckets"].items():
+        if not entries:
+            continue
+        print(f"    {dim}:")
+        for e in entries:
+            exc = "n/a" if e["avg_excess_pct"] is None else f"{e['avg_excess_pct']:+.2f}%"
+            print(f"      {e['bucket']:>8s}  n={e['n']:<4d}  win={e['win_rate']:5.1f}%  "
+                  f"avg={e['avg_fwd_pct']:+.2f}%  excess={exc}  "
+                  f"TP1={e['tp1_rate']:.0f}%  SL={e['sl_rate']:.0f}%")
+
+
+def print_diagnosis(horizon: int) -> None:
+    """Cetak vonis benar/salah + letak kesalahan analisa untuk horizon ini."""
+    rep = store.outcome_verdicts(horizon)
+    if not rep.get("n"):
+        print("  Diagnosa: belum ada sinyal tervalidasi (jujur, tanpa proyeksi).")
+        return
+    vp = rep["verdict_pct"]
+    print(f"  Vonis H+{horizon} (n={rep['n']}): benar nyata {vp.get('benar_nyata', 0):.1f}%  "
+          f"untung ikut pasar {vp.get('untung_ikut_pasar', 0):.1f}%  "
+          f"salah tapi relatif oke {vp.get('salah_relatif_ok', 0):.1f}%  salah {vp.get('salah', 0):.1f}%")
+    if rep.get("wrong_n"):
+        wp = rep["wrong_where_pct"]
+        print(f"  Dari {rep['wrong_n']} sinyal salah/turun — letak kesalahannya:")
+        print(f"    SL tersentuh duluan: {wp.get('sl_duluan', 0):.1f}%  |  "
+              f"tak sentuh TP1/SL (nyalet): {wp.get('tanpa_tp1_dan_sl', 0):.1f}%  |  "
+              f"kalah dari IHSG: {wp.get('kalah_dari_ihsg', 0):.1f}%")
+        if wp.get('naik_padahal_turun'):
+            print(f"    Naik padahal sinyal menurunkan (SELL/AVOID salah): {wp.get('naik_padahal_turun', 0):.1f}%")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="LAUMOLOGY evaluasi hasil sinyal (feedback loop)")
     ap.add_argument("--horizons", default="5",
@@ -215,6 +253,10 @@ def main() -> None:
     ap.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK_DAYS,
                     help="batas usia sinyal dalam hari kalender (default 90)")
     ap.add_argument("--limit", type=int, default=500, help="maksimum sinyal per eksekusi")
+    ap.add_argument("--attribution", action="store_true",
+                    help="cetak win rate per kelompok (skor/confidence/grade/sinyal) — bukti untuk keputusan ambang")
+    ap.add_argument("--diagnosa", action="store_true",
+                    help="cetak vonis per sinyal (benar/salah) + letak kesalahan (SL duluan/tanpa TP1/kalah dari IHSG)")
     args = ap.parse_args()
 
     try:
@@ -243,6 +285,10 @@ def main() -> None:
             )
         else:
             print("  Belum ada sinyal yang cukup tua untuk dievaluasi (jujur, tanpa proyeksi).")
+        if args.attribution:
+            print_attribution(horizon)
+        if args.diagnosa:
+            print_diagnosis(horizon)
 
 
 if __name__ == "__main__":
