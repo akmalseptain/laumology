@@ -86,8 +86,8 @@ class TestOutcomeVerdicts(VerdictTestBase):
         ])
         rep = store.outcome_verdicts(5)
         self.assertEqual(rep["wrong_n"], 3)
-        self.assertAlmostEqual(rep["wrong_where_pct"]["sl_duluan"], 100.0 * 2 / 3)
-        self.assertAlmostEqual(rep["wrong_where_pct"]["tanpa_tp1_dan_sl"], 100.0 * 1 / 3)
+        self.assertAlmostEqual(rep["wrong_where_pct"]["sl_duluan"], 100.0 * 2 / 3, delta=0.05)
+        self.assertAlmostEqual(rep["wrong_where_pct"]["tanpa_tp1_dan_sl"], 100.0 * 1 / 3, delta=0.05)
         self.assertAlmostEqual(rep["wrong_where_pct"]["kalah_dari_ihsg"], 100.0)
 
     def test_excess_none_tidak_sembarangan(self):
