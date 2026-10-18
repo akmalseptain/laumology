@@ -230,6 +230,8 @@ def api_schema():
         {"method": "GET", "path": "/api/regime-edge", "params": ["list", "horizon", "refresh"]},
         {"method": "GET", "path": "/api/edge", "params": ["universe", "horizon", "top", "min_count"]},
         {"method": "GET", "path": "/api/trackrecord", "params": []},
+        {"method": "GET", "path": "/api/attribution", "params": ["horizon", "min_n"]},
+        {"method": "GET", "path": "/api/verdicts", "params": ["horizon", "limit"]},
         {"method": "GET", "path": "/api/train", "params": ["list", "horizon", "folds"]},
         {"method": "GET", "path": "/api/model", "params": []},
         {"method": "GET", "path": "/api/ml", "params": ["ticker", "horizon", "candidates"]},

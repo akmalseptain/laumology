@@ -36,6 +36,18 @@ class SchemaApiTest(unittest.TestCase):
         self.assertIsNotNone(ep, "/api/trackrecord harus terdaftar di /api/schema")
         self.assertEqual(ep["method"], "GET")
 
+    def test_attribution_terdaftar_dengan_param_benar(self):
+        ep = self.endpoints.get("/api/attribution")
+        self.assertIsNotNone(ep, "/api/attribution harus terdaftar di /api/schema")
+        self.assertEqual(ep["method"], "GET")
+        self.assertEqual(ep["params"], ["horizon", "min_n"])
+
+    def test_verdicts_terdaftar_dengan_param_benar(self):
+        ep = self.endpoints.get("/api/verdicts")
+        self.assertIsNotNone(ep, "/api/verdicts harus terdaftar di /api/schema")
+        self.assertEqual(ep["method"], "GET")
+        self.assertEqual(ep["params"], ["horizon", "limit"])
+
     def test_schema_tidak_membocorkan_warroom(self):
         # Endpoint War Room internal (dilindungi X-API-Key): tidak boleh
         # diiklankan di skema publik.
