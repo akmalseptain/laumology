@@ -504,6 +504,145 @@ def outcome_verdicts(horizon: int = 5, limit: int = 200) -> dict:
     }
 
 
+def outcome_bucket_verdicts(horizon: int = 5, min_n: int = 5) -> dict:
+    """Vonis × kelompok: kelompok mana yang paling banyak salah — dan salahnya di mana.
+
+    Gabungan atribusi (bucket skor/confidence/grade/sinyal) dengan vonis
+    sadar-arah (benar_nyata / untung_ikut_pasar / salah_relatif_ok / salah)
+    dan letak kesalahan (sl_duluan / tanpa_tp1_dan_sl / naik_padahal_turun /
+    kalah_dari_ihsg). Tujuan: bila kelompok skor rendah terbukti paling
+    sering salah dengan pola kesalahan yang konsisten, itulah dasar empiris
+    untuk menaikkan ambang BELI (keputusan tetap terpisah, di atas bukti).
+
+    Jujur: kelompok dengan sampel < min_n TIDAK dilaporkan (noise bukan
+    bukti). Tanpa proyeksi; skor/ambang tidak diubah oleh fungsi ini.
+    """
+    init()
+    try:
+        horizon = int(horizon)
+    except (TypeError, ValueError):
+        horizon = 5
+    try:
+        min_n = max(1, int(min_n))
+    except (TypeError, ValueError):
+        min_n = 5
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT o.fwd_return_pct, o.excess_pct, o.outcome,"
+            " s.score, s.confidence, s.grade, s.signal, s.action"
+            " FROM signal_outcomes o JOIN signals s ON s.id=o.signal_id"
+            " WHERE o.horizon=?",
+            (horizon,),
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+
+    def _bucket_score(v):
+        try:
+            s = int(v)
+        except (TypeError, ValueError):
+            return None
+        if s >= 80:
+            return "80-100"
+        if s >= 70:
+            return "70-79"
+        if s >= 60:
+            return "60-69"
+        return "0-59"
+
+    def _bucket_conf(v):
+        try:
+            x = int(v)
+        except (TypeError, ValueError):
+            return None
+        if x >= 75:
+            return "75-100"
+        if x >= 60:
+            return "60-74"
+        return "0-59"
+
+    def _bucket_text(v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+
+    _BEARISH = ("SELL", "JUAL", "AVOID", "TUTUP")
+
+    def _direction(signal, action):
+        txt = f"{action or ''} {signal or ''}".strip().upper()
+        return -1 if txt.startswith(_BEARISH) else 1
+
+    def _verdict(adj_fwd, adj_exc):
+        if adj_fwd is None:
+            return None
+        if adj_fwd > 0:
+            if adj_exc is not None and adj_exc <= 0:
+                return "untung_ikut_pasar"
+            return "benar_nyata"
+        if adj_exc is not None and adj_exc > 0:
+            return "salah_relatif_ok"
+        return "salah"
+
+    dims = {
+        "skor": lambda r: _bucket_score(r.get("score")),
+        "confidence": lambda r: _bucket_conf(r.get("confidence")),
+        "grade": lambda r: _bucket_text(r.get("grade")),
+        "sinyal": lambda r: _bucket_text(r.get("signal")),
+    }
+    buckets: dict = {}
+    for dim, keyfn in dims.items():
+        groups: dict = {}
+        for r in rows:
+            fwd = r.get("fwd_return_pct")
+            exc = r.get("excess_pct")
+            d = _direction(r.get("signal"), r.get("action"))
+            adj_fwd = fwd * d if fwd is not None else None
+            adj_exc = exc * d if exc is not None else None
+            v = _verdict(adj_fwd, adj_exc)
+            if v is None:
+                continue
+            k = keyfn(r)
+            if k is None:
+                continue
+            g = groups.setdefault(k, {
+                "n": 0,
+                "v": {"benar_nyata": 0, "untung_ikut_pasar": 0, "salah_relatif_ok": 0, "salah": 0},
+                "wrong_n": 0,
+                "w": {"sl_duluan": 0, "tanpa_tp1_dan_sl": 0, "naik_padahal_turun": 0, "kalah_dari_ihsg": 0},
+            })
+            g["n"] += 1
+            g["v"][v] += 1
+            outcome = str(r.get("outcome") or "?")
+            if adj_fwd <= 0:
+                g["wrong_n"] += 1
+                if d == 1:
+                    if outcome == "SL":
+                        g["w"]["sl_duluan"] += 1
+                    elif outcome == "NONE":
+                        g["w"]["tanpa_tp1_dan_sl"] += 1
+                else:
+                    g["w"]["naik_padahal_turun"] += 1
+                if adj_exc is not None and adj_exc < 0:
+                    g["w"]["kalah_dari_ihsg"] += 1
+        entries = []
+        for k in sorted(groups):
+            g = groups[k]
+            if g["n"] < min_n:
+                continue  # sampel kecil: jangan jadi "bukti"
+            entries.append({
+                "bucket": k,
+                "n": g["n"],
+                "verdict_pct": {kk: round(100.0 * vv / g["n"], 2) for kk, vv in g["v"].items()},
+                "wrong_n": g["wrong_n"],
+                "wrong_where_pct": (
+                    {kk: round(100.0 * vv / g["wrong_n"], 2) for kk, vv in g["w"].items()}
+                    if g["wrong_n"] else {}
+                ),
+            })
+        buckets[dim] = entries
+    return {"horizon": horizon, "n_total": len(rows), "min_n": min_n, "buckets": buckets}
+
+
 def paper_close(pid: int, exit_price: float, pnl: float, note: str = "") -> None:
     with _lock, _conn() as c:
         c.execute(

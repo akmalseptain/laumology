@@ -246,6 +246,42 @@ def print_diagnosis(horizon: int) -> None:
             print(f"    Naik padahal sinyal menurunkan (SELL/AVOID salah): {wp.get('naik_padahal_turun', 0):.1f}%")
 
 
+def print_bucket_diagnosis(horizon: int) -> None:
+    """Cetak vonis + letak kesalahan PER KELOMPOK (bucket × vonis).
+
+    Menjawab: kelompok mana yang paling sering salah, dan salahnya di mana —
+    gabungan atribusi (kelompok) dan diagnosa (vonis). Dasar empiris untuk
+    keputusan ambang; bukan keputusan itu sendiri.
+    """
+    rep = store.outcome_bucket_verdicts(horizon)
+    if not rep["n_total"] or not any(rep["buckets"].values()):
+        print("  Diagnosa kelompok: belum ada kelompok dengan sampel cukup (jujur, tanpa proyeksi).")
+        return
+    print(f"  Diagnosa per kelompok (vonis × letak kesalahan, n>={rep['min_n']}):")
+    for dim, entries in rep["buckets"].items():
+        if not entries:
+            continue
+        print(f"    {dim}:")
+        for e in entries:
+            vp = e["verdict_pct"]
+            line = (
+                f"      {e['bucket']:>8s}  n={e['n']:<4d}  "
+                f"benar nyata {vp.get('benar_nyata', 0):5.1f}%  salah {vp.get('salah', 0):5.1f}%"
+            )
+            if e["wrong_n"]:
+                wp = e["wrong_where_pct"]
+                line += (
+                    f"  | salahnya: SL dulu {wp.get('sl_duluan', 0):.0f}%"
+                    f"  nyalet {wp.get('tanpa_tp1_dan_sl', 0):.0f}%"
+                    f"  kalah IHSG {wp.get('kalah_dari_ihsg', 0):.0f}%"
+                )
+                if wp.get("naik_padahal_turun"):
+                    line += f"  naik padahal turun {wp['naik_padahal_turun']:.0f}%"
+            else:
+                line += "  | (belum ada sinyal salah di kelompok ini)"
+            print(line)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="LAUMOLOGY evaluasi hasil sinyal (feedback loop)")
     ap.add_argument("--horizons", default="5",
@@ -257,6 +293,8 @@ def main() -> None:
                     help="cetak win rate per kelompok (skor/confidence/grade/sinyal) — bukti untuk keputusan ambang")
     ap.add_argument("--diagnosa", action="store_true",
                     help="cetak vonis per sinyal (benar/salah) + letak kesalahan (SL duluan/tanpa TP1/kalah dari IHSG)")
+    ap.add_argument("--diagnosa-kelompok", action="store_true",
+                    help="cetak vonis + letak kesalahan PER KELOMPOK (skor/confidence/grade/sinyal) — kelompok mana yang paling sering salah")
     args = ap.parse_args()
 
     try:
@@ -289,6 +327,8 @@ def main() -> None:
             print_attribution(horizon)
         if args.diagnosa:
             print_diagnosis(horizon)
+        if args.diagnosa_kelompok:
+            print_bucket_diagnosis(horizon)
 
 
 if __name__ == "__main__":
