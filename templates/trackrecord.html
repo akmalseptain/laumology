@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/static/laumology.svg">
+<meta name="theme-color" content="#16a34a">
 <title>Track Record — LAUMOLOGY</title>
 <meta name="description" content="Track record transparan LAUMOLOGY: setiap sinyal dan hasil paper trading, tanpa angka yang disembunyikan.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -19,40 +24,62 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="LAUMOLOGY · Track Record">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/static/css/app.css">
 <style>
-  :root {
-    --bg: #0b1220; --card: #111a2e; --line: #1d2a44;
-    --text: #e8edf5; --muted: #8fa0b8;
-    --green: #2ecc71; --red: #e74c3c; --amber: #f5a623; --blue: #4aa3ff;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
-  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: .5px; }
-  h2 { font-size: 17px; margin: 34px 0 12px; color: var(--blue); letter-spacing: .3px; }
-  .sub { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-  .kpi .lab { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .8px; }
-  .kpi .val { font-size: 24px; font-weight: 700; margin-top: 4px; }
-  .pos { color: var(--green); } .neg { color: var(--red); } .neu { color: var(--amber); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
-  tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
-  .b-buy { background: rgba(46,204,113,.15); color: var(--green); }
-  .b-sell { background: rgba(231,76,60,.15); color: var(--red); }
-  .b-open { background: rgba(74,163,255,.15); color: var(--blue); }
-  .empty { color: var(--muted); font-style: italic; padding: 14px 4px; }
-  .disc { margin-top: 40px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 16px; }
-  svg curve { stroke: var(--blue); }
-  a.back { color: var(--blue); text-decoration: none; font-size: 13.5px; }
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 8px}
+  h1{font-family:var(--display-font);font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}
+  h2{font-family:var(--display-font);font-size:20px;letter-spacing:-.01em;margin:30px 0 10px}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:14.5px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+  .kpi .lab{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.8px}
+  .kpi .val{font-size:24px;font-weight:700;margin-top:4px;font-family:'JetBrains Mono',ui-monospace,monospace;font-feature-settings:"tnum" 1}
+  .pos{color:var(--up)} .neg{color:var(--down)} .neu{color:var(--muted)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .b-buy{background:var(--accent-soft);color:var(--brand-dark)}
+  .b-sell{background:var(--down-soft);color:var(--down)}
+  .b-open{background:var(--surface-2);color:var(--muted)}
+  .empty{color:var(--muted);font-style:italic;padding:14px 4px}
+  .disc{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border);padding-top:16px}
+  a.back{color:var(--brand);text-decoration:none;font-size:13.5px}
+  .eq-axis{stroke:var(--border)}
+  .eq-line{stroke:var(--brand)}
+  .eq-label{fill:var(--muted)}
 </style>
 </head>
 <body>
+
+<header class="topbar">
+  <div class="hwrap">
+    <a class="brand" href="/" aria-label="LAUMOLOGY">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
+    </a>
+    <form class="search" action="/" method="get">
+      <input name="ticker" placeholder="Kode saham" aria-label="Kode saham" autocomplete="off" spellcheck="false" required>
+      <button class="btn" type="submit">Analisis</button>
+    </form>
+  </div>
+</header>
+<main>
 <div class="wrap">
   <a class="back" href="/">&#8592; Beranda LAUMOLOGY</a>
   <h1>Track Record</h1>
@@ -79,11 +106,11 @@
       {% set minv = equity_curve|min %} {% set maxv = equity_curve|max %}
       {% set span = maxv - minv if maxv > minv else 1 %}
       <svg viewBox="0 0 {{ w }} {{ h }}" width="100%" height="{{ h }}" role="img" aria-label="Kurva ekuitas paper trading">
-        <line x1="{{ pad }}" y1="{{ h - pad }}" x2="{{ w - pad }}" y2="{{ h - pad }}" stroke="#1d2a44"/>
-        <polyline fill="none" stroke="#4aa3ff" stroke-width="2.5"
+        <line x1="{{ pad }}" y1="{{ h - pad }}" x2="{{ w - pad }}" y2="{{ h - pad }}" class="eq-axis"/>
+        <polyline fill="none" class="eq-line" stroke-width="2.5"
           points="{% for i in xs %}{{ pad + (w - 2*pad) * (i / (xs|length - 1)) if xs|length > 1 else pad }},{{ h - pad - (h - 2*pad) * ((equity_curve[i] - minv) / span) }} {% endfor %}"/>
-        <text x="{{ pad }}" y="{{ h - 6 }}" fill="#8fa0b8" font-size="11">awal</text>
-        <text x="{{ w - pad }}" y="{{ h - 6 }}" fill="#8fa0b8" font-size="11" text-anchor="end">terbaru</text>
+        <text x="{{ pad }}" y="{{ h - 6 }}" class="eq-label" font-size="11">awal</text>
+        <text x="{{ w - pad }}" y="{{ h - 6 }}" class="eq-label" font-size="11" text-anchor="end">terbaru</text>
       </svg>
     {% else %}
       <p class="empty">Belum ada posisi yang ditutup — kurva ekuitas akan muncul setelah trade pertama selesai.</p>
@@ -264,5 +291,20 @@
     API publik: <code>/api/trackrecord</code>.
   </p>
 </div>
+</main>
+
+<footer class="site-footer">
+  <div class="fwrap">
+    <div class="fbrand">
+      <p>Alat bantu analisis saham IDX yang bisa ditelusuri: setiap sinyal disertai alasan dari indikator dan faktor, bukan janji tanpa bukti.</p>
+    </div>
+    <div class="fmeta">
+      <p><a href="{{ url_for('meta.panduan') }}" style="color:var(--brand);text-decoration:none">Panduan Analisis</a> &middot; <a href="{{ url_for('meta.indikator_saham') }}" style="color:var(--brand);text-decoration:none">Indikator Saham</a></p>
+      <p>&copy; 2026 LAUMOLOGY. All rights reserved.</p>
+      <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
