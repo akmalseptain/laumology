@@ -222,8 +222,8 @@
         <div class="val pos">{{ '%.1f'|format(verdicts.verdict_pct.get('benar_nyata', 0)) }}%</div></div>
       <div class="kpi"><div class="lab">Untung, cuma ikut pasar</div>
         <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('untung_ikut_pasar', 0)) }}%</div></div>
-      <div class="kpi"><div class="lab">Turun, tapi relatif lebih baik</div>
-        <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('turun_lebih_baik', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Salah arah, tapi relatif oke vs IHSG</div>
+        <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('salah_relatif_ok', 0)) }}%</div></div>
       <div class="kpi"><div class="lab">Salah</div>
         <div class="val neg">{{ '%.1f'|format(verdicts.verdict_pct.get('salah', 0)) }}%</div></div>
     </div>
@@ -234,10 +234,11 @@
         <tr><td>Stop loss tersentuh duluan (timing/risk terlalu ketat)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('sl_duluan', 0)) }}%</td></tr>
         <tr><td>Tak pernah sentuh TP1/SL — harga nyalet (momentum tidak muncul)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('tanpa_tp1_dan_sl', 0)) }}%</td></tr>
         <tr><td>Kalah dari IHSG di jendela yang sama (salah pilih saham)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('kalah_dari_ihsg', 0)) }}%</td></tr>
+        <tr><td>Naik padahal sinyal menurunkan/tutup (SELL/AVOID salah)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('naik_padahal_turun', 0)) }}%</td></tr>
       </tbody>
     </table>
     {% endif %}
-    <p class="sub">Vonis didefinisikan a priori dari hasil terukur (forward return H+{{ verdicts.horizon }} + excess vs IHSG); tanpa proyeksi, tanpa mengubah skor/ambang. "Untung ikut pasar" = naik tapi tidak mengalahkan IHSG — bukan keunggulan analisa.</p>
+    <p class="sub">Vonis sadar-arah: sinyal SELL/AVOID dinilai benar bila harga TURUN setelahnya. Vonis didefinisikan a priori dari hasil terukur (forward return H+{{ verdicts.horizon }} + excess vs IHSG); tanpa proyeksi, tanpa mengubah skor/ambang. "Untung ikut pasar" = naik tapi tidak mengalahkan IHSG — bukan keunggulan analisa.</p>
     {% else %}
     <p class="empty">Belum ada sinyal tervalidasi untuk divonis — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
     {% endif %}

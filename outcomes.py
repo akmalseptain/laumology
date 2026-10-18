@@ -235,13 +235,15 @@ def print_diagnosis(horizon: int) -> None:
     vp = rep["verdict_pct"]
     print(f"  Vonis H+{horizon} (n={rep['n']}): benar nyata {vp.get('benar_nyata', 0):.1f}%  "
           f"untung ikut pasar {vp.get('untung_ikut_pasar', 0):.1f}%  "
-          f"turun tapi relatif {vp.get('turun_lebih_baik', 0):.1f}%  salah {vp.get('salah', 0):.1f}%")
+          f"salah tapi relatif oke {vp.get('salah_relatif_ok', 0):.1f}%  salah {vp.get('salah', 0):.1f}%")
     if rep.get("wrong_n"):
         wp = rep["wrong_where_pct"]
         print(f"  Dari {rep['wrong_n']} sinyal salah/turun — letak kesalahannya:")
         print(f"    SL tersentuh duluan: {wp.get('sl_duluan', 0):.1f}%  |  "
               f"tak sentuh TP1/SL (nyalet): {wp.get('tanpa_tp1_dan_sl', 0):.1f}%  |  "
               f"kalah dari IHSG: {wp.get('kalah_dari_ihsg', 0):.1f}%")
+        if wp.get('naik_padahal_turun'):
+            print(f"    Naik padahal sinyal menurunkan (SELL/AVOID salah): {wp.get('naik_padahal_turun', 0):.1f}%")
 
 
 def main() -> None:
