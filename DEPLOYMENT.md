@@ -53,3 +53,36 @@ tidak perlu ping (Starter tidak spin-down).
 Jangan ganti provider demi persistensi — pilih Opsi A (gratis, +1 langkah
 setup) atau Opsi B ($7/bln, nol kerja). Yang penting: **DB harus persisten**
 sebelum feedback loop bisa menghasilkan angka benar/salah yang nyata.
+
+## RUNBOOK — Hari bursa pertama (Senin) & minggu-minggu awal
+Status pra-Senin 2026-10-18: seluruh rantai persistensi AKTIF (4 env
+LITESTREAM_*, bootstrap render-start, UptimeRobot 5 menit), dedup sinyal
+per saham per hari + stempel waktu DB eksplisit UTC sudah di main.
+
+**Pra-buka (Senin 07:30–08:45 WIB):**
+1. `GET /health` → 200, `uptime_s` kecil bukan masalah (bisa baru restart
+   dari ping/redeploy) — lihat log Render: `[render-start] Litestream AKTIF`.
+2. `GET /api/trackrecord` → `n_signals` = 0 pada Minggu malam itu NORMAL
+   (bursa tutup, scheduler idle by design — SCAN_WINDOW=market,
+   Senin–Jumat 08:45–16:20 WIB).
+
+**Jam bursa (08:45–16:20 WIB):**
+- Scan otomatis tiap 15 menit; sinyal didedup per (ticker, sinyal, hari UTC).
+  `n_signals` naik perparu; angka wajar hari-1: puluhan (≈ jumlah ticker ×
+  sinyal unik hari itu), BUKAN ribuan (kalau ribuan → dedup tidak jalan,
+  cek deploy memuat commit batch-10).
+- `n_signals` = 0 terus setelah 09:15 → cek log scan di Render (apakah
+  data source merespons), jangan buru-buru menyalahkan scheduler.
+
+**Anomali & rollback:**
+- Halaman/API 500 → cek deploy terbaru (auto-deploy dari `main`), lalu
+  rollback: `git revert <merge-sha>` → push `main` → auto-deploy balik.
+- DB terlihat kosong setelah restart padahal sudah ada data → Litestream
+  restore gagal; cek env `LITESTREAM_*` dan log bootstrap.
+
+**Timeline bukti (sabar, jangan fabrikasi):**
+- Hari-1: sinyal tercatat. Minggu ke-2 (≥5 hari perdagangan setelah sinyal):
+  outcomes H+5 mulai terisi; vonis/atribusi per kelompok menyusul H+10.
+- 4–8 minggu: angka cukup untuk bedah bukti (`python outcomes.py
+  --horizons 5,10 --lookback 180 --attribution --diagnosa --diagnosa-kelompok`)
+  → baru usul ubah ambang BELI dengan commit terpisah yang menyebut buktinya.
