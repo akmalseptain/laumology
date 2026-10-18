@@ -265,6 +265,105 @@ def outcomes_summary(horizon: int = 5) -> dict:
     }
 
 
+def outcomes_by_bucket(horizon: int = 5, min_n: int = 5) -> dict:
+    """Atribusi win rate: hasil sinyal dikelompokkan per dimensi (skor,
+    confidence, grade, jenis sinyal).
+
+    Jujur: kelompok dengan sampel < min_n TIDAK dilaporkan (n kecil = noise,
+    bukan bukti). Semua angka dari signal_outcomes + signals — tanpa proyeksi,
+    tanpa mengubah skor/ambang. Tujuan: bukti empiris untuk memutuskan
+    ambang mana yang layak dinaikkan (mis. hanya keluar BELI di skor tinggi
+    bila kelompok itu terbukti menang lebih sering).
+    """
+    init()
+    try:
+        horizon = int(horizon)
+    except (TypeError, ValueError):
+        horizon = 5
+    try:
+        min_n = max(1, int(min_n))
+    except (TypeError, ValueError):
+        min_n = 5
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT o.fwd_return_pct, o.excess_pct, o.outcome,"
+            " s.score, s.confidence, s.grade, s.signal, s.action"
+            " FROM signal_outcomes o JOIN signals s ON s.id=o.signal_id"
+            " WHERE o.horizon=?",
+            (horizon,),
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+
+    def _bucket_score(v):
+        try:
+            s = int(v)
+        except (TypeError, ValueError):
+            return None
+        if s >= 80:
+            return "80-100"
+        if s >= 70:
+            return "70-79"
+        if s >= 60:
+            return "60-69"
+        return "0-59"
+
+    def _bucket_conf(v):
+        try:
+            x = int(v)
+        except (TypeError, ValueError):
+            return None
+        if x >= 75:
+            return "75-100"
+        if x >= 60:
+            return "60-74"
+        return "0-59"
+
+    def _bucket_text(v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
+
+    dims = {
+        "skor": lambda r: _bucket_score(r.get("score")),
+        "confidence": lambda r: _bucket_conf(r.get("confidence")),
+        "grade": lambda r: _bucket_text(r.get("grade")),
+        "sinyal": lambda r: _bucket_text(r.get("signal")),
+    }
+    buckets: dict = {}
+    for dim, keyfn in dims.items():
+        vals: dict = {}
+        excs: dict = {}
+        outs: dict = {}
+        for r in rows:
+            if r.get("fwd_return_pct") is None:
+                continue
+            k = keyfn(r)
+            if k is None:
+                continue
+            vals.setdefault(k, []).append(float(r["fwd_return_pct"]))
+            if r.get("excess_pct") is not None:
+                excs.setdefault(k, []).append(float(r["excess_pct"]))
+            outs.setdefault(k, []).append(str(r.get("outcome") or "?"))
+        entries = []
+        for k in sorted(vals):
+            n = len(vals[k])
+            if n < min_n:
+                continue  # sampel kecil: jangan jadi "bukti"
+            e_vals = excs.get(k) or []
+            entries.append({
+                "bucket": k,
+                "n": n,
+                "win_rate": round(100.0 * sum(1 for x in vals[k] if x > 0) / n, 2),
+                "avg_fwd_pct": round(sum(vals[k]) / n, 3),
+                "avg_excess_pct": round(sum(e_vals) / len(e_vals), 3) if e_vals else None,
+                "tp1_rate": round(100.0 * sum(1 for o in outs[k] if o == "TP1") / n, 2),
+                "sl_rate": round(100.0 * sum(1 for o in outs[k] if o == "SL") / n, 2),
+            })
+        buckets[dim] = entries
+    return {"horizon": horizon, "n_total": len(rows), "min_n": min_n, "buckets": buckets}
+
+
 def paper_close(pid: int, exit_price: float, pnl: float, note: str = "") -> None:
     with _lock, _conn() as c:
         c.execute(
