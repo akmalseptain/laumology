@@ -10,13 +10,21 @@ Endpoint:
 """
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 
 import metrics
 import store
 from .meta import _public_base
 
 bp = Blueprint("trackrecord", __name__)
+
+
+def _int_arg(name: str, default: int, lo: int, hi: int) -> int:
+    """Ambil arg query integer di-clamp [lo, hi]; kosong pakai default."""
+    raw = request.args.get(name)
+    if raw is None or raw == "":
+        return default
+    return min(max(int(raw), lo), hi)
 
 
 def _trade_return_pct(row: dict) -> float | None:
@@ -120,3 +128,34 @@ def page():
 @bp.get("/api/trackrecord")
 def api():
     return jsonify(summary())
+
+@bp.get("/api/attribution")
+def api_attribution():
+    """Atribusi win rate per kelompok (skor/confidence/grade/sinyal) — JSON.
+
+    Sumber: store.outcomes_by_bucket — bukti empiris dari feedback loop.
+    Kelompok dengan n < min_n tidak dilaporkan (n kecil = noise, bukan
+    bukti). Tanpa proyeksi; skor/ambang tidak diubah oleh endpoint ini.
+    """
+    try:
+        horizon = _int_arg("horizon", 5, 1, 60)
+        min_n = _int_arg("min_n", 5, 1, 500)
+    except ValueError:
+        return jsonify({"error": "Parameter tidak valid: horizon/min_n harus berupa angka."}), 400
+    return jsonify(store.outcomes_by_bucket(horizon, min_n))
+
+
+@bp.get("/api/verdicts")
+def api_verdicts():
+    """Vonis per sinyal (sadar-arah) + letak kesalahan — JSON.
+
+    Sumber: store.outcome_verdicts — SELL/JUAL/AVOID/TUTUP benar bila harga
+    TURUN setelahnya. Tanpa proyeksi; skor/ambang tidak diubah.
+    """
+    try:
+        horizon = _int_arg("horizon", 5, 1, 60)
+        limit = _int_arg("limit", 200, 1, 2000)
+    except ValueError:
+        return jsonify({"error": "Parameter tidak valid: horizon/limit harus berupa angka."}), 400
+    return jsonify(store.outcome_verdicts(horizon, limit))
+
