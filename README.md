@@ -68,6 +68,7 @@ Suite di `tests/test_engine.py` memakai data sintetis dan mengosongkan `API_KEY`
 | `metrics.py` | Metrik risiko: Sharpe, Calmar, win rate, payoff, Kelly, expectancy |
 | `indicator_edge.py` | Event study edge indikator |
 | `backtest.py`, `validation.py` | Backtest & validasi |
+| `validate.py` | Cek kualitas data OHLCV (kolom lengkap, konsistensi High/Low/Open/Close, data basi, skor kualitas). **Bukan duplikat `validation.py`**: `validation.py` = studi akurasi & kalibrasi faktor/skor (Wilson bound, out-of-sample, reliabilitas), `validate.py` = gerbang kualitas data mentah |
 | `scheduler.py` | Job scan berkala |
 | `outcomes.py` | Feedback loop: evaluasi hasil sinyal tercatat |
 | `templates/`, `static/` | Tampilan web |
