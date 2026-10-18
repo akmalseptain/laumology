@@ -208,6 +208,24 @@ def evaluate_signals(
     }
 
 
+def print_attribution(horizon: int) -> None:
+    """Cetak win rate per kelompok (atribusi) — bukti empiris untuk keputusan ambang."""
+    rep = store.outcomes_by_bucket(horizon)
+    if not rep["buckets"] or not any(rep["buckets"].values()):
+        print("  Atribusi: belum ada kelompok dengan sampel cukup (jujur, tanpa proyeksi).")
+        return
+    print(f"  Atribusi win rate per kelompok (n>={rep['min_n']}):")
+    for dim, entries in rep["buckets"].items():
+        if not entries:
+            continue
+        print(f"    {dim}:")
+        for e in entries:
+            exc = "n/a" if e["avg_excess_pct"] is None else f"{e['avg_excess_pct']:+.2f}%"
+            print(f"      {e['bucket']:>8s}  n={e['n']:<4d}  win={e['win_rate']:5.1f}%  "
+                  f"avg={e['avg_fwd_pct']:+.2f}%  excess={exc}  "
+                  f"TP1={e['tp1_rate']:.0f}%  SL={e['sl_rate']:.0f}%")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="LAUMOLOGY evaluasi hasil sinyal (feedback loop)")
     ap.add_argument("--horizons", default="5",
@@ -215,6 +233,8 @@ def main() -> None:
     ap.add_argument("--lookback", type=int, default=DEFAULT_LOOKBACK_DAYS,
                     help="batas usia sinyal dalam hari kalender (default 90)")
     ap.add_argument("--limit", type=int, default=500, help="maksimum sinyal per eksekusi")
+    ap.add_argument("--attribution", action="store_true",
+                    help="cetak win rate per kelompok (skor/confidence/grade/sinyal) — bukti untuk keputusan ambang")
     args = ap.parse_args()
 
     try:
@@ -243,6 +263,8 @@ def main() -> None:
             )
         else:
             print("  Belum ada sinyal yang cukup tua untuk dievaluasi (jujur, tanpa proyeksi).")
+        if args.attribution:
+            print_attribution(horizon)
 
 
 if __name__ == "__main__":
