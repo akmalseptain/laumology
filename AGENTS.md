@@ -34,7 +34,7 @@ py -3.14 webapp.py --host 127.0.0.1 --port 5000
 py -3.14 main.py analyze BBCA
 ```
 
-Tidak ada linter/type-checker/CI. Gerbang kualitas lokal: `py -3.14 tools/quality_gate.py` (syntax seluruh modul Python + `node --check` berkas JS `static/` + regresi `tests.test_engine`). Jaga agar `py -3.14 -m unittest tests.test_engine` tetap hijau.
+CI GitHub Actions menjalankan `python -m compileall -q .` + seluruh suite `tests/` pada setiap push (semua branch) dan pull request ke main — pastikan hijau sebelum meminta review. Gerbang kualitas lokal tambahan: `py -3.14 tools/quality_gate.py` (syntax seluruh modul Python + `node --check` berkas JS `static/` + regresi `tests.test_engine`). Jaga agar `py -3.14 -m unittest tests.test_engine` tetap hijau.
 
 ## Konvensi Kode
 
