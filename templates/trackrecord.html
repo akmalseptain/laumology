@@ -184,6 +184,36 @@
   <p class="empty">Belum ada sinyal yang cukup tua untuk dievaluasi. Setiap sinyal diukur setelah {{ outcomes.horizon }}+ hari perdagangan berlalu — tanpa proyeksi.</p>
   {% endif %}
 
+  <h2>Atribusi: kelompok sinyal mana yang menang (H+{{ attribution.horizon }})</h2>
+  <div class="card">
+    {% if attribution.n_total %}
+    {% for dim, entries in attribution.buckets.items() %}
+      {% if entries %}
+      <p class="sub">Per {{ dim }}:</p>
+      <table>
+        <thead><tr><th>{{ dim }}</th><th>n</th><th>Win rate</th><th>Rata-rata return</th><th>Excess vs IHSG</th><th>TP1 dulu</th><th>SL dulu</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          <tr>
+            <td><strong>{{ e.bucket }}</strong></td>
+            <td>{{ e.n }}</td>
+            <td class="{{ 'pos' if e.win_rate > 50 else ('neg' if e.win_rate < 50 else 'neu') }}">{{ '%.1f'|format(e.win_rate) }}%</td>
+            <td class="{{ 'pos' if e.avg_fwd_pct > 0 else ('neg' if e.avg_fwd_pct < 0 else 'neu') }}">{{ '%+.2f'|format(e.avg_fwd_pct) }}%</td>
+            <td class="{{ 'pos' if e.avg_excess_pct is not none and e.avg_excess_pct > 0 else ('neg' if e.avg_excess_pct is not none and e.avg_excess_pct < 0 else 'neu') }}">{{ '%+.2f'|format(e.avg_excess_pct) if e.avg_excess_pct is not none else 'n/a' }}</td>
+            <td>{{ '%.0f'|format(e.tp1_rate) }}%</td>
+            <td>{{ '%.0f'|format(e.sl_rate) }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
+    <p class="sub">Kelompok dengan sampel &lt; {{ attribution.min_n }} tidak ditampilkan (n kecil = noise, bukan bukti). Angka dari sinyal tercatat + hasil evaluasi H+{{ attribution.horizon }} — tanpa proyeksi, tanpa mengubah skor/ambang.</p>
+    {% else %}
+    <p class="empty">Belum ada hasil evaluasi untuk diatribusikan — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
   <p class="disc">
     Angka pada halaman ini dihitung dari paper trading internal LAUMOLOGY — bukan rekomendasi
     dan bukan hasil trading uang sungguhan. Data historis tidak menjamin hasil di masa depan.

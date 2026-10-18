@@ -78,6 +78,7 @@ def summary() -> dict:
     rows_ticker = sorted(per_ticker.values(), key=lambda s: s["ret"], reverse=True)
 
     outcomes = store.outcomes_summary(5)
+    attribution = store.outcomes_by_bucket(5)
 
     signals_by_action: dict[str, int] = {}
     for s in signals:
@@ -104,6 +105,7 @@ def summary() -> dict:
         "per_ticker": rows_ticker,
         "signals_by_action": signals_by_action,
         "outcomes": outcomes,
+        "attribution": attribution,
     }
 
 
