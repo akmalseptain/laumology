@@ -100,7 +100,7 @@ def summary() -> dict:
         "open_trades": open_trades,
         "signals": signals[:60],
         "scans": scans,
-        "n_signals": len(signals),
+        "n_signals": store.count_signals(),
         "win_rate": rm.get("win_rate", 0.0),
         "payoff": rm.get("payoff", 0.0),
         "kelly": rm.get("kelly", 0.0),
