@@ -54,7 +54,7 @@
       <div class="val {{ 'pos' if expectancy_pct > 0 else ('neg' if expectancy_pct < 0 else 'neu') }}">{{ "%+.2f"|format(expectancy_pct) }}%</div></div>
     <div class="kpi"><div class="lab">Payoff (avg win/loss)</div><div class="val">{{ "%.2f"|format(payoff) }}</div></div>
     <div class="kpi"><div class="lab">Total PnL paper</div>
-      <div class="val {{ 'pos' if total_pnl > 0 else ('neg' if total_pnl < 0 else 'neu') }}">{{ "%+,.0f"|format(total_pnl) }}</div></div>
+      <div class="val {{ 'pos' if total_pnl > 0 else ('neg' if total_pnl < 0 else 'neu') }}">{{ "{:+,.0f}".format(total_pnl) }}</div></div>
   </div>
 
   <h2>Kurva ekuitas (paper trading, ternormalisasi 100)</h2>
@@ -95,7 +95,7 @@
             {% set ret = -raw if (t.side or 'BUY')|upper.startswith('SELL') else raw %}
             <td class="{{ 'pos' if ret > 0 else ('neg' if ret < 0 else 'neu') }}">{{ "%+.2f"|format(ret) }}%</td>
           {% else %}<td>?</td>{% endif %}
-          <td class="{{ 'pos' if t.pnl and t.pnl > 0 else ('neg' if t.pnl and t.pnl < 0 else 'neu') }}">{{ "%+,.0f"|format(t.pnl) if t.pnl is not none else "?" }}</td>
+          <td class="{{ 'pos' if t.pnl and t.pnl > 0 else ('neg' if t.pnl and t.pnl < 0 else 'neu') }}">{{ "{:+,.0f}".format(t.pnl) if t.pnl is not none else "?" }}</td>
         </tr>
       {% endfor %}
       </tbody>
