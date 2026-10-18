@@ -1197,8 +1197,9 @@ class TestPanduanPageSeo(unittest.TestCase):
         self.assertIn("https://laumology.example/panduan", locs)
         self.assertIn("https://laumology.example/tentang", locs)
         self.assertIn("https://laumology.example/indikator-saham", locs)
+        self.assertIn("https://laumology.example/track-record", locs)
         self.assertIn("https://laumology.example/", locs)
-        self.assertEqual(len(locs), 4)
+        self.assertEqual(len(locs), 5)
 
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
@@ -1208,6 +1209,59 @@ class TestPanduanPageSeo(unittest.TestCase):
         self.assertIn("/panduan", locs)
         self.assertIn("/tentang", locs)
         self.assertIn("/indikator-saham", locs)
+        self.assertIn("/track-record", locs)
+
+
+class TestTrackRecordSeo(unittest.TestCase):
+    """SEO + anti Host-spoof untuk `/track-record` (W-0026 lanjutan).
+
+    Mengunci kriteria penerimaan: 200 `text/html` tanpa JS, canonical
+    absolut saat env valid / relatif saat kosong, og:image PNG utuh,
+    terdaftar di sitemap (absolut & relatif), tautan internal dari
+    beranda, dan Host asing tak pernah dipantulkan.
+    """
+
+    def setUp(self):
+        import webapp
+        self.client = webapp.app.test_client()
+
+    def test_page_renders_canonical_and_og_meta(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ, {"LAUM_PUBLIC_BASE_URL": "https://laumology.example/"}, clear=False
+        ):
+            resp = self.client.get("/track-record", headers={"Host": "evil.example"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.content_type.startswith("text/html"))
+        html = resp.get_data(as_text=True)
+        self.assertIn(
+            '<link rel="canonical" href="https://laumology.example/track-record">', html
+        )
+        self.assertIn(
+            '<meta property="og:url" content="https://laumology.example/track-record">', html
+        )
+        self.assertIn('<meta property="og:image:type" content="image/png">', html)
+        self.assertIn('<meta property="og:image:width" content="1200">', html)
+        self.assertIn('<meta property="og:image:height" content="630">', html)
+        self.assertIn("script-src 'self'", resp.headers.get("Content-Security-Policy", ""))
+        self.assertNotIn("evil.example", html)
+
+    def test_canonical_relative_when_base_env_empty(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAUM_PUBLIC_BASE_URL", None)
+            html = self.client.get("/track-record").get_data(as_text=True)
+        self.assertIn('<link rel="canonical" href="/track-record">', html)
+        self.assertIn('<meta property="og:url" content="/track-record">', html)
+        self.assertNotIn("evil.example", html)
+
+    def test_home_links_to_track_record(self):
+        home = self.client.get("/").get_data(as_text=True)
+        self.assertIn('href="/track-record"', home)
 
 
 class TestIndikatorSahamPageSeo(unittest.TestCase):

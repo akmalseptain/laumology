@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify, render_template
 
 import metrics
 import store
+from .meta import _public_base
 
 bp = Blueprint("trackrecord", __name__)
 
@@ -113,7 +114,7 @@ def summary() -> dict:
 
 @bp.get("/track-record")
 def page():
-    return render_template("trackrecord.html", **summary())
+    return render_template("trackrecord.html", canonical_base=_public_base(), **summary())
 
 
 @bp.get("/api/trackrecord")
