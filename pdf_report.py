@@ -1,6 +1,7 @@
 """Laporan PDF resmi track record LAUMOLOGY.
 
-Format mengikuti kaidah dokumen resmi (ala kop surat pemerintahan):
+Format mengikuti kaidah dokumen resmi konservatif (ala surat dinas): A4
+margin 2,5 cm, font serif Times, palet hitam/abu netral (hijau hanya logo),
 logo vektor asli LAUMOLOGY (replika persis /static/laumology.svg),
 garis ganda kop, nomor dokumen, seksi bernomor romawi, tabel bergaris
 kepala, blok pengesahan bertanda tangan penerbit, serta footer
@@ -19,15 +20,15 @@ from reportlab.lib.utils import simpleSplit
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas as _canvas
 
-_BRAND = colors.HexColor("#16a34a")
-_DARK = colors.HexColor("#0f1712")
-_MUTED = colors.HexColor("#64748b")
-_LINE = colors.HexColor("#cbd5e1")
-_RULE = colors.HexColor("#e2e8f0")
-_FAINT = colors.HexColor("#f1f5f9")
+_BRAND = colors.HexColor("#16a34a")  # hijau hanya di logo (identitas)
+_DARK = colors.HexColor("#000000")
+_MUTED = colors.HexColor("#444444")
+_LINE = colors.HexColor("#8a8a8a")
+_RULE = colors.HexColor("#c8c8c8")
+_FAINT = colors.HexColor("#f2f2f2")
 
 _W, _H = A4
-_MARGIN = 48.0
+_MARGIN = 70.87  # 2,5 cm kiri/kanan (kaidah dokumen resmi A4)
 
 _AUTHOR = "Akmal Putra Septian"
 _ROLE = "Pengembang LAUMOLOGY"
@@ -88,29 +89,29 @@ def _kop(c, nomor: str, tanggal: str) -> None:
     """Kop dokumen resmi (halaman pertama): logo, identitas, nomor, garis ganda."""
     _draw_logo(c, _MARGIN, _H - 78, 42)
     lx = _MARGIN + 92 * (42 / 64.0) + 11
-    c.setFont("Helvetica-Bold", 21)
+    c.setFont("Times-Bold", 21)
     c.setFillColor(_DARK)
     c.drawString(lx, _H - 51, "LAUMO")
-    x2 = lx + stringWidth("LAUMO", "Helvetica-Bold", 21)
-    c.setFillColor(_BRAND)
+    x2 = lx + stringWidth("LAUMO", "Times-Bold", 21)
+    c.setFillColor(_DARK)
     c.drawString(x2, _H - 51, "LOGY")
     c.setFillColor(_MUTED)
-    c.setFont("Helvetica", 8.5)
+    c.setFont("Times-Roman", 9)
     c.drawString(lx, _H - 63, "Analisis Saham Bursa Efek Indonesia (IDX)")
-    c.setFont("Helvetica", 7.5)
+    c.setFont("Times-Roman", 7.5)
     c.drawString(lx, _H - 73, _SITE + "  -  sistem analisis & paper trading transparan")
     # blok nomor dokumen & waktu cetak (kanan atas, kaidah surat resmi)
     c.setFillColor(_DARK)
-    c.setFont("Helvetica-Bold", 8)
+    c.setFont("Times-Bold", 8)
     c.drawRightString(_W - _MARGIN, _H - 42, "NOMOR: " + nomor)
     c.setFillColor(_MUTED)
-    c.setFont("Helvetica", 7.5)
+    c.setFont("Times-Roman", 7.5)
     c.drawRightString(_W - _MARGIN, _H - 52, "Dicetak " + tanggal)
     # garis ganda kop: tebal gelap + tipis brand
     c.setStrokeColor(_DARK)
     c.setLineWidth(1.6)
     c.line(_MARGIN, _H - 86, _W - _MARGIN, _H - 86)
-    c.setStrokeColor(_BRAND)
+    c.setStrokeColor(_DARK)
     c.setLineWidth(0.8)
     c.line(_MARGIN, _H - 90, _W - _MARGIN, _H - 90)
 
@@ -119,11 +120,11 @@ def _kop_lanjutan(c, nomor: str) -> None:
     """Kop ringkas untuk halaman lanjutan."""
     _draw_logo(c, _MARGIN, _H - 50, 14)
     x = _MARGIN + 92 * (14 / 64.0) + 8
-    c.setFont("Helvetica-Bold", 9)
+    c.setFont("Times-Bold", 9)
     c.setFillColor(_DARK)
     c.drawString(x, _H - 44, "LAPORAN RESMI TRACK RECORD  -  LAUMOLOGY")
     c.setFillColor(_MUTED)
-    c.setFont("Helvetica", 7.5)
+    c.setFont("Times-Roman", 7.5)
     c.drawRightString(_W - _MARGIN, _H - 44, "Nomor: " + nomor)
     c.setStrokeColor(_LINE)
     c.setLineWidth(0.8)
@@ -135,12 +136,12 @@ def _footer(c) -> None:
     c.setLineWidth(0.75)
     c.line(_MARGIN, 54, _W - _MARGIN, 54)
     c.setFillColor(_DARK)
-    c.setFont("Helvetica-Bold", 8)
+    c.setFont("Times-Bold", 8)
     c.drawString(_MARGIN, 43, "Dibuat oleh " + _AUTHOR + "  -  " + _ROLE)
     c.setFillColor(_MUTED)
-    c.setFont("Helvetica", 6.8)
+    c.setFont("Times-Roman", 6.8)
     y = 33
-    for ln in simpleSplit(_DISCLAIMER, "Helvetica", 6.8, _W - 2 * _MARGIN):
+    for ln in simpleSplit(_DISCLAIMER, "Times-Roman", 6.8, _W - 2 * _MARGIN):
         c.drawString(_MARGIN, y, ln)
         y -= 8
 
@@ -167,7 +168,7 @@ class _Doc:
             self.y = _H - 72
         _footer(self.c)
         c = self.c
-        c.setFont("Helvetica", 8)
+        c.setFont("Times-Roman", 8)
         c.setFillColor(_MUTED)
         if self.total:
             c.drawRightString(_W - _MARGIN, 43,
@@ -183,16 +184,13 @@ class _Doc:
     def section(self, txt):
         self.check_space(56)
         c = self.c
-        c.setFont("Helvetica-Bold", 11.5)
+        c.setFont("Times-Bold", 11.5)
         c.setFillColor(_DARK)
         c.drawString(_MARGIN, self.y, txt)
         self.y -= 7
-        c.setStrokeColor(_LINE)
-        c.setLineWidth(0.8)
+        c.setStrokeColor(_DARK)
+        c.setLineWidth(0.9)
         c.line(_MARGIN, self.y, _W - _MARGIN, self.y)
-        c.setStrokeColor(_BRAND)
-        c.setLineWidth(2)
-        c.line(_MARGIN, self.y, _MARGIN + 42, self.y)
         self.y -= 16
 
     def kv_grid(self, pairs):
@@ -208,11 +206,11 @@ class _Doc:
                 if i >= len(pairs):
                     break
                 lab, val = pairs[i]
-                x = _MARGIN + col * 260
-                c.setFont("Helvetica", 7)
+                x = _MARGIN + col * 235
+                c.setFont("Times-Roman", 7)
                 c.setFillColor(_MUTED)
                 c.drawString(x, self.y, str(lab).upper())
-                c.setFont("Helvetica-Bold", 12)
+                c.setFont("Times-Bold", 12)
                 c.setFillColor(_DARK)
                 c.drawString(x, self.y - 13, str(val))
                 i += 1
@@ -229,7 +227,7 @@ class _Doc:
         c.setStrokeColor(_LINE)
         c.setLineWidth(0.6)
         c.line(_MARGIN, self.y - 5.5, _W - _MARGIN, self.y - 5.5)
-        c.setFont("Helvetica-Bold", 7.5)
+        c.setFont("Times-Bold", 7.5)
         c.setFillColor(_DARK)
         for h, (x, al) in zip(heads, cols):
             if al == "r":
@@ -239,7 +237,7 @@ class _Doc:
         self.y -= 20
 
     def table(self, heads, cols, rows):
-        """Tabel dengan kepala bergaris, baris zebra, kolom rata kiri/kanan."""
+        """Tabel dengan kepala bergaris, garis pemisah baris, kolom rata kiri/kanan."""
         c = self.c
         self._head_band(heads, cols)
         for i, row in enumerate(rows):
@@ -247,10 +245,10 @@ class _Doc:
                 c.showPage()
                 self.new_page()
                 self._head_band(heads, cols)
-            if i % 2 == 1:
-                c.setFillColor(_FAINT)
-                c.rect(_MARGIN, self.y - 3.5, _W - 2 * _MARGIN, 13, fill=1, stroke=0)
-            c.setFont("Helvetica", 8.5)
+            c.setStrokeColor(_RULE)
+            c.setLineWidth(0.4)
+            c.line(_MARGIN, self.y - 3.5, _W - _MARGIN, self.y - 3.5)
+            c.setFont("Times-Roman", 9)
             c.setFillColor(_DARK)
             for v, (x, al) in zip(row, cols):
                 if al == "r":
@@ -262,7 +260,7 @@ class _Doc:
 
     def note(self, txt):
         self.check_space(30)
-        self.c.setFont("Helvetica-Oblique", 8.5)
+        self.c.setFont("Times-Italic", 9)
         self.c.setFillColor(_MUTED)
         self.c.drawString(_MARGIN, self.y, txt)
         self.y -= 18
@@ -272,17 +270,17 @@ class _Doc:
         self.check_space(120)
         c = self.c
         cx = _W - _MARGIN - 100
-        c.setFont("Helvetica", 8.5)
+        c.setFont("Times-Roman", 9)
         c.setFillColor(_MUTED)
         c.drawCentredString(cx, self.y, "Diterbitkan secara daring,")
         c.drawCentredString(cx, self.y - 12, _tanggal(_wib()))
-        c.setFont("Helvetica-Bold", 10)
+        c.setFont("Times-Bold", 10)
         c.setFillColor(_DARK)
         c.drawCentredString(cx, self.y - 62, _AUTHOR)
         c.setStrokeColor(_DARK)
         c.setLineWidth(0.75)
         c.line(cx - 70, self.y - 65, cx + 70, self.y - 65)
-        c.setFont("Helvetica", 8)
+        c.setFont("Times-Roman", 8)
         c.setFillColor(_MUTED)
         c.drawCentredString(cx, self.y - 75, _ROLE)
         self.y -= 95
@@ -296,11 +294,11 @@ def _render(data: dict, nomor: str, tanggal: str, total: int) -> bytes:
     doc.new_page()
 
     # Blok judul resmi (hanya halaman pertama)
-    c.setFont("Helvetica-Bold", 15)
+    c.setFont("Times-Bold", 15)
     c.setFillColor(_DARK)
     c.drawCentredString(_W / 2.0, doc.y, "LAPORAN RESMI TRACK RECORD")
     doc.y -= 16
-    c.setFont("Helvetica", 9)
+    c.setFont("Times-Roman", 9)
     c.setFillColor(_MUTED)
     c.drawCentredString(
         _W / 2.0, doc.y,
@@ -338,8 +336,8 @@ def _render(data: dict, nomor: str, tanggal: str, total: int) -> bytes:
 
     doc.section("III. RIWAYAT SINYAL TERBARU")
     signals = data.get("signals") or []
-    cols = [(0, "l"), (88, "l"), (136, "l"), (296, "r"),
-            (348, "r"), (376, "l"), (499, "r")]
+    cols = [(0, "l"), (80, "l"), (122, "l"), (268, "r"),
+            (316, "r"), (344, "l"), (453, "r")]
     heads = ["WAKTU", "KODE", "AKSI", "SKOR", "CONF", "GRADE", "HARGA"]
     if signals:
         rows = []
