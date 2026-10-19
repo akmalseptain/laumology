@@ -53,8 +53,10 @@ if [ "$HAVE_BIN" = "1" ] && [ "$HAVE_ENV" = "1" ]; then
         # tidak pernah memuat secret) lalu ditulis ke marker supaya penyebabnya
         # terbaca langsung dari /health tanpa harus membuka log Render.
         ERR="$(grep -oE 'api error .*' "$DB_DIR/litestream.restore.err" | head -n1)"
-        [ -n "$ERR" ] || ERR="$(head -n1 "$DB_DIR/litestream.restore.err")"
-        ERR="$(printf '%s' "$ERR" | tr -d '\r' | tr -c 'a-zA-Z0-9 :._-' ' ' | tr -s ' ' | cut -c1-100)"
+        # Kode error S3 berada di EKOR baris (setelah StatusCode/RequestID/HostID):
+        # bila pola 'api error' tidak ketemu, ambil 120 karakter TERAKHIR baris 1.
+        [ -n "$ERR" ] || ERR="$(head -n1 "$DB_DIR/litestream.restore.err" | tail -c 120)"
+        ERR="$(printf '%s' "$ERR" | tr -d '\r' | tr -c 'a-zA-Z0-9 :._-' ' ' | tr -s ' ' | cut -c1-120)"
         printf 'aktif:restore-error:%s' "$ERR" > "$STATUS_FILE"
         echo "[render-start] restore gagal — lanjut dengan DB baru; replicate tetap jalan."
         echo "[render-start] detail: $(head -n3 "$DB_DIR/litestream.restore.err")"
