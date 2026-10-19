@@ -1,0 +1,105 @@
+# Laumology
+
+Sistem analisis & screening saham Bursa Efek Indonesia (IDX) berbasis Python/pandas, dengan prinsip utama **objektif dan kausal**: semua indikator bebas look-ahead, event didefinisikan a priori, tanpa tuning parameter yang menyesuaikan hasil.
+
+Live: <https://laumology.onrender.com>
+
+## Fitur
+
+- **Indikator teknikal kausal** (`indicators.py`) — puluhan kolom (MA/EMA, RSI, MACD, ATR, Supertrend, Squeeze, Choppiness, PSAR, Bollinger, Donchian, VWAP anchored otomatis, Heikin Ashi, dll.). Pagar uji truncation-invariance memastikan tidak ada indikator yang bocor look-ahead.
+- **Skoring & sinyal 0–100** (`signals.py`) — dari STRONG BUY sampai AVOID, lengkap dengan harga entry, stop loss, dan take profit.
+- **Screening & universe** (`screener.py`, `universe.py`) — misalnya daftar LQ45.
+- **Paper trading & track record** (`store.py`, `routes/trackrecord.py`, `templates/trackrecord.html`) — riwayat sinyal dan hasil paper trading: win rate, expectancy, payoff, Kelly, kurva ekuitas. Semua angka murni dari DB lokal, tanpa proyeksi. Tersedia unduhan PDF resmi berformat kop dokumen resmi (logo LAUMOLOGY asli, nomor dokumen, seksi bernomor romawi, blok pengesahan tanda tangan penerbit, footer halaman X dari Y + disclaimer bukan nasihat finansial): `GET /track-record.pdf`.
+- **Feedback loop akurasi** (`outcomes.py`) — mengevaluasi sinyal yang sudah tercatat: return nyata per horizon (mis. H+5/H+10), TP1 vs SL mana yang lebih dulu, excess return vs IHSG, plus atribusi win rate per kelompok (skor/confidence/grade/sinyal) via `--attribution` dan seksi khusus di halaman track record — bukti kelompok mana yang benar-benar menang; plus vonis per sinyal (`--diagnosa`): benar nyata / hanya ikut pasar / salah, dan salahnya di mana (SL duluan, harga nyalet, kalah dari IHSG). Murni pengukuran kausal tanpa proyeksi; menjadi bukti empiris sebelum skor 0–100 diubah (sinyal didedup per saham per hari — scan berulang tidak dihitung ganda). Diagnosa juga tersedia per kelompok (`--diagnosa-kelompok`): vonis × letak kesalahan untuk tiap bucket skor/confidence/grade/sinyal — kelompok mana yang paling sering salah dan salahnya di mana. Bukti yang sama tersedia sebagai JSON: `GET /api/attribution?horizon=5&min_n=5` (kelompok mana yang menang) dan `GET /api/verdicts?horizon=5&limit=200` (vonis per sinyal + letak kesalahan).
+- **Uji edge indikator** (`indicator_edge.py`) — event study 22 event a priori: hit rate vs baseline, uplift, stabilitas antar semester (worst-half hit rate), masking bar pemanasan. Tersedia juga sebagai endpoint: `GET /api/edge?universe=lq45&horizon=5&top=10` (JSON ringkas, server-side).
+- **Backtest & validasi** (`backtest.py`, `validation.py`, `consensus_backtest.py`) — desain walk-forward, jujur terhadap data.
+- **Berita, fundamental & data eksternal** (`news.py`, `fundamentals.py`, `external.py`, `realtime.py`).
+- **Web** (`webapp.py`, `routes/`, `templates/`, `static/`) — Flask, server-rendered, CSP ketat tanpa JS inline.
+
+## Instalasi
+
+```bash
+git clone https://github.com/akmalseptain/laumology.git
+cd laumology
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env        # isi kredensial sesuai kebutuhan (opsional untuk pengujian)
+```
+
+## Menjalankan
+
+```bash
+# Web (lokal)
+python webapp.py
+
+# Produksi
+gunicorn webapp:app
+
+# Scheduler (scan berkala)
+python scheduler.py
+
+# Uji edge indikator terhadap data IDX
+python indicator_edge.py --list lq45 --horizon 5 --top 25 --out edge_report.json
+
+# Evaluasi hasil sinyal tercatat (feedback loop, multi-horizon)
+python outcomes.py --horizons 5,10 --lookback 90
+
+# Evaluasi + atribusi win rate per kelompok (skor/confidence/grade)
+python outcomes.py --horizons 5,10 --lookback 90 --attribution
+
+# Vonis per sinyal: benar/salah dan letak kesalahannya
+python outcomes.py --horizons 5,10 --lookback 90 --diagnosa
+
+# Diagnosa per kelompok: bucket mana yang paling sering salah, dan salahnya di mana
+python outcomes.py --horizons 5,10 --lookback 90 --diagnosa-kelompok
+
+# Ringkasan edge via API web (jika server jalan)
+curl "http://localhost:5000/api/edge?universe=lq45&horizon=5&top=10"
+
+# Bukti win rate via API web: atribusi per kelompok + vonis per sinyal
+curl "http://localhost:5000/api/attribution?horizon=5&min_n=5"
+curl "http://localhost:5000/api/verdicts?horizon=5&limit=200"
+```
+
+## Pengujian
+
+```bash
+PYTHONPATH=. python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+Suite di `tests/test_engine.py` memakai data sintetis dan mengosongkan `API_KEY` saat pengujian, sehingga bisa dijalankan tanpa kredensial. GitHub Actions menjalankan suite yang sama pada setiap push dan pull request.
+
+## Struktur (ringkas)
+
+| Berkas / direktori | Peran |
+| --- | --- |
+| `webapp.py` | Aplikasi Flask utama, mendaftar blueprint dari `routes/` |
+| `routes/` | Blueprint API & halaman (screener, track record, dll.) |
+| `indicators.py` | Seluruh indikator teknikal (kausal) |
+| `signals.py` | Analisis & skoring sinyal 0–100 |
+| `screener.py`, `universe.py` | Pemilihan watchlist & screening |
+| `data.py` | Pengambilan OHLCV |
+| `store.py` | SQLite: sinyal, scan, paper trading |
+| `metrics.py` | Metrik risiko: Sharpe, Calmar, win rate, payoff, Kelly, expectancy |
+| `indicator_edge.py` | Event study edge indikator |
+| `backtest.py`, `validation.py` | Backtest & validasi |
+| `validate.py` | Cek kualitas data OHLCV (kolom lengkap, konsistensi High/Low/Open/Close, data basi, skor kualitas). **Bukan duplikat `validation.py`**: `validation.py` = studi akurasi & kalibrasi faktor/skor (Wilson bound, out-of-sample, reliabilitas), `validate.py` = gerbang kualitas data mentah |
+| `scheduler.py` | Job scan berkala |
+| `outcomes.py` | Feedback loop: evaluasi hasil sinyal tercatat |
+| `templates/`, `static/` | Tampilan web |
+
+## Prinsip proyek
+
+1. **Kausal** — tidak ada look-ahead; nilai bar ke-*t* hanya dari data sampai bar *t*.
+2. **Objektif** — event/aturan didefinisikan a priori, bukan dipilih setelah melihat hasil.
+3. **Jujur** — skor 0–100 tidak diubah tanpa bukti edge; angka track record hanya dari data nyata.
+4. **Sadar pemanasan** — bar awal (warm-up) dibuang dari analisis edge/ML/backtest.
+
+## Disclaimer
+
+Output proyek ini bukan nasihat keuangan. Keputusan investasi sepenuhnya tanggung jawab masing-masing.
+
+## Lisensi
+
+[MIT](LICENSE)

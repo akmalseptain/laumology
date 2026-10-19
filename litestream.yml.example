@@ -1,0 +1,18 @@
+# Contoh konfigurasi Litestream (Opsi A — gratis).
+# Simpan sebagai litestream.yml, isi kredensial Cloudflare R2 kamu
+# (Account ID + Access Key di dashboard R2). JANGAN commit kredensial asli.
+#
+# Pasang litestream di build Render:
+#   buildCommand: pip install -r requirements.txt && wget -q https://github.com/benbjohnson/litestream/releases/latest/download/litestream-linux-amd64-static.tar.gz -O - | tar -xz && mv litestream /usr/local/bin/
+#   startCommand: litestream restore -if-replica-exists /tmp/lm/laumology.db && litestream replicate -exec "gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 webapp:app"
+# (contoh adaptasi dari render.yaml; DATA_DIR=/tmp/lm)
+dbs:
+  - path: /tmp/lm/laumology.db
+    replicas:
+      - type: s3
+        bucket: laumology-db        # nama bucket R2/B2 kamu
+        path: laumology             # prefix objek
+        region: auto                # R2: auto
+        endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+        # accessKeyID / secretAccessKey via env:
+        #   LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY

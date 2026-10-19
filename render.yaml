@@ -9,14 +9,15 @@ services:
     plan: free
     region: singapore
     healthCheckPath: /health
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 webapp:app
+    buildCommand: pip install -r requirements.txt && sh scripts/render-build.sh
+    startCommand: sh scripts/render-start.sh
     envVars:
       # Auto-scanner berjalan di dalam proses web (thread) tiap SCAN_INTERVAL detik
       - key: ENABLE_SCHEDULER
         value: "1"
+      # Scan tiap 5 menit jam bursa (dedup per saham per hari tetap menjaga DB bersih)
       - key: SCAN_INTERVAL
-        value: "900"
+        value: "300"
       - key: SCAN_UNIVERSE
         value: "lq45"
       - key: SCAN_WINDOW

@@ -109,7 +109,12 @@ def market_regime() -> str:
     """
     import time as _t
     now = _t.time()
-    if now - _MKT_CACHE["ts"] < 300 and _MKT_CACHE["regime"] != "unknown":
+    age = now - _MKT_CACHE["ts"]
+    # Regime valid dipakai hingga 5 menit; "unknown" hanya 60 detik supaya
+    # scan tidak menghujani fetch benchmark saat data IHSG tak tersedia.
+    if age < 60:
+        return _MKT_CACHE["regime"]
+    if age < 300 and _MKT_CACHE["regime"] != "unknown":
         return _MKT_CACHE["regime"]
     regime = "unknown"
     try:

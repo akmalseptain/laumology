@@ -1,0 +1,196 @@
+"""Track record publik: riwayat sinyal, hasil paper trading, dan hit-rate.
+
+Semua angka diambil langsung dari DB lokal (store) — tidak ada proyeksi
+atau angka yang tidak bisa dibuktikan. Kalau datanya kosong, halaman
+jujur menampilkan "belum ada data".
+
+Endpoint:
+- GET /track-record        halaman publik (server-rendered, tanpa JS)
+- GET /api/trackrecord      JSON ringkasan yang sama
+"""
+from __future__ import annotations
+
+import datetime as _dt
+
+from flask import Blueprint, Response, jsonify, render_template, request
+
+import metrics
+import store
+from .meta import _public_base
+
+bp = Blueprint("trackrecord", __name__)
+
+
+def _int_arg(name: str, default: int, lo: int, hi: int) -> int:
+    """Ambil arg query integer di-clamp [lo, hi]; kosong pakai default."""
+    raw = request.args.get(name)
+    if raw is None or raw == "":
+        return default
+    return min(max(int(raw), lo), hi)
+
+
+def _trade_return_pct(row: dict) -> float | None:
+    """Return % per posisi. Kausal: hanya entry & exit yang sudah terjadi."""
+    try:
+        entry = float(row.get("entry") or 0.0)
+        exit_raw = row.get("exit")
+        if not entry or exit_raw is None:
+            return None
+        exit_f = float(exit_raw)
+        raw = (exit_f - entry) / entry * 100.0
+        side = str(row.get("side") or "BUY").upper()
+        return -raw if side.startswith("SELL") else raw
+    except (TypeError, ValueError):
+        return None
+
+
+def _equity_curve(returns_pct: list[float], start: float = 100.0) -> list[float]:
+    """Kurva ekuitas ternormalisasi (100 = awal), compounded per trade."""
+    curve = [start]
+    eq = start
+    for r in returns_pct:
+        eq *= 1.0 + r / 100.0
+        curve.append(round(eq, 4))
+    return curve
+
+
+def summary() -> dict:
+    closed = store.paper_rows(status="CLOSED")
+    open_trades = store.paper_rows(status="OPEN")
+    signals = store.recent_signals(limit=200)
+    scans = store.recent_scans(limit=30)
+
+    # Urut waktu (tertua dulu) supaya kurva ekuitas tidak terbalik.
+    closed_chrono = list(reversed(closed))
+    returns = [r for r in (_trade_return_pct(t) for t in closed_chrono) if r is not None]
+    equity = _equity_curve(returns)
+
+    rm = metrics.risk_metrics(equity, trade_returns_pct=returns or None)
+
+    n_wins = sum(1 for r in returns if r > 0)
+    n_losses = sum(1 for r in returns if r <= 0)
+    total_pnl = 0.0
+    for t in closed:
+        try:
+            total_pnl += float(t.get("pnl") or 0.0)
+        except (TypeError, ValueError):
+            pass
+
+    per_ticker: dict[str, dict] = {}
+    for t in closed:
+        tick = str(t.get("ticker") or "?").upper()
+        r = _trade_return_pct(t)
+        if r is None:
+            continue
+        s = per_ticker.setdefault(tick, {"ticker": tick, "n": 0, "wins": 0, "ret": 0.0})
+        s["n"] += 1
+        s["wins"] += 1 if r > 0 else 0
+        s["ret"] = round(s["ret"] + r, 2)
+    rows_ticker = sorted(per_ticker.values(), key=lambda s: s["ret"], reverse=True)
+
+    outcomes = store.outcomes_summary(5)
+    attribution = store.outcomes_by_bucket(5)
+    verdicts = store.outcome_verdicts(5)
+    bucket_verdicts = store.outcome_bucket_verdicts(5)
+
+    signals_by_action: dict[str, int] = {}
+    for s in signals:
+        a = str(s.get("action") or s.get("signal") or "?")
+        signals_by_action[a] = signals_by_action.get(a, 0) + 1
+
+    return {
+        "closed_trades": closed,
+        "open_trades": open_trades,
+        "signals": signals[:60],
+        "scans": scans,
+        "n_signals": store.count_signals(),
+        "last_scan": store.last_scan(),
+        "win_rate": rm.get("win_rate", 0.0),
+        "payoff": rm.get("payoff", 0.0),
+        "kelly": rm.get("kelly", 0.0),
+        "expectancy_pct": rm.get("expectancy_pct", 0.0),
+        "sharpe": rm.get("sharpe", 0.0),
+        "n_closed": len(closed),
+        "n_open": len(open_trades),
+        "n_wins": n_wins,
+        "n_losses": n_losses,
+        "total_pnl": total_pnl,
+        "equity_curve": equity,
+        "per_ticker": rows_ticker,
+        "signals_by_action": signals_by_action,
+        "outcomes": outcomes,
+        "attribution": attribution,
+        "verdicts": verdicts,
+        "bucket_verdicts": bucket_verdicts,
+    }
+
+
+@bp.get("/track-record")
+def page():
+    return render_template("trackrecord.html", canonical_base=_public_base(), **summary())
+
+
+@bp.get("/api/trackrecord")
+def api():
+    return jsonify(summary())
+
+@bp.get("/api/attribution")
+def api_attribution():
+    """Atribusi win rate per kelompok (skor/confidence/grade/sinyal) — JSON.
+
+    Sumber: store.outcomes_by_bucket — bukti empiris dari feedback loop.
+    Kelompok dengan n < min_n tidak dilaporkan (n kecil = noise, bukan
+    bukti). Tanpa proyeksi; skor/ambang tidak diubah oleh endpoint ini.
+    """
+    try:
+        horizon = _int_arg("horizon", 5, 1, 60)
+        min_n = _int_arg("min_n", 5, 1, 500)
+    except ValueError:
+        return jsonify({"error": "Parameter tidak valid: horizon/min_n harus berupa angka."}), 400
+    return jsonify(store.outcomes_by_bucket(horizon, min_n))
+
+
+@bp.get("/api/verdicts")
+def api_verdicts():
+    """Vonis per sinyal (sadar-arah) + letak kesalahan — JSON.
+
+    Sumber: store.outcome_verdicts — SELL/JUAL/AVOID/TUTUP benar bila harga
+    TURUN setelahnya. Tanpa proyeksi; skor/ambang tidak diubah.
+    """
+    try:
+        horizon = _int_arg("horizon", 5, 1, 60)
+        limit = _int_arg("limit", 200, 1, 2000)
+    except ValueError:
+        return jsonify({"error": "Parameter tidak valid: horizon/limit harus berupa angka."}), 400
+    return jsonify(store.outcome_verdicts(horizon, limit))
+
+
+@bp.get("/track-record.pdf")
+def pdf():
+    """Laporan PDF resmi track record: logo di header tiap halaman,
+    "Dibuat oleh Akmal Putra Septian" + disclaimer bukan nasihat finansial
+    di footer. Angka 100% dari summary() (DB lokal) - sama persis dengan
+    halaman /track-record; tanpa proyeksi. Skor/ambang tidak diubah.
+    """
+    try:
+        import pdf_report
+    except ImportError:
+        return jsonify({"error": "Dependensi reportlab belum terpasang."}), 503
+    try:
+        body = pdf_report.build_track_record_pdf(summary())
+    except Exception as exc:  # jangan 500 diam-diam
+        return jsonify({"error": "Gagal membuat PDF: {}".format(exc)}), 500
+    resp = Response(body, mimetype="application/pdf")
+    # Nama file bertanggal supaya salinan lama (bug versi sebelumnya)
+    # tidak tertukar dengan unduhan baru.
+    fname = "laumology-track-record-{}.pdf".format(
+        _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%d-%H%M"))
+    # ?download=1 -> attachment: browser MENGUNDUH LANGSUNG ke folder
+    # Downloads (tanpa membuka viewer / prompt upload Drive di Android).
+    # Tanpa param (default) -> inline: pratinjau di tab browser.
+    if request.args.get("download") == "1":
+        resp.headers["Content-Disposition"] = 'attachment; filename="{}"'.format(fname)
+    else:
+        resp.headers["Content-Disposition"] = 'inline; filename="{}"'.format(fname)
+    return resp
+

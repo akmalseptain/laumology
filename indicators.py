@@ -638,6 +638,56 @@ def rvol(volume: pd.Series, n: int = 20) -> pd.Series:
     return volume / sma(volume, n).replace(0.0, np.nan)
 
 
+def high_252_proximity(close: pd.Series, n: int = 252, min_periods: int = 60) -> pd.Series:
+    """Kedekatan harga ke tertinggi 52 minggu, dalam persen (100 = di puncak).
+
+    Kausal: rolling max hanya memakai bar sampai t (George & Hwang 2004).
+    Emiten muda (< min_periods bar) menghasilkan NaN, bukan angka palsu
+    dari jendela pendek.
+    """
+    hh = close.rolling(window=n, min_periods=min_periods).max()
+    return close / hh.replace(0.0, np.nan) * 100.0
+
+
+def amihud_illiquidity(close: pd.Series, volume: pd.Series, n: int = 20) -> pd.Series:
+    """Illiquidity Amihud (2002): rata-rata |ret| harian dibagi nilai transaksi.
+
+    Kausal dan bebas skala antar-emiten. Semakin besar = semakin tidak
+    likuid. NaN saat nilai transaksi nol; min_periods penuh agar bar
+    pemanasan tidak menghasilkan angka setengah jendela.
+    """
+    ret = close.pct_change().abs()
+    turnover = (close * volume).replace(0.0, np.nan)
+    daily = (ret / turnover).replace([np.inf, -np.inf], np.nan)
+    return daily.rolling(window=n, min_periods=n).mean()
+
+
+def zscore(close: pd.Series, n: int = 20) -> pd.Series:
+    """Z-score harga terhadap SMA-n (deviasi ternormalisasi, ddof=0)."""
+    mid = sma(close, n)
+    std = close.rolling(window=n, min_periods=n).std(ddof=0)
+    return (close - mid) / std.replace(0.0, np.nan)
+
+
+def obv_slope_normalized(close: pd.Series, volume: pd.Series, n: int = 10) -> pd.Series:
+    """Slope OBV ternormalisasi: perubahan OBV n-bar dibagi total volume n-bar.
+
+    Kausal dan bebas skala, jadi emiten bermodal besar dan kecil bisa
+    dibandingkan langsung.
+    """
+    o = obv(close, volume)
+    denom = volume.rolling(window=n, min_periods=n).sum().replace(0.0, np.nan)
+    return (o - o.shift(n)) / denom
+
+
+def donchian_position(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 20) -> pd.Series:
+    """Posisi harga dalam channel Donchian-n: 0 = dasar, 1 = puncak. Kausal."""
+    upper = high.rolling(window=n, min_periods=n).max()
+    lower = low.rolling(window=n, min_periods=n).min()
+    rng = (upper - lower).replace(0.0, np.nan)
+    return ((close - lower) / rng).clip(0.0, 1.0)
+
+
 def parabolic_sar(
     high: pd.Series, low: pd.Series, close: pd.Series,
     step: float = 0.02, max_step: float = 0.20,
@@ -844,6 +894,16 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["ao"] = awesome_oscillator(high, low)
     d["uo"] = ultimate_oscillator(high, low, close)
     d["rvol"] = rvol(volume)
+
+    # Kandidat objektif: kausal, tanpa tuning, tidak menyentuh skor 0-100.
+    d["hi52_pct"] = high_252_proximity(close)
+    d["amihud"] = amihud_illiquidity(close, volume)
+    d["z20"] = zscore(close, 20)
+    d["obv_slope"] = obv_slope_normalized(close, volume)
+    d["dc_pct"] = donchian_position(high, low, close, 20)
+    # Penanda pemanasan: jumlah bar valid sampai t, agar bar awal
+    # (indikator jendela panjang belum penuh) bisa dibuang dari ML/backtest.
+    d["bar_count"] = close.notna().cumsum()
 
     band = (d["bb_upper"] - d["bb_lower"]).replace(0.0, np.nan)
     psar_line, psar_dir = parabolic_sar(high, low, close)

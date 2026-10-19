@@ -161,6 +161,7 @@ def sitemap():
     about_loc = f"{base}/tentang" if base else "/tentang"
     panduan_loc = f"{base}/panduan" if base else "/panduan"
     indikator_loc = f"{base}/indikator-saham" if base else "/indikator-saham"
+    track_loc = f"{base}/track-record" if base else "/track-record"
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -176,9 +177,23 @@ def sitemap():
         f"  <url><loc>{indikator_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
         "<changefreq>weekly</changefreq>"
         "<priority>0.7</priority></url>\n"
+        f"  <url><loc>{track_loc}</loc><lastmod>{_CONTENT_LASTMOD}</lastmod>"
+        "<changefreq>daily</changefreq>"
+        "<priority>0.9</priority></url>\n"
         "</urlset>\n"
     )
     return Response(body, mimetype="application/xml")
+
+
+def _litestream_status() -> str:
+    """Status persistensi dari marker render-start.sh (aktif / nonaktif:binary /
+    nonaktif:env / nonaktif:binary+env / aktif:restore-error). Tanpa marker =
+    jalankan di luar Render (lokal/CI) atau bootstrap lama."""
+    try:
+        p = store.DB_PATH.parent / "litestream.status"
+        return p.read_text().strip() if p.exists() else "nonaktif:tanpa-marker"
+    except Exception:
+        return "unknown"
 
 
 @bp.route("/health")
@@ -186,6 +201,7 @@ def health():
     return jsonify(status="ok", version=state.VERSION,
                    uptime_s=int(time.time() - state.START),
                    db=str(store.DB_PATH),
+                   litestream=_litestream_status(),
                    time=time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
@@ -224,6 +240,10 @@ def api_schema():
         {"method": "GET", "path": "/api/accuracy", "params": ["ticker", "horizon"]},
         {"method": "GET", "path": "/api/calibrate", "params": ["list", "horizon", "min_edge", "refresh"]},
         {"method": "GET", "path": "/api/regime-edge", "params": ["list", "horizon", "refresh"]},
+        {"method": "GET", "path": "/api/edge", "params": ["universe", "horizon", "top", "min_count"]},
+        {"method": "GET", "path": "/api/trackrecord", "params": []},
+        {"method": "GET", "path": "/api/attribution", "params": ["horizon", "min_n"]},
+        {"method": "GET", "path": "/api/verdicts", "params": ["horizon", "limit"]},
         {"method": "GET", "path": "/api/train", "params": ["list", "horizon", "folds"]},
         {"method": "GET", "path": "/api/model", "params": []},
         {"method": "GET", "path": "/api/ml", "params": ["ticker", "horizon", "candidates"]},

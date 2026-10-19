@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/static/laumology.svg">
+<meta name="theme-color" content="#16a34a">
+<title>Track Record — LAUMOLOGY</title>
+<meta name="description" content="Track record transparan LAUMOLOGY: setiap sinyal dan hasil paper trading, tanpa angka yang disembunyikan.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="{{ canonical_base }}/track-record">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LAUMOLOGY">
+<meta property="og:locale" content="id_ID">
+<meta property="og:title" content="Track Record — LAUMOLOGY">
+<meta property="og:description" content="Track record transparan LAUMOLOGY: setiap sinyal dan hasil paper trading, tanpa angka yang disembunyikan.">
+<meta property="og:url" content="{{ canonical_base }}/track-record">
+<meta property="og:image" content="{{ canonical_base }}/static/og-cover.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="LAUMOLOGY · Track Record">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 8px}
+  h1{font-family:var(--display-font);font-size:30px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}
+  h2{font-family:var(--display-font);font-size:20px;letter-spacing:-.01em;margin:30px 0 10px}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:14.5px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+  .kpi .lab{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.8px}
+  .kpi .val{font-size:24px;font-weight:700;margin-top:4px;font-family:'JetBrains Mono',ui-monospace,monospace;font-feature-settings:"tnum" 1}
+  .pos{color:var(--up)} .neg{color:var(--down)} .neu{color:var(--muted)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .b-buy{background:var(--accent-soft);color:var(--brand-dark)}
+  .b-sell{background:var(--down-soft);color:var(--down)}
+  .b-open{background:var(--surface-2);color:var(--muted)}
+  .empty{color:var(--muted);font-style:italic;padding:14px 4px}
+  .disc{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border);padding-top:16px}
+  a.back{color:var(--brand);text-decoration:none;font-size:13.5px}
+  .btn-pdf{display:inline-block;margin-top:12px;padding:8px 16px;border:1px solid var(--brand);border-radius:999px;color:var(--brand);text-decoration:none;font-size:13px;font-weight:600}
+  .btn-pdf:hover{background:var(--accent-soft)}
+  .eq-axis{stroke:var(--border)}
+  .eq-line{stroke:var(--brand)}
+  .eq-label{fill:var(--muted)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="hwrap">
+    <a class="brand" href="/" aria-label="LAUMOLOGY">
+      <svg class="logo-mark" viewBox="0 0 92 64" aria-hidden="true">
+        <g stroke="currentColor" fill="currentColor">
+          <line x1="12" y1="30" x2="12" y2="62" stroke-width="1.6"/>
+          <line x1="30" y1="22" x2="30" y2="60" stroke-width="1.6"/>
+          <line x1="49" y1="14" x2="49" y2="58" stroke-width="1.6"/>
+          <line x1="68" y1="8" x2="68" y2="56" stroke-width="1.6"/>
+          <rect x="7" y="40" width="10" height="14" rx="1.8"/>
+          <rect x="25" y="32" width="10" height="20" rx="1.8"/>
+          <rect x="44" y="24" width="10" height="26" rx="1.8"/>
+          <rect x="63" y="16" width="10" height="32" rx="1.8"/>
+          <line x1="4" y1="52" x2="88" y2="6" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <polyline points="73,6 88,6 88,21" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <span class="logo-word">LAUMO<i>LOGY</i></span>
+    </a>
+    <form class="search" action="/" method="get">
+      <input name="ticker" placeholder="Kode saham" aria-label="Kode saham" autocomplete="off" spellcheck="false" required>
+      <button class="btn" type="submit">Analisis</button>
+    </form>
+  </div>
+</header>
+<main>
+<div class="wrap">
+  <a class="back" href="/">&#8592; Beranda LAUMOLOGY</a>
+  <h1>Track Record</h1>
+  <p class="sub">Setiap sinyal yang pernah dikeluarkan sistem dan hasil paper trading-nya.
+    Tidak ada angka yang disembunyikan: kalau rugi, tampil rugi.</p>
+  <p><a class="btn-pdf" href="/track-record.pdf?download=1">Unduh laporan PDF resmi</a></p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Sinyal tercatat</div><div class="val">{{ n_signals }}</div></div>
+    <div class="kpi"><div class="lab">Posisi ditutup</div><div class="val">{{ n_closed }}</div></div>
+    <div class="kpi"><div class="lab">Win rate</div>
+      <div class="val {{ 'pos' if win_rate >= 0.5 else ('neu' if win_rate > 0 else 'neu') }}">{{ "%.0f"|format(win_rate * 100) }}%</div></div>
+    <div class="kpi"><div class="lab">Expectancy / trade</div>
+      <div class="val {{ 'pos' if expectancy_pct > 0 else ('neg' if expectancy_pct < 0 else 'neu') }}">{{ "%+.2f"|format(expectancy_pct) }}%</div></div>
+    <div class="kpi"><div class="lab">Payoff (avg win/loss)</div><div class="val">{{ "%.2f"|format(payoff) }}</div></div>
+    <div class="kpi"><div class="lab">Total PnL paper</div>
+      <div class="val {{ 'pos' if total_pnl > 0 else ('neg' if total_pnl < 0 else 'neu') }}">{{ "{:+,.0f}".format(total_pnl) }}</div></div>
+  </div>
+
+  <h2>Kurva ekuitas (paper trading, ternormalisasi 100)</h2>
+  <div class="card">
+    {% if equity_curve|length > 1 %}
+      {% set w, h, pad = 720, 220, 24 %}
+      {% set xs = range(equity_curve|length) %}
+      {% set minv = equity_curve|min %} {% set maxv = equity_curve|max %}
+      {% set span = maxv - minv if maxv > minv else 1 %}
+      <svg viewBox="0 0 {{ w }} {{ h }}" width="100%" height="{{ h }}" role="img" aria-label="Kurva ekuitas paper trading">
+        <line x1="{{ pad }}" y1="{{ h - pad }}" x2="{{ w - pad }}" y2="{{ h - pad }}" class="eq-axis"/>
+        <polyline fill="none" class="eq-line" stroke-width="2.5"
+          points="{% for i in xs %}{{ pad + (w - 2*pad) * (i / (xs|length - 1)) if xs|length > 1 else pad }},{{ h - pad - (h - 2*pad) * ((equity_curve[i] - minv) / span) }} {% endfor %}"/>
+        <text x="{{ pad }}" y="{{ h - 6 }}" class="eq-label" font-size="11">awal</text>
+        <text x="{{ w - pad }}" y="{{ h - 6 }}" class="eq-label" font-size="11" text-anchor="end">terbaru</text>
+      </svg>
+    {% else %}
+      <p class="empty">Belum ada posisi yang ditutup — kurva ekuitas akan muncul setelah trade pertama selesai.</p>
+    {% endif %}
+  </div>
+
+  <h2>Posisi ditutup ({{ n_closed }})</h2>
+  <div class="card">
+    {% if closed_trades %}
+    <table>
+      <thead><tr><th>Waktu tutup</th><th>Kode</th><th>Arah</th><th>Entry</th><th>Exit</th><th>Return</th><th>PnL</th></tr></thead>
+      <tbody>
+      {% for t in closed_trades %}
+        {% set r = t.exit and t.entry %}
+        <tr>
+          <td>{{ t.closed or t.opened or "?" }}</td>
+          <td><strong>{{ t.ticker }}</strong></td>
+          {% set t_side = (t.side or 'BUY')|upper %}
+          <td><span class="badge {{ 'b-sell' if t_side.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
+          <td>{{ "%.2f"|format(t.entry) if t.entry else "?" }}</td>
+          <td>{{ "%.2f"|format(t.exit) if t.exit else "?" }}</td>
+          {% if t.exit and t.entry %}
+            {% set raw = (t.exit - t.entry) / t.entry * 100.0 %}
+            {% set ret = -raw if t_side.startswith('SELL') else raw %}
+            <td class="{{ 'pos' if ret > 0 else ('neg' if ret < 0 else 'neu') }}">{{ "%+.2f"|format(ret) }}%</td>
+          {% else %}<td>?</td>{% endif %}
+          <td class="{{ 'pos' if t.pnl and t.pnl > 0 else ('neg' if t.pnl and t.pnl < 0 else 'neu') }}">{{ "{:+,.0f}".format(t.pnl) if t.pnl is not none else "?" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Belum ada posisi yang ditutup.</p>{% endif %}
+  </div>
+
+  <h2>Posisi berjalan ({{ n_open }})</h2>
+  <div class="card">
+    {% if open_trades %}
+    <table>
+      <thead><tr><th>Dibuka</th><th>Kode</th><th>Arah</th><th>Entry</th><th>Stop</th><th>Target</th></tr></thead>
+      <tbody>
+      {% for t in open_trades %}
+        <tr>
+          <td>{{ t.opened or "?" }}</td>
+          <td><strong>{{ t.ticker }}</strong></td>
+          {% set t_side = (t.side or 'BUY')|upper %}
+          <td><span class="badge {{ 'b-sell' if t_side.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
+          <td>{{ "%.2f"|format(t.entry) if t.entry else "?" }}</td>
+          <td>{{ "%.2f"|format(t.stop) if t.stop else "?" }}</td>
+          <td>{{ "%.2f"|format(t.tp) if t.tp else "?" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Tidak ada posisi berjalan.</p>{% endif %}
+  </div>
+
+  <h2>Rekap per saham</h2>
+  <div class="card">
+    {% if per_ticker %}
+    <table>
+      <thead><tr><th>Kode</th><th>Trade</th><th>Menang</th><th>Win rate</th><th>Total return</th></tr></thead>
+      <tbody>
+      {% for s in per_ticker %}
+        <tr>
+          <td><strong>{{ s.ticker }}</strong></td>
+          <td>{{ s.n }}</td>
+          <td>{{ s.wins }}</td>
+          <td>{{ "%.0f"|format(s.wins / s.n * 100) }}%</td>
+          <td class="{{ 'pos' if s.ret > 0 else ('neg' if s.ret < 0 else 'neu') }}">{{ "%+.2f"|format(s.ret) }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Belum ada rekap per saham.</p>{% endif %}
+  </div>
+
+  <h2>Riwayat sinyal terbaru ({{ n_signals }} tercatat)</h2>
+  <div class="card">
+    {% if signals %}
+    <table>
+      <thead><tr><th>Waktu</th><th>Kode</th><th>Aksi</th><th>Skor</th><th>Confidence</th><th>Grade</th><th>Harga saat sinyal</th><th>Sumber</th></tr></thead>
+      <tbody>
+      {% for s in signals %}
+        <tr>
+          <td>{{ s.ts or "?" }}</td>
+          <td><strong>{{ s.ticker }}</strong></td>
+          {% set s_aksi = (s.action or s.signal or '')|upper %}
+          <td><span class="badge {{ 'b-sell' if s_aksi.startswith('SELL') else 'b-buy' }}">{{ s.action or s.signal or "?" }}</span></td>
+          <td>{{ s.score if s.score is not none else "?" }}</td>
+          <td>{{ s.confidence if s.confidence is not none else "?" }}</td>
+          <td>{{ s.grade or "-" }}</td>
+          <td>{{ "%.2f"|format(s.price) if s.price else "?" }}</td>
+          <td>{{ s.source or "-" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="empty">Belum ada sinyal tercatat.</p>{% endif %}
+  </div>
+
+  <h2>Akurasi sinyal terukur (H+{{ outcomes.horizon }}, feedback loop)</h2>
+  {% if outcomes.n %}
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Sinyal dievaluasi</div><div class="val">{{ outcomes.n }}</div></div>
+    <div class="kpi"><div class="lab">Return + (H+{{ outcomes.horizon }})</div>
+      <div class="val {{ 'pos' if outcomes.win_rate > 50 else ('neg' if outcomes.win_rate < 50 else 'neu') }}">{{ '%.1f'|format(outcomes.win_rate) }}%</div></div>
+    <div class="kpi"><div class="lab">Rata-rata return</div>
+      <div class="val {{ 'pos' if outcomes.avg_fwd_pct > 0 else ('neg' if outcomes.avg_fwd_pct < 0 else 'neu') }}">{{ '%+.2f'|format(outcomes.avg_fwd_pct) }}%</div></div>
+    <div class="kpi"><div class="lab">Excess vs IHSG</div>
+      <div class="val {{ 'pos' if outcomes.avg_excess_pct > 0 else ('neg' if outcomes.avg_excess_pct < 0 else 'neu') }}">{{ '%+.2f'|format(outcomes.avg_excess_pct) }}%</div></div>
+    <div class="kpi"><div class="lab">TP1 sebelum SL</div><div class="val">{{ '%.1f'|format(outcomes.tp1_first_rate) }}%</div></div>
+  </div>
+  <p class="sub">Metode: forward return {{ outcomes.horizon }} hari perdagangan setelah hari sinyal, dari harga saat sinyal dibuat (kausal, tanpa proyeksi). Sinyal yang belum cukup tua tidak ikut dihitung. Sentuh TP1/SL di bar yang sama dihitung SL dulu (konservatif). Skor dan ambang TIDAK diubah oleh pengukuran ini.</p>
+  {% else %}
+  <p class="empty">Belum ada sinyal yang cukup tua untuk dievaluasi. Setiap sinyal diukur setelah {{ outcomes.horizon }}+ hari perdagangan berlalu — tanpa proyeksi.</p>
+  {% endif %}
+
+  <h2>Atribusi: kelompok sinyal mana yang menang (H+{{ attribution.horizon }})</h2>
+  <div class="card">
+    {% if attribution.n_total %}
+    {% for dim, entries in attribution.buckets.items() %}
+      {% if entries %}
+      <p class="sub">Per {{ dim }}:</p>
+      <table>
+        <thead><tr><th>{{ dim }}</th><th>n</th><th>Win rate</th><th>Rata-rata return</th><th>Excess vs IHSG</th><th>TP1 dulu</th><th>SL dulu</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          <tr>
+            <td><strong>{{ e.bucket }}</strong></td>
+            <td>{{ e.n }}</td>
+            <td class="{{ 'pos' if e.win_rate > 50 else ('neg' if e.win_rate < 50 else 'neu') }}">{{ '%.1f'|format(e.win_rate) }}%</td>
+            <td class="{{ 'pos' if e.avg_fwd_pct > 0 else ('neg' if e.avg_fwd_pct < 0 else 'neu') }}">{{ '%+.2f'|format(e.avg_fwd_pct) }}%</td>
+            <td class="{{ 'pos' if e.avg_excess_pct is not none and e.avg_excess_pct > 0 else ('neg' if e.avg_excess_pct is not none and e.avg_excess_pct < 0 else 'neu') }}">{{ '%+.2f'|format(e.avg_excess_pct) if e.avg_excess_pct is not none else 'n/a' }}</td>
+            <td>{{ '%.0f'|format(e.tp1_rate) }}%</td>
+            <td>{{ '%.0f'|format(e.sl_rate) }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
+    <p class="sub">Kelompok dengan sampel &lt; {{ attribution.min_n }} tidak ditampilkan (n kecil = noise, bukan bukti). Angka dari sinyal tercatat + hasil evaluasi H+{{ attribution.horizon }} — tanpa proyeksi, tanpa mengubah skor/ambang.</p>
+    {% else %}
+    <p class="empty">Belum ada hasil evaluasi untuk diatribusikan — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
+  <h2>Vonis: analisa benar atau salah — dan salahnya di mana (H+{{ verdicts.horizon }})</h2>
+  <div class="card">
+    {% if verdicts.n %}
+    <div class="kpis">
+      <div class="kpi"><div class="lab">Benar nyata (+ &amp; kalahkan IHSG)</div>
+        <div class="val pos">{{ '%.1f'|format(verdicts.verdict_pct.get('benar_nyata', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Untung, cuma ikut pasar</div>
+        <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('untung_ikut_pasar', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Salah arah, tapi relatif oke vs IHSG</div>
+        <div class="val neu">{{ '%.1f'|format(verdicts.verdict_pct.get('salah_relatif_ok', 0)) }}%</div></div>
+      <div class="kpi"><div class="lab">Salah</div>
+        <div class="val neg">{{ '%.1f'|format(verdicts.verdict_pct.get('salah', 0)) }}%</div></div>
+    </div>
+    {% if verdicts.wrong_n %}
+    <table>
+      <thead><tr><th>Dari {{ verdicts.wrong_n }} sinyal salah/turun, letak kesalahannya</th><th>%</th></tr></thead>
+      <tbody>
+        <tr><td>Stop loss tersentuh duluan (timing/risk terlalu ketat)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('sl_duluan', 0)) }}%</td></tr>
+        <tr><td>Tak pernah sentuh TP1/SL — harga nyalet (momentum tidak muncul)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('tanpa_tp1_dan_sl', 0)) }}%</td></tr>
+        <tr><td>Kalah dari IHSG di jendela yang sama (salah pilih saham)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('kalah_dari_ihsg', 0)) }}%</td></tr>
+        <tr><td>Naik padahal sinyal menurunkan/tutup (SELL/AVOID salah)</td><td>{{ '%.1f'|format(verdicts.wrong_where_pct.get('naik_padahal_turun', 0)) }}%</td></tr>
+      </tbody>
+    </table>
+    {% endif %}
+    <p class="sub">Vonis sadar-arah: sinyal SELL/AVOID dinilai benar bila harga TURUN setelahnya. Vonis didefinisikan a priori dari hasil terukur (forward return H+{{ verdicts.horizon }} + excess vs IHSG); tanpa proyeksi, tanpa mengubah skor/ambang. "Untung ikut pasar" = naik tapi tidak mengalahkan IHSG — bukan keunggulan analisa.</p>
+    {% else %}
+    <p class="empty">Belum ada sinyal tervalidasi untuk divonis — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
+
+  <h2>Diagnosa per kelompok: kelompok mana yang paling sering salah (H+{{ bucket_verdicts.horizon }})</h2>
+  <div class="card">
+    {% if bucket_verdicts.n_total %}
+    {% for dim, entries in bucket_verdicts.buckets.items() %}
+      {% if entries %}
+      <p class="sub">Per {{ dim }}:</p>
+      <table>
+        <thead><tr><th>{{ dim }}</th><th>n</th><th>Benar nyata</th><th>Ikut pasar</th><th>Salah relatif oke</th><th>Salah</th><th>Letak kesalahan (dari yang salah)</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          {% set lbl = {'sl_duluan':'SL duluan','tanpa_tp1_dan_sl':'tanpa TP1/SL','naik_padahal_turun':'naik padahal sinyal menurunkan','kalah_dari_ihsg':'kalah dari IHSG'} %}
+          <tr>
+            <td><strong>{{ e.bucket }}</strong></td>
+            <td>{{ e.n }}</td>
+            <td class="pos">{{ '%.1f'|format(e.verdict_pct.get('benar_nyata', 0)) }}%</td>
+            <td class="neu">{{ '%.1f'|format(e.verdict_pct.get('untung_ikut_pasar', 0)) }}%</td>
+            <td class="neu">{{ '%.1f'|format(e.verdict_pct.get('salah_relatif_ok', 0)) }}%</td>
+            <td class="neg">{{ '%.1f'|format(e.verdict_pct.get('salah', 0)) }}%</td>
+            <td>
+              {% if e.wrong_n %}
+                {% for k, v in e.wrong_where_pct.items() %}{% if v %}<span class="neu">{{ lbl.get(k, k) }} {{ '%.0f'|format(v) }}%</span>{% if not loop.last %} &middot; {% endif %}{% endif %}{% endfor %}
+              {% else %}<span class="neu">&mdash;</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
+    <p class="sub">Gabungan atribusi &times; vonis sadar-arah: kelompok mana yang paling sering salah, dan salahnya di mana. Kelompok dengan sampel &lt; {{ bucket_verdicts.min_n }} tidak ditampilkan (n kecil = noise, bukan bukti). Angka dari hasil evaluasi H+{{ bucket_verdicts.horizon }} &mdash; tanpa proyeksi; ini dasar empiris untuk calon keputusan ambang BELI, tetapi skor/ambang TIDAK diubah oleh laporan ini.</p>
+    {% else %}
+    <p class="empty">Belum ada hasil evaluasi untuk didiagnosa per kelompok &mdash; muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
+  <p class="disc">
+    Angka pada halaman ini dihitung dari paper trading internal LAUMOLOGY — bukan rekomendasi
+    dan bukan hasil trading uang sungguhan. Data historis tidak menjamin hasil di masa depan.
+    API publik: <code>/api/trackrecord</code>.
+  </p>
+</div>
+</main>
+
+<footer class="site-footer">
+  <div class="fwrap">
+    <div class="fbrand">
+      <p>Alat bantu analisis saham IDX yang bisa ditelusuri: setiap sinyal disertai alasan dari indikator dan faktor, bukan janji tanpa bukti.</p>
+    </div>
+    <div class="fmeta">
+      <p><a href="{{ url_for('meta.panduan') }}" style="color:var(--brand);text-decoration:none">Panduan Analisis</a> &middot; <a href="{{ url_for('meta.indikator_saham') }}" style="color:var(--brand);text-decoration:none">Indikator Saham</a></p>
+      <p>&copy; 2026 LAUMOLOGY. All rights reserved.</p>
+      <p class="muted">Crafted by <b>AKMALSEPTAIN</b></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

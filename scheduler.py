@@ -11,7 +11,7 @@ import store
 from signals import analyze
 
 
-def run_once(universe: str = "lq45", min_score: int = 65) -> int:
+def run_once(universe: str = "lq45") -> int:
     tickers = screener.resolve_watchlist(universe)
     data.prefetch(tickers)  # batch: percepat + hangatkan cache
     prev = {r["ticker"]: r["signal"] for r in store.recent_signals(limit=800)}
@@ -37,11 +37,28 @@ def run_once(universe: str = "lq45", min_score: int = 65) -> int:
         except Exception as exc:
             print(f"  ! {t}: {exc}")
     store.add_scan(universe, n, len(buys))
+
+    # Feedback loop akurasi: evaluasi sinyal lama (best-effort, jangan ganggu scan).
+    try:
+        import outcomes as outcomes_mod
+
+        # Multi-horizon: ukur H+5 dan H+10 agar track record tidak menyetir
+        # satu horizon saja; keduanya best-effort, jangan ganggu scan.
+        for horizon in (5, 10):
+            outcomes_mod.evaluate_signals(horizon=horizon, limit=25)
+    except Exception:
+        pass
     for a in buys:
-        text = (f"[{a.signal}] {a.ticker} | skor {a.score} conf {a.confidence}% "
-                f"| harga {a.price:,.0f} | SL {a.stop_loss:,.0f} TP1 {a.tp1:,.0f}")
-        notify.dispatch(text, {"ticker": a.ticker, "signal": a.signal, "score": a.score})
-        print(f"ALERT {text}")
+        try:
+            notify.signal_alert({
+                "ticker": a.ticker, "signal": a.signal, "action": a.action,
+                "score": a.score, "confidence": a.confidence, "grade": a.grade,
+                "price": a.price, "entry": a.entry, "stop_loss": a.stop_loss, "tp1": a.tp1,
+                "source": "scan",
+            })
+        except Exception:
+            pass  # best-effort: satu alert gagal tidak boleh memutus sisa alert
+        print(f"ALERT {a.ticker} {a.signal} skor {a.score} conf {a.confidence}%")
     return len(buys)
 
 

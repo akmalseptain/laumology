@@ -1,0 +1,24 @@
+# Contoh blueprint Render Starter + Persistent Disk (Opsi B, berbayar).
+# Jalur: Render Dashboard -> New -> Blueprint -> pilih repo -> ganti file ini
+# jadi render.yaml, atau buat manual: service web + disk + env DATA_DIR.
+services:
+  - type: web
+    name: laumology
+    runtime: python
+    plan: starter
+    region: singapore
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 webapp:app
+    disk:
+      - name: laumology-data
+        mountPath: /var/lib/data
+        sizeGB: 1
+    envVars:
+      - key: ENABLE_SCHEDULER
+        value: "1"
+      - key: SCAN_INTERVAL
+        value: "900"
+      - key: DATA_DIR
+        value: /var/lib/data
+      # API_KEY & lainnya salin dari env service sekarang
