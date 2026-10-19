@@ -1,10 +1,11 @@
-"""Laporan PDF track record LAUMOLOGY - resmi, rapih, dan jujur.
+"""Laporan PDF resmi track record LAUMOLOGY.
 
-Dibuat dengan reportlab (canvas) dari data DB lokal yang sama dengan
-halaman /track-record: tidak ada proyeksi atau angka yang tidak bisa
-dibuktikan. Setiap halaman memuat wordmark LAUMOLOGY di header, kredit
-"Dibuat oleh Akmal Putra Septian", dan disclaimer bukan nasihat finansial
-di footer.
+Format mengikuti kaidah dokumen resmi (ala kop surat pemerintahan):
+logo vektor asli LAUMOLOGY (replika persis /static/laumology.svg),
+garis ganda kop, nomor dokumen, seksi bernomor romawi, tabel bergaris
+kepala, blok pengesahan bertanda tangan penerbit, serta footer
+"Halaman X dari Y" + disclaimer bukan nasihat finansial di setiap
+halaman. Semua angka murni dari summary() DB lokal - tanpa proyeksi.
 """
 from __future__ import annotations
 
@@ -18,156 +19,314 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas as _canvas
 
 _BRAND = colors.HexColor("#16a34a")
-_DARK = colors.HexColor("#0f172a")
+_DARK = colors.HexColor("#0f1712")
 _MUTED = colors.HexColor("#64748b")
 _LINE = colors.HexColor("#cbd5e1")
+_RULE = colors.HexColor("#e2e8f0")
+_FAINT = colors.HexColor("#f1f5f9")
 
 _W, _H = A4
-_MARGIN = 40.0
+_MARGIN = 48.0
 
 _AUTHOR = "Akmal Putra Septian"
+_ROLE = "Pengembang LAUMOLOGY"
+_SITE = "laumology.onrender.com"
 _DISCLAIMER = (
     "Disclaimer: laporan ini bukan nasihat finansial dan bukan ajakan membeli/menjual "
     "efek. Seluruh angka berasal dari paper trading internal LAUMOLOGY; data "
     "historis tidak menjamin hasil di masa depan."
 )
 
+_BULAN = ("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli",
+          "Agustus", "September", "Oktober", "November", "Desember")
+
+
+def _wib() -> _dt.datetime:
+    return _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=7)
+
+
+def _tanggal(t: _dt.datetime) -> str:
+    return "{} {} {}".format(t.day, _BULAN[t.month - 1], t.year)
+
+
+def _draw_logo(c, x: float, y: float, h: float) -> None:
+    """Logo asli LAUMOLOGY dalam vektor (replika /static/laumology.svg).
+
+    (x, y) = titik kiri-bawah area logo, h = tinggi logo (poin).
+    Koordinat SVG (y ke bawah, viewBox 92x64) dibalik ke sumbu PDF (y ke atas).
+    """
+    s = h / 64.0
+    c.saveState()
+    c.translate(x, y)
+    c.scale(s, s)
+    c.setStrokeColor(_BRAND)
+    c.setFillColor(_BRAND)
+    # sumbu lilin (wick) - garis tipis
+    c.setLineWidth(1.6)
+    c.setLineCap(0)
+    for lx, ya, yb in ((12, 34, 2), (30, 42, 4), (49, 50, 6), (68, 56, 8)):
+        c.line(lx, ya, lx, yb)
+    # badan lilin - kotak sudut membulat
+    for rx, ry, rw, rh in ((7, 10, 10, 14), (25, 12, 10, 20),
+                           (44, 14, 10, 26), (63, 16, 10, 32)):
+        c.roundRect(rx, ry, rw, rh, 1.6, fill=1, stroke=0)
+    # garis tren + mata panah
+    c.setLineWidth(2.4)
+    c.setLineCap(1)
+    c.setLineJoin(1)
+    c.line(4, 12, 88, 58)
+    ph = c.beginPath()
+    ph.moveTo(73, 58)
+    ph.lineTo(88, 58)
+    ph.lineTo(88, 43)
+    c.drawPath(ph, fill=0)
+    c.restoreState()
+
+
+def _kop(c, nomor: str, tanggal: str) -> None:
+    """Kop dokumen resmi (halaman pertama): logo, identitas, nomor, garis ganda."""
+    _draw_logo(c, _MARGIN, _H - 78, 42)
+    lx = _MARGIN + 92 * (42 / 64.0) + 11
+    c.setFont("Helvetica-Bold", 21)
+    c.setFillColor(_DARK)
+    c.drawString(lx, _H - 51, "LAUMO")
+    x2 = lx + stringWidth("LAUMO", "Helvetica-Bold", 21)
+    c.setFillColor(_BRAND)
+    c.drawString(x2, _H - 51, "LOGY")
+    c.setFillColor(_MUTED)
+    c.setFont("Helvetica", 8.5)
+    c.drawString(lx, _H - 63, "Analisis Saham Bursa Efek Indonesia (IDX)")
+    c.setFont("Helvetica", 7.5)
+    c.drawString(lx, _H - 73, _SITE + "  -  sistem analisis & paper trading transparan")
+    # blok nomor dokumen & waktu cetak (kanan atas, kaidah surat resmi)
+    c.setFillColor(_DARK)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawRightString(_W - _MARGIN, _H - 42, "NOMOR: " + nomor)
+    c.setFillColor(_MUTED)
+    c.setFont("Helvetica", 7.5)
+    c.drawRightString(_W - _MARGIN, _H - 52, "Dicetak " + tanggal)
+    # garis ganda kop: tebal gelap + tipis brand
+    c.setStrokeColor(_DARK)
+    c.setLineWidth(1.6)
+    c.line(_MARGIN, _H - 86, _W - _MARGIN, _H - 86)
+    c.setStrokeColor(_BRAND)
+    c.setLineWidth(0.8)
+    c.line(_MARGIN, _H - 90, _W - _MARGIN, _H - 90)
+
+
+def _kop_lanjutan(c, nomor: str) -> None:
+    """Kop ringkas untuk halaman lanjutan."""
+    _draw_logo(c, _MARGIN, _H - 50, 14)
+    x = _MARGIN + 92 * (14 / 64.0) + 8
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(_DARK)
+    c.drawString(x, _H - 44, "LAPORAN RESMI TRACK RECORD  -  LAUMOLOGY")
+    c.setFillColor(_MUTED)
+    c.setFont("Helvetica", 7.5)
+    c.drawRightString(_W - _MARGIN, _H - 44, "Nomor: " + nomor)
+    c.setStrokeColor(_LINE)
+    c.setLineWidth(0.8)
+    c.line(_MARGIN, _H - 56, _W - _MARGIN, _H - 56)
+
+
+def _footer(c) -> None:
+    c.setStrokeColor(_LINE)
+    c.setLineWidth(0.75)
+    c.line(_MARGIN, 54, _W - _MARGIN, 54)
+    c.setFillColor(_DARK)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(_MARGIN, 43, "Dibuat oleh " + _AUTHOR + "  -  " + _ROLE)
+    c.setFillColor(_MUTED)
+    c.setFont("Helvetica", 6.8)
+    y = 33
+    for ln in simpleSplit(_DISCLAIMER, "Helvetica", 6.8, _W - 2 * _MARGIN):
+        c.drawString(_MARGIN, y, ln)
+        y -= 8
+
+
+class _NumberedCanvas(_canvas.Canvas):
+    """Kanvas dua-tahap agar footer bisa mencantumkan 'Halaman X dari Y'."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_states = []
+
+    def showPage(self):
+        self._saved_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total = len(self._saved_states)
+        for state in self._saved_states:
+            self.__dict__.update(state)
+            self.setFont("Helvetica", 8)
+            self.setFillColor(_MUTED)
+            self.drawRightString(_W - _MARGIN, 43,
+                                "Halaman {} dari {}".format(self._pageNumber, total))
+            super().showPage()
+        super().save()
+
 
 class _Doc:
-    """Kanvas PDF dengan header (logo) + footer (pembuat & disclaimer) tiap halaman."""
+    """Kanvas PDF dengan kop resmi + footer tiap halaman."""
 
-    def __init__(self, c):
+    def __init__(self, c, nomor, tanggal):
         self.c = c
+        self.nomor = nomor
+        self.tanggal = tanggal
         self.page = 0
         self.y = 0.0
 
-    def _header_footer(self):
-        c = self.c
-        # --- Header: logo blok + wordmark LAUMOLOGY
-        c.setFillColor(_BRAND)
-        c.rect(_MARGIN, _H - 64, 24, 24, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 13)
-        c.drawCentredString(_MARGIN + 12, _H - 57, "L")
-        c.setFillColor(_DARK)
-        c.setFont("Helvetica-Bold", 19)
-        x = _MARGIN + 32
-        c.drawString(x, _H - 57, "LAUMO")
-        x += stringWidth("LAUMO", "Helvetica-Bold", 19)
-        c.setFillColor(_BRAND)
-        c.drawString(x, _H - 57, "LOGY")
-        c.setFillColor(_MUTED)
-        c.setFont("Helvetica", 8)
-        c.drawString(_MARGIN + 33, _H - 70, "ANALISIS SAHAM IDX  -  LAPORAN TRACK RECORD RESMI")
-        c.drawRightString(
-            _W - _MARGIN, _H - 70,
-            "Dicetak " + _dt.datetime.now(_dt.timezone.utc).strftime("%d %b %Y %H:%M UTC"),
-        )
-        c.setStrokeColor(_LINE)
-        c.setLineWidth(1)
-        c.line(_MARGIN, _H - 78, _W - _MARGIN, _H - 78)
-        # --- Footer: pembuat + disclaimer + nomor halaman
-        c.setFillColor(_DARK)
-        c.setFont("Helvetica-Bold", 8.5)
-        c.drawString(_MARGIN, 36, "Dibuat oleh " + _AUTHOR)
-        c.setFillColor(_MUTED)
-        c.drawRightString(_W - _MARGIN, 36, "Halaman " + str(self.page))
-        c.setFont("Helvetica", 7)
-        y = 26
-        for ln in simpleSplit(_DISCLAIMER, "Helvetica", 7, _W - 2 * _MARGIN):
-            c.drawString(_MARGIN, y, ln)
-            y -= 8.5
-
     def new_page(self):
         self.page += 1
-        self._header_footer()
-        self.y = _H - 100
+        if self.page == 1:
+            _kop(self.c, self.nomor, self.tanggal)
+            self.y = _H - 112
+        else:
+            _kop_lanjutan(self.c, self.nomor)
+            self.y = _H - 72
+        _footer(self.c)
 
     def check_space(self, need=40.0):
-        if self.y - need < 100:
+        if self.y - need < 64:
             self.c.showPage()
             self.new_page()
 
     def section(self, txt):
-        self.check_space(60)
+        self.check_space(56)
         c = self.c
         c.setFont("Helvetica-Bold", 11.5)
-        c.setFillColor(_BRAND)
+        c.setFillColor(_DARK)
         c.drawString(_MARGIN, self.y, txt)
-        self.y -= 6
+        self.y -= 7
         c.setStrokeColor(_LINE)
+        c.setLineWidth(0.8)
         c.line(_MARGIN, self.y, _W - _MARGIN, self.y)
-        self.y -= 14
+        c.setStrokeColor(_BRAND)
+        c.setLineWidth(2)
+        c.line(_MARGIN, self.y, _MARGIN + 42, self.y)
+        self.y -= 16
 
     def kv_grid(self, pairs):
-        """Baris label/nilai, dua kolom per baris."""
+        """Baris label/nilai dua kolom dengan garis pemisah tipis (kaidah tabel resmi)."""
         i = 0
         while i < len(pairs):
-            self.check_space(46)
+            self.check_space(48)
+            c = self.c
+            c.setStrokeColor(_RULE)
+            c.setLineWidth(0.5)
+            c.line(_MARGIN, self.y + 6, _W - _MARGIN, self.y + 6)
             for col in (0, 1):
                 if i >= len(pairs):
                     break
                 lab, val = pairs[i]
-                x = _MARGIN if col == 0 else _W / 2.0 + 10
-                self.c.setFont("Helvetica", 7.5)
-                self.c.setFillColor(_MUTED)
-                self.c.drawString(x, self.y, str(lab).upper())
-                self.c.setFont("Helvetica-Bold", 12)
-                self.c.setFillColor(_DARK)
-                self.c.drawString(x, self.y - 12, str(val))
+                x = _MARGIN + col * 260
+                c.setFont("Helvetica", 7)
+                c.setFillColor(_MUTED)
+                c.drawString(x, self.y, str(lab).upper())
+                c.setFont("Helvetica-Bold", 12)
+                c.setFillColor(_DARK)
+                c.drawString(x, self.y - 13, str(val))
                 i += 1
             self.y -= 30
+        self.c.setStrokeColor(_RULE)
+        self.c.setLineWidth(0.5)
+        self.c.line(_MARGIN, self.y + 13, _W - _MARGIN, self.y + 13)
 
-    def table(self, heads, xs, rows):
+    def _head_band(self, heads, cols):
+        self.check_space(34)
         c = self.c
-        for row in rows:
-            if self.y - 13 < 100:
+        c.setFillColor(_FAINT)
+        c.rect(_MARGIN, self.y - 4.5, _W - 2 * _MARGIN, 14, fill=1, stroke=0)
+        c.setStrokeColor(_LINE)
+        c.setLineWidth(0.6)
+        c.line(_MARGIN, self.y - 5.5, _W - _MARGIN, self.y - 5.5)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.setFillColor(_DARK)
+        for h, (x, al) in zip(heads, cols):
+            if al == "r":
+                c.drawRightString(_MARGIN + x, self.y, h)
+            else:
+                c.drawString(_MARGIN + x, self.y, h)
+        self.y -= 20
+
+    def table(self, heads, cols, rows):
+        """Tabel dengan kepala bergaris, baris zebra, kolom rata kiri/kanan."""
+        c = self.c
+        self._head_band(heads, cols)
+        for i, row in enumerate(rows):
+            if self.y - 13 < 64:
                 c.showPage()
                 self.new_page()
-            if self.y >= _H - 105:  # halaman baru: gambar kepala tabel lagi
-                c.setFont("Helvetica-Bold", 7.5)
-                c.setFillColor(_MUTED)
-                for h, x in zip(heads, xs):
-                    c.drawString(x, self.y, h)
-                self.y -= 12
+                self._head_band(heads, cols)
+            if i % 2 == 1:
+                c.setFillColor(_FAINT)
+                c.rect(_MARGIN, self.y - 3.5, _W - 2 * _MARGIN, 13, fill=1, stroke=0)
             c.setFont("Helvetica", 8.5)
             c.setFillColor(_DARK)
-            for v, x in zip(row, xs):
-                c.drawString(x, self.y, str(v))
+            for v, (x, al) in zip(row, cols):
+                if al == "r":
+                    c.drawRightString(_MARGIN + x, self.y, str(v))
+                else:
+                    c.drawString(_MARGIN + x, self.y, str(v))
             self.y -= 13
-        self.y -= 6
+        self.y -= 8
 
     def note(self, txt):
         self.check_space(30)
-        self.c.setFont("Helvetica-Oblique", 9)
+        self.c.setFont("Helvetica-Oblique", 8.5)
         self.c.setFillColor(_MUTED)
         self.c.drawString(_MARGIN, self.y, txt)
-        self.y -= 20
+        self.y -= 18
+
+    def signature(self):
+        """Blok pengesahan penerbit (kaidah surat resmi: tanggal, ruang ttd, nama, jabatan)."""
+        self.check_space(120)
+        c = self.c
+        cx = _W - _MARGIN - 100
+        c.setFont("Helvetica", 8.5)
+        c.setFillColor(_MUTED)
+        c.drawCentredString(cx, self.y, "Diterbitkan secara daring,")
+        c.drawCentredString(cx, self.y - 12, _tanggal(_wib()))
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(_DARK)
+        c.drawCentredString(cx, self.y - 62, _AUTHOR)
+        c.setStrokeColor(_DARK)
+        c.setLineWidth(0.75)
+        c.line(cx - 70, self.y - 65, cx + 70, self.y - 65)
+        c.setFont("Helvetica", 8)
+        c.setFillColor(_MUTED)
+        c.drawCentredString(cx, self.y - 75, _ROLE)
+        self.y -= 95
 
 
 def build_track_record_pdf(data: dict) -> bytes:
-    """Bangun PDF dari dict summary() — tanpa proyeksi, angka apa adanya."""
+    """Bangun PDF dari dict summary() - tanpa proyeksi, angka apa adanya."""
     buf = BytesIO()
-    c = _canvas.Canvas(buf, pagesize=A4)
-    doc = _Doc(c)
+    now_wib = _wib()
+    nomor = "LTR/{}".format(now_wib.strftime("%Y%m%d/%H%M"))
+    tanggal = "{}, {} WIB".format(_tanggal(now_wib), now_wib.strftime("%H:%M"))
+    c = _NumberedCanvas(buf, pagesize=A4)
+    doc = _Doc(c, nomor, tanggal)
     doc.new_page()
 
-    # Judul
-    c.setFont("Helvetica-Bold", 16)
+    # Blok judul resmi (hanya halaman pertama)
+    c.setFont("Helvetica-Bold", 15)
     c.setFillColor(_DARK)
-    c.drawString(_MARGIN, doc.y, "LAPORAN TRACK RECORD")
-    doc.y -= 18
+    c.drawCentredString(_W / 2.0, doc.y, "LAPORAN RESMI TRACK RECORD")
+    doc.y -= 16
     c.setFont("Helvetica", 9)
     c.setFillColor(_MUTED)
-    c.drawString(_MARGIN, doc.y,
-                 "Diterbitkan otomatis oleh sistem LAUMOLOGY - setiap angka berasal dari data sinyal & paper trading tercatat.")
-    doc.y -= 22
+    c.drawCentredString(
+        _W / 2.0, doc.y,
+        "Diterbitkan otomatis oleh sistem LAUMOLOGY - setiap angka berasal dari basis data sinyal & paper trading tercatat")
+    doc.y -= 26
 
     outcomes = data.get("outcomes") or {}
     verdicts = data.get("verdicts") or {}
     last_scan = data.get("last_scan")
 
-    doc.section("RINGKASAN")
+    doc.section("I. RINGKASAN")
     pairs = [
         ("Sinyal tercatat", data.get("n_signals", 0)),
         ("Posisi ditutup", data.get("n_closed", 0)),
@@ -184,7 +343,7 @@ def build_track_record_pdf(data: dict) -> bytes:
 
     v_pct = verdicts.get("verdict_pct") or {}
     if verdicts.get("n"):
-        doc.section("VONIS SINYAL (SADAR-ARAH, H+5)")
+        doc.section("II. VONIS SINYAL (SADAR-ARAH, H+5)")
         doc.kv_grid([
             ("Benar nyata", "{:.1f}%".format(float(v_pct.get("benar_nyata") or 0.0))),
             ("Untung, ikut pasar", "{:.1f}%".format(float(v_pct.get("untung_ikut_pasar") or 0.0))),
@@ -192,17 +351,12 @@ def build_track_record_pdf(data: dict) -> bytes:
             ("Salah", "{:.1f}%".format(float(v_pct.get("salah") or 0.0))),
         ])
 
-    doc.section("RIWAYAT SINYAL TERBARU")
+    doc.section("III. RIWAYAT SINYAL TERBARU")
     signals = data.get("signals") or []
-    xs = [_MARGIN, _MARGIN + 92, _MARGIN + 160, _MARGIN + 268,
-          _MARGIN + 316, _MARGIN + 366, _MARGIN + 418]
+    cols = [(0, "l"), (88, "l"), (136, "l"), (296, "r"),
+            (348, "r"), (376, "l"), (499, "r")]
     heads = ["WAKTU", "KODE", "AKSI", "SKOR", "CONF", "GRADE", "HARGA"]
     if signals:
-        c.setFont("Helvetica-Bold", 7.5)
-        c.setFillColor(_MUTED)
-        for h, x in zip(heads, xs):
-            c.drawString(x, doc.y, h)
-        doc.y -= 12
         rows = []
         for s in signals[:45]:
             price = s.get("price")
@@ -215,11 +369,14 @@ def build_track_record_pdf(data: dict) -> bytes:
                 str(s.get("grade") or "-"),
                 "{:.2f}".format(float(price)) if price else "-",
             ])
-        doc.table(heads, xs, rows)
+        doc.table(heads, cols, rows)
     else:
         doc.note("Belum ada sinyal tercatat - laporan ini terisi otomatis seiring sistem memindai bursa.")
 
-    doc.note("Sumber: DB lokal LAUMOLOGY (sinyal + paper trading). Bukan hasil trading uang sungguhan.")
+    doc.section("IV. PENGESAHAN")
+    doc.note("Laporan diterbitkan otomatis oleh sistem tanpa intervensi manual atas angka apa pun.")
+    doc.note("Sumber: basis data lokal LAUMOLOGY (sinyal + paper trading). Bukan hasil trading uang sungguhan.")
+    doc.signature()
 
     c.save()
     return buf.getvalue()
