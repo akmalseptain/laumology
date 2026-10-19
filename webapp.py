@@ -111,6 +111,11 @@ def _track(resp):
             resp.headers.setdefault("Vary", "Host")
         else:
             resp.headers["Cache-Control"] = "no-store"
+    else:
+        # OPTIMASI: aset /static/* identik lintas-Host dan tak memantulkan
+        # input klien — aman di-cache browser & cache bersama; menghindari
+        # revalidasi tiap-request (default Flask: no-cache).
+        resp.headers["Cache-Control"] = "public, max-age=3600"
     # Header pembatas framing/CSP HANYA untuk dokumen HTML; deteksi lewat
     # content-type (bukan path) agar JSON/SSE (/api/screen/stream) tak rusak.
     ctype = resp.content_type or ""
