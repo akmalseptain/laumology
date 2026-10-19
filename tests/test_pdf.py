@@ -4,6 +4,7 @@ Tanpa jaringan: DB sqlite sementara (swap store.DB_PATH) + Flask test
 client. Memastikan: 200 + magic %PDF + nama file + tombol unduh di
 halaman + DB kosong tetap jujur (laporan kosong, bukan error).
 """
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -67,6 +68,23 @@ class TrackRecordPdfTest(unittest.TestCase):
         r = self.client.get("/track-record")
         self.assertEqual(r.status_code, 200)
         self.assertIn(b"/track-record.pdf", r.data)
+
+    def test_download_param_mengunduh_langsung(self):
+        """?download=1 -> attachment (unduh langsung ke folder Downloads,
+        tanpa membuka viewer/prompt upload Drive di Android)."""
+        r = self.client.get("/track-record.pdf?download=1")
+        self.assertEqual(r.status_code, 200)
+        cd = r.headers.get("Content-Disposition", "")
+        self.assertTrue(cd.startswith('attachment; filename="laumology-track-record-'),
+                        "harus attachment, dapat: " + cd)
+        self.assertTrue(re.match(r"laumology-track-record-\d{8}-\d{4}\.pdf",
+                                 cd.split('filename="')[-1].rstrip('"')), cd)
+
+    def test_tombol_unduh_memakai_download_param(self):
+        """Tombol di halaman harus langsung mengunduh (?download=1)."""
+        r = self.client.get("/track-record")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'href="/track-record.pdf?download=1"', r.data)
 
 
 if __name__ == "__main__":
