@@ -44,8 +44,14 @@ class TrackRecordPdfTest(unittest.TestCase):
         self.assertGreater(len(r.data), 1500)
 
     def test_disposisi_filename(self):
+        """Nama file bertanggal (YYYYMMDD-HHMM) supaya unduhan baru
+        tidak tertukar dengan salinan lama di perangkat pengguna."""
+        import re
         r = self.client.get("/track-record.pdf")
-        self.assertIn("laumology-track-record.pdf", r.headers.get("Content-Disposition", ""))
+        cd = r.headers.get("Content-Disposition", "")
+        self.assertTrue(
+            re.search(r"laumology-track-record-\d{8}-\d{4}\.pdf", cd),
+            "filename tidak bertanggal: " + cd)
 
     def test_pdf_memiliki_objek_halaman(self):
         """Regresi: PDF 0-halaman pernah lolos di produksi (resep NumberedCanvas
