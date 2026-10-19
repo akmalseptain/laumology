@@ -73,6 +73,10 @@ per saham per hari + stempel waktu DB eksplisit UTC sudah di main.
   cek deploy memuat commit batch-10).
 - `n_signals` = 0 terus setelah 09:15 → cek log scan di Render (apakah
   data source merespons), jangan buru-buru menyalahkan scheduler.
+- Diagnosis cepat pakai `last_scan` (field baru di `/api/trackrecord`):
+  `last_scan` = null / tua → scheduler tidak jalan (cek uptime/ping/SCAN_WINDOW);
+  `last_scan` segar (< 15 menit) tapi `n_signals` tetap → scheduler jalan,
+  tidak ada sinyal baru — cek data source di log Render, bukan scheduler.
 
 **Anomali & rollback:**
 - Halaman/API 500 → cek deploy terbaru (auto-deploy dari `main`), lalu

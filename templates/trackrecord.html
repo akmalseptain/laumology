@@ -128,12 +128,13 @@
         <tr>
           <td>{{ t.closed or t.opened or "?" }}</td>
           <td><strong>{{ t.ticker }}</strong></td>
-          <td><span class="badge {{ 'b-sell' if (t.side or 'BUY')|upper.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
+          {% set t_side = (t.side or 'BUY')|upper %}
+          <td><span class="badge {{ 'b-sell' if t_side.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
           <td>{{ "%.2f"|format(t.entry) if t.entry else "?" }}</td>
           <td>{{ "%.2f"|format(t.exit) if t.exit else "?" }}</td>
           {% if t.exit and t.entry %}
             {% set raw = (t.exit - t.entry) / t.entry * 100.0 %}
-            {% set ret = -raw if (t.side or 'BUY')|upper.startswith('SELL') else raw %}
+            {% set ret = -raw if t_side.startswith('SELL') else raw %}
             <td class="{{ 'pos' if ret > 0 else ('neg' if ret < 0 else 'neu') }}">{{ "%+.2f"|format(ret) }}%</td>
           {% else %}<td>?</td>{% endif %}
           <td class="{{ 'pos' if t.pnl and t.pnl > 0 else ('neg' if t.pnl and t.pnl < 0 else 'neu') }}">{{ "{:+,.0f}".format(t.pnl) if t.pnl is not none else "?" }}</td>
@@ -154,7 +155,8 @@
         <tr>
           <td>{{ t.opened or "?" }}</td>
           <td><strong>{{ t.ticker }}</strong></td>
-          <td><span class="badge {{ 'b-sell' if (t.side or 'BUY')|upper.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
+          {% set t_side = (t.side or 'BUY')|upper %}
+          <td><span class="badge {{ 'b-sell' if t_side.startswith('SELL') else 'b-buy' }}">{{ t.side or "BUY" }}</span></td>
           <td>{{ "%.2f"|format(t.entry) if t.entry else "?" }}</td>
           <td>{{ "%.2f"|format(t.stop) if t.stop else "?" }}</td>
           <td>{{ "%.2f"|format(t.tp) if t.tp else "?" }}</td>
@@ -195,7 +197,8 @@
         <tr>
           <td>{{ s.ts or "?" }}</td>
           <td><strong>{{ s.ticker }}</strong></td>
-          <td><span class="badge {{ 'b-sell' if (s.action or s.signal or '')|upper.startswith('SELL') else 'b-buy' }}">{{ s.action or s.signal or "?" }}</span></td>
+          {% set s_aksi = (s.action or s.signal or '')|upper %}
+          <td><span class="badge {{ 'b-sell' if s_aksi.startswith('SELL') else 'b-buy' }}">{{ s.action or s.signal or "?" }}</span></td>
           <td>{{ s.score if s.score is not none else "?" }}</td>
           <td>{{ s.confidence if s.confidence is not none else "?" }}</td>
           <td>{{ s.grade or "-" }}</td>
@@ -282,6 +285,42 @@
     <p class="sub">Vonis sadar-arah: sinyal SELL/AVOID dinilai benar bila harga TURUN setelahnya. Vonis didefinisikan a priori dari hasil terukur (forward return H+{{ verdicts.horizon }} + excess vs IHSG); tanpa proyeksi, tanpa mengubah skor/ambang. "Untung ikut pasar" = naik tapi tidak mengalahkan IHSG — bukan keunggulan analisa.</p>
     {% else %}
     <p class="empty">Belum ada sinyal tervalidasi untuk divonis — muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
+    {% endif %}
+  </div>
+
+
+  <h2>Diagnosa per kelompok: kelompok mana yang paling sering salah (H+{{ bucket_verdicts.horizon }})</h2>
+  <div class="card">
+    {% if bucket_verdicts.n_total %}
+    {% for dim, entries in bucket_verdicts.buckets.items() %}
+      {% if entries %}
+      <p class="sub">Per {{ dim }}:</p>
+      <table>
+        <thead><tr><th>{{ dim }}</th><th>n</th><th>Benar nyata</th><th>Ikut pasar</th><th>Salah relatif oke</th><th>Salah</th><th>Letak kesalahan (dari yang salah)</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          {% set lbl = {'sl_duluan':'SL duluan','tanpa_tp1_dan_sl':'tanpa TP1/SL','naik_padahal_turun':'naik padahal sinyal menurunkan','kalah_dari_ihsg':'kalah dari IHSG'} %}
+          <tr>
+            <td><strong>{{ e.bucket }}</strong></td>
+            <td>{{ e.n }}</td>
+            <td class="pos">{{ '%.1f'|format(e.verdict_pct.get('benar_nyata', 0)) }}%</td>
+            <td class="neu">{{ '%.1f'|format(e.verdict_pct.get('untung_ikut_pasar', 0)) }}%</td>
+            <td class="neu">{{ '%.1f'|format(e.verdict_pct.get('salah_relatif_ok', 0)) }}%</td>
+            <td class="neg">{{ '%.1f'|format(e.verdict_pct.get('salah', 0)) }}%</td>
+            <td>
+              {% if e.wrong_n %}
+                {% for k, v in e.wrong_where_pct.items() %}{% if v %}<span class="neu">{{ lbl.get(k, k) }} {{ '%.0f'|format(v) }}%</span>{% if not loop.last %} &middot; {% endif %}{% endif %}{% endfor %}
+              {% else %}<span class="neu">&mdash;</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% endfor %}
+    <p class="sub">Gabungan atribusi &times; vonis sadar-arah: kelompok mana yang paling sering salah, dan salahnya di mana. Kelompok dengan sampel &lt; {{ bucket_verdicts.min_n }} tidak ditampilkan (n kecil = noise, bukan bukti). Angka dari hasil evaluasi H+{{ bucket_verdicts.horizon }} &mdash; tanpa proyeksi; ini dasar empiris untuk calon keputusan ambang BELI, tetapi skor/ambang TIDAK diubah oleh laporan ini.</p>
+    {% else %}
+    <p class="empty">Belum ada hasil evaluasi untuk didiagnosa per kelompok &mdash; muncul setelah feedback loop mengevaluasi sinyal yang cukup tua.</p>
     {% endif %}
   </div>
 

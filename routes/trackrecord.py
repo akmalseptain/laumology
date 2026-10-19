@@ -102,6 +102,7 @@ def summary() -> dict:
         "signals": signals[:60],
         "scans": scans,
         "n_signals": store.count_signals(),
+        "last_scan": store.last_scan(),
         "win_rate": rm.get("win_rate", 0.0),
         "payoff": rm.get("payoff", 0.0),
         "kelly": rm.get("kelly", 0.0),

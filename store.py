@@ -193,6 +193,22 @@ def recent_scans(limit: int = 30) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def last_scan() -> dict | None:
+    """Scan terakhir yang tercatat — alat diagnosis runbook.
+
+    Membedakan dua kondisi yang sama-sama tampak sebagai "n_signals tidak
+    naik": scheduler tidak jalan sama sekali (last_scan None / jauh lebih
+    tua dari jam bursa) vs scheduler jalan tapi memang tidak ada sinyal
+    baru (last_scan segar). Jujur: None bila belum pernah ada scan.
+    """
+    init()
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT ts, universe, n, buys, note FROM scans ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def paper_open(ticker: str, side: str, entry: float, lots: int, stop: float, tp: float, note: str = "") -> int:
     with _lock, _conn() as c:
         cur = c.execute(
