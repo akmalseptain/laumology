@@ -47,6 +47,8 @@
   .empty{color:var(--muted);font-style:italic;padding:14px 4px}
   .disc{margin-top:40px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border);padding-top:16px}
   a.back{color:var(--brand);text-decoration:none;font-size:13.5px}
+  .btn-pdf{display:inline-block;margin-top:12px;padding:8px 16px;border:1px solid var(--brand);border-radius:999px;color:var(--brand);text-decoration:none;font-size:13px;font-weight:600}
+  .btn-pdf:hover{background:var(--accent-soft)}
   .eq-axis{stroke:var(--border)}
   .eq-line{stroke:var(--brand)}
   .eq-label{fill:var(--muted)}
@@ -85,6 +87,7 @@
   <h1>Track Record</h1>
   <p class="sub">Setiap sinyal yang pernah dikeluarkan sistem dan hasil paper trading-nya.
     Tidak ada angka yang disembunyikan: kalau rugi, tampil rugi.</p>
+  <p><a class="btn-pdf" href="/track-record.pdf">Unduh laporan PDF resmi</a></p>
 
   <div class="kpis">
     <div class="kpi"><div class="lab">Sinyal tercatat</div><div class="val">{{ n_signals }}</div></div>
