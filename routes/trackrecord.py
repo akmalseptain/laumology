@@ -183,7 +183,14 @@ def pdf():
     resp = Response(body, mimetype="application/pdf")
     # Nama file bertanggal supaya salinan lama (bug versi sebelumnya)
     # tidak tertukar dengan unduhan baru.
-    resp.headers["Content-Disposition"] = 'inline; filename="laumology-track-record-{}.pdf"'.format(
+    fname = "laumology-track-record-{}.pdf".format(
         _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%d-%H%M"))
+    # ?download=1 -> attachment: browser MENGUNDUH LANGSUNG ke folder
+    # Downloads (tanpa membuka viewer / prompt upload Drive di Android).
+    # Tanpa param (default) -> inline: pratinjau di tab browser.
+    if request.args.get("download") == "1":
+        resp.headers["Content-Disposition"] = 'attachment; filename="{}"'.format(fname)
+    else:
+        resp.headers["Content-Disposition"] = 'inline; filename="{}"'.format(fname)
     return resp
 
