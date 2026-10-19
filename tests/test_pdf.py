@@ -47,6 +47,16 @@ class TrackRecordPdfTest(unittest.TestCase):
         r = self.client.get("/track-record.pdf")
         self.assertIn("laumology-track-record.pdf", r.headers.get("Content-Disposition", ""))
 
+    def test_pdf_memiliki_objek_halaman(self):
+        """Regresi: PDF 0-halaman pernah lolos di produksi (resep NumberedCanvas
+        rapuh antar versi reportlab; CI & produksi memakai versi berbeda)."""
+        import re as _re
+        r = self.client.get("/track-record.pdf")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(_re.search(rb"/Type\s*/Page\b", r.data),
+                        "PDF tanpa objek halaman (0 halaman)")
+        self.assertGreaterEqual(len(_re.findall(rb"/Type\s*/Page\b", r.data)), 1)
+
     def test_tombol_unduh_di_halaman(self):
         r = self.client.get("/track-record")
         self.assertEqual(r.status_code, 200)
