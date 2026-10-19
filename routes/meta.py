@@ -185,11 +185,23 @@ def sitemap():
     return Response(body, mimetype="application/xml")
 
 
+def _litestream_status() -> str:
+    """Status persistensi dari marker render-start.sh (aktif / nonaktif:binary /
+    nonaktif:env / nonaktif:binary+env / aktif:restore-error). Tanpa marker =
+    jalankan di luar Render (lokal/CI) atau bootstrap lama."""
+    try:
+        p = store.DB_PATH.parent / "litestream.status"
+        return p.read_text().strip() if p.exists() else "nonaktif:tanpa-marker"
+    except Exception:
+        return "unknown"
+
+
 @bp.route("/health")
 def health():
     return jsonify(status="ok", version=state.VERSION,
                    uptime_s=int(time.time() - state.START),
                    db=str(store.DB_PATH),
+                   litestream=_litestream_status(),
                    time=time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
