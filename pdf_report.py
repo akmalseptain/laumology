@@ -10,6 +10,7 @@ halaman. Semua angka murni dari summary() DB lokal - tanpa proyeksi.
 from __future__ import annotations
 
 import datetime as _dt
+import re as _re
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -144,36 +145,15 @@ def _footer(c) -> None:
         y -= 8
 
 
-class _NumberedCanvas(_canvas.Canvas):
-    """Kanvas dua-tahap agar footer bisa mencantumkan 'Halaman X dari Y'."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._saved_states = []
-
-    def showPage(self):
-        self._saved_states.append(dict(self.__dict__))
-        self._startPage()
-
-    def save(self):
-        total = len(self._saved_states)
-        for state in self._saved_states:
-            self.__dict__.update(state)
-            self.setFont("Helvetica", 8)
-            self.setFillColor(_MUTED)
-            self.drawRightString(_W - _MARGIN, 43,
-                                "Halaman {} dari {}".format(self._pageNumber, total))
-            super().showPage()
-        super().save()
-
 
 class _Doc:
     """Kanvas PDF dengan kop resmi + footer tiap halaman."""
 
-    def __init__(self, c, nomor, tanggal):
+    def __init__(self, c, nomor, tanggal, total=0):
         self.c = c
         self.nomor = nomor
         self.tanggal = tanggal
+        self.total = total
         self.page = 0
         self.y = 0.0
 
@@ -186,6 +166,14 @@ class _Doc:
             _kop_lanjutan(self.c, self.nomor)
             self.y = _H - 72
         _footer(self.c)
+        c = self.c
+        c.setFont("Helvetica", 8)
+        c.setFillColor(_MUTED)
+        if self.total:
+            c.drawRightString(_W - _MARGIN, 43,
+                              "Halaman {} dari {}".format(self.page, self.total))
+        else:
+            c.drawRightString(_W - _MARGIN, 43, "Halaman {}".format(self.page))
 
     def check_space(self, need=40.0):
         if self.y - need < 64:
@@ -300,14 +288,11 @@ class _Doc:
         self.y -= 95
 
 
-def build_track_record_pdf(data: dict) -> bytes:
-    """Bangun PDF dari dict summary() - tanpa proyeksi, angka apa adanya."""
+def _render(data: dict, nomor: str, tanggal: str, total: int) -> bytes:
+    """Satu kali render PDF (total=0 berarti pass hitung: nomor tanpa 'dari Y')."""
     buf = BytesIO()
-    now_wib = _wib()
-    nomor = "LTR/{}".format(now_wib.strftime("%Y%m%d/%H%M"))
-    tanggal = "{}, {} WIB".format(_tanggal(now_wib), now_wib.strftime("%H:%M"))
-    c = _NumberedCanvas(buf, pagesize=A4)
-    doc = _Doc(c, nomor, tanggal)
+    c = _canvas.Canvas(buf, pagesize=A4)
+    doc = _Doc(c, nomor, tanggal, total)
     doc.new_page()
 
     # Blok judul resmi (hanya halaman pertama)
@@ -380,3 +365,23 @@ def build_track_record_pdf(data: dict) -> bytes:
 
     c.save()
     return buf.getvalue()
+
+
+def _count_pages(pdf: bytes) -> int:
+    """Hitung objek halaman pada PDF jadi (stabil antar versi reportlab)."""
+    return len(_re.findall(rb"/Type\s*/Page\b", pdf))
+
+
+def build_track_record_pdf(data: dict) -> bytes:
+    """Bangun PDF dari dict summary() - tanpa proyeksi, angka apa adanya.
+
+    Render dua-tahap agar footer bisa mencantumkan 'Halaman X dari Y':
+    pass 1 menghitung total halaman, pass 2 menggambar final. Footer
+    posisinya tetap (tidak memengaruhi pergantian halaman), jadi jumlah
+    halaman kedua pass identik.
+    """
+    now_wib = _wib()
+    nomor = "LTR/{}".format(now_wib.strftime("%Y%m%d/%H%M"))
+    tanggal = "{}, {} WIB".format(_tanggal(now_wib), now_wib.strftime("%H:%M"))
+    total = _count_pages(_render(data, nomor, tanggal, 0)) or 1
+    return _render(data, nomor, tanggal, total)
