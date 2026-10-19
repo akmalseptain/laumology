@@ -47,6 +47,14 @@ class HealthLitestreamTest(unittest.TestCase):
         r = self.client.get("/health")
         self.assertEqual(r.get_json()["litestream"], "nonaktif:tanpa-marker")
 
+    def test_marker_restore_error_dengan_detil_diteruskan(self):
+        self._marker().write_text(
+            "aktif:restore-error:api error Unauthorized: Unauthorized\n")
+        r = self.client.get("/health")
+        self.assertEqual(
+            r.get_json()["litestream"],
+            "aktif:restore-error:api error Unauthorized: Unauthorized")
+
 
 if __name__ == "__main__":
     unittest.main()

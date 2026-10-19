@@ -34,7 +34,7 @@ gen_config() {
 }
 
 # Marker status dibaca /health supaya persistensi terdiagnosis dari luar
-# (tanpa harus buka log Render). Nilai: aktif / aktif:restore-error /
+# (tanpa harus buka log Render). Nilai: aktif / aktif:restore-error:<detil> /
 # nonaktif:binary / nonaktif:env / nonaktif:binary+env.
 STATUS_FILE="$DB_DIR/litestream.status"
 
@@ -45,11 +45,19 @@ if [ -n "${LITESTREAM_BUCKET:-}" ] && [ -n "${LITESTREAM_ACCESS_KEY_ID:-}" ] \
 if [ "$HAVE_BIN" = "1" ] && [ "$HAVE_ENV" = "1" ]; then
     gen_config
     # Pulihkan DB dari replica bila ada; kalau belum ada, biarkan DB baru.
-    if litestream restore -config /tmp/litestream.yml -if-replica-exists "$DB_PATH"; then
+    if litestream restore -config /tmp/litestream.yml -if-replica-exists "$DB_PATH" \
+            2>"$DB_DIR/litestream.restore.err"; then
         printf 'aktif' > "$STATUS_FILE"
     else
-        printf 'aktif:restore-error' > "$STATUS_FILE"
+        # Detil error disanitasi (satu baris, tanpa kredensial — stderr litestream
+        # tidak pernah memuat secret) lalu ditulis ke marker supaya penyebabnya
+        # terbaca langsung dari /health tanpa harus membuka log Render.
+        ERR="$(grep -oE 'api error .*' "$DB_DIR/litestream.restore.err" | head -n1)"
+        [ -n "$ERR" ] || ERR="$(head -n1 "$DB_DIR/litestream.restore.err")"
+        ERR="$(printf '%s' "$ERR" | tr -d '\r' | tr -c 'a-zA-Z0-9 :._-' ' ' | tr -s ' ' | cut -c1-100)"
+        printf 'aktif:restore-error:%s' "$ERR" > "$STATUS_FILE"
         echo "[render-start] restore gagal — lanjut dengan DB baru; replicate tetap jalan."
+        echo "[render-start] detail: $(head -n3 "$DB_DIR/litestream.restore.err")"
     fi
 else
     if [ "$HAVE_BIN" = "0" ] && [ "$HAVE_ENV" = "0" ]; then WHY="binary+env"
@@ -59,11 +67,15 @@ else
     echo "[render-start] Litestream NONAKTIF ($WHY belum lengkap) — gunicorn biasa."
 fi
 
-if [ -f "$STATUS_FILE" ] && [ "$(cat "$STATUS_FILE" 2>/dev/null)" = "aktif" ] \
-   || [ "$(cat "$STATUS_FILE" 2>/dev/null)" = "aktif:restore-error" ]; then
-    echo "[render-start] Litestream AKTIF: DB=$DB_PATH replica=$LITESTREAM_BUCKET"
-    exec litestream replicate -config /tmp/litestream.yml \
-        -exec "gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 webapp:app"
-fi
+# Marker 'aktif:restore-error:<detil>' harus tetap dihitung AKTIF (prefix-match)
+# supaya replicate (streaming backup DB baru) tetap berjalan.
+ST="$(cat "$STATUS_FILE" 2>/dev/null)"
+case "$ST" in
+    aktif|aktif:restore-error*)
+        echo "[render-start] Litestream AKTIF: DB=$DB_PATH replica=$LITESTREAM_BUCKET"
+        exec litestream replicate -config /tmp/litestream.yml \
+            -exec "gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120 webapp:app"
+        ;;
+esac
 
 exec gunicorn --bind 0.0.0.0:"$PORT" --workers 1 --threads 8 --timeout 120 webapp:app
