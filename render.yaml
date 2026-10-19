@@ -15,8 +15,9 @@ services:
       # Auto-scanner berjalan di dalam proses web (thread) tiap SCAN_INTERVAL detik
       - key: ENABLE_SCHEDULER
         value: "1"
+      # Scan tiap 5 menit jam bursa (dedup per saham per hari tetap menjaga DB bersih)
       - key: SCAN_INTERVAL
-        value: "900"
+        value: "300"
       - key: SCAN_UNIVERSE
         value: "lq45"
       - key: SCAN_WINDOW
