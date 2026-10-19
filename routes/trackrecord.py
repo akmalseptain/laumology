@@ -10,6 +10,8 @@ Endpoint:
 """
 from __future__ import annotations
 
+import datetime as _dt
+
 from flask import Blueprint, Response, jsonify, render_template, request
 
 import metrics
@@ -179,6 +181,9 @@ def pdf():
     except Exception as exc:  # jangan 500 diam-diam
         return jsonify({"error": "Gagal membuat PDF: {}".format(exc)}), 500
     resp = Response(body, mimetype="application/pdf")
-    resp.headers["Content-Disposition"] = 'inline; filename="laumology-track-record.pdf"'
+    # Nama file bertanggal supaya salinan lama (bug versi sebelumnya)
+    # tidak tertukar dengan unduhan baru.
+    resp.headers["Content-Disposition"] = 'inline; filename="laumology-track-record-{}.pdf"'.format(
+        _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%d-%H%M"))
     return resp
 
