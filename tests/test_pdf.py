@@ -16,7 +16,7 @@ class TrackRecordPdfTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self._old_db = store.DB_PATH
-        store.DB_PATH = str(Path(self._tmp.name) / "test.db")
+        store.DB_PATH = Path(self._tmp.name) / "test.db"
         store.init()
         self.client = webapp.app.test_client()
 
