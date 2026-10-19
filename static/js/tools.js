@@ -91,7 +91,7 @@ async function runBacktest(){
     $("#btResult").insertAdjacentHTML("beforeend", riskHtml);
     ChartKit.load(() => { const el = document.getElementById("btEquity"); if (el && d.dates && d.equity_curve) ChartKit.equity(el, d.dates, d.equity_curve); });
     showStatus("Selesai");
-  }catch(e){ $("#btResult").innerHTML = '<div class="empty">Gagal: ' + e.message + '</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#btResult").innerHTML = '<div class="empty">Gagal: ' + escapeHtml(e.message) + '</div>'; showStatus("Gagal"); }
   finally{ $("#btRun").disabled=false; }
 }
 
@@ -237,7 +237,7 @@ async function runAccuracy(){
   try{
     if(multi){ await runAccuracyMulti(t); } else { await runAccuracySingle(t); }
     showStatus("Selesai");
-  }catch(e){ $("#acResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#acResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ $("#acRun").disabled=false; }
 }
 
@@ -274,7 +274,7 @@ async function runCalibrate(){
       ${(d.errors&&d.errors.length)?'<div class="mono" style="color:#ef5350;font-size:11px;margin-top:10px">'+d.errors.length+' emiten dilewati (data kurang).</div>':''}
       <div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Bobot usulan dipakai hanya setelah disetujui/dipromosikan — skor saat ini belum diubah.</div>`;
     showStatus("Selesai");
-  }catch(e){ $("#cbResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#cbResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ if(cbRunEl) cbRunEl.disabled=false; }
 }
 
@@ -303,7 +303,7 @@ async function runRegimeEdge(){
     html += '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Terbaik saat IHSG uptrend; sinyal beli ditahan saat downtrend (regime filter).</div>';
     $("#rgResult").innerHTML = html;
     showStatus("Selesai");
-  }catch(e){ $("#rgResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#rgResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ if(rgRunEl) rgRunEl.disabled = false; }
 }
 
@@ -326,7 +326,7 @@ async function loadMarketNews(){
       + '</div>'
       + (items ? '<div style="margin-top:12px">'+items+'</div>' : (n.degraded ? '<div class="empty sm">Gagal memuat berita pasar (sumber tidak tersedia).</div>' : '<div class="empty sm">Tidak ada berita pasar saat ini.</div>'));
     showStatus("Selesai");
-  }catch(e){ el.innerHTML = '<div class="empty sm">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ el.innerHTML = '<div class="empty sm">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
 }
 
 /* ---------- Score optimization (walk-forward training) ---------- */
@@ -383,7 +383,7 @@ async function runTrain(){
     renderModel(d.model);
     showStatus("Model skor terlatih");
     if(typeof analyze === "function") analyze(true);
-  }catch(e){ $("#trResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#trResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ if(trRunEl) trRunEl.disabled=false; }
 }
 const mdStatusBtnEl = $("#mdStatusBtn");
@@ -430,7 +430,7 @@ if(btABEl) btABEl.onclick = async function(){
     $("#abResult").innerHTML='<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">A/B '+d.ticker+' (parameter sama)</div>'+abMetricsTable(d.legacy,d.decision)
       +'<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Decision = structure + regime + filter no-trade. Jangan menilai dari satu emiten.</div>';
     showStatus("Selesai");
-  }catch(e){ $("#abResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#abResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ btABEl.disabled=false; }
 };
 const btABUEl = $("#btABU");
@@ -443,6 +443,6 @@ if(btABUEl) btABUEl.onclick = async function(){
     $("#abuResult").innerHTML='<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">A/B Universe '+list+' ('+d.n_tickers+' emiten, agregat)</div>'+abMetricsTable(d.legacy,d.decision)
       +'<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Agregat lintas emiten: patokan robustness, bukan win-rate semata.</div>';
     showStatus("Selesai");
-  }catch(e){ $("#abuResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#abuResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ btABUEl.disabled=false; }
 };

@@ -171,7 +171,7 @@ async function runWalkforward(){
     $("#btWf").innerHTML = '<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:0 0 8px">Walk-forward (segmen out-of-sample)</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th>Fold</th><th>Mulai</th><th>Selesai</th><th>Trade</th><th>Return</th><th>B&amp;H</th><th>Win</th><th>MaxDD</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     showStatus("Selesai");
-  }catch(e){ $("#btWf").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#btWf").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
 }
 
 /* ---------- Market dashboard ---------- */
@@ -218,7 +218,7 @@ async function runMarket(){
       +'<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin:18px 0 8px">Relative Strength Ranking (20D)</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th style="text-align:left">Sektor</th><th>1D</th><th>20D</th></tr></thead><tbody>'+rs+'</tbody></table></div>';
     showStatus("Selesai");
-  }catch(e){ $("#mkResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#mkResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ $("#mkRun").disabled=false; }
 }
 
@@ -270,7 +270,7 @@ async function runPortfolioRisk(){
       } else { html+='<div class="mono" style="color:var(--muted);font-size:11px;margin-top:12px">Korelasi: '+cd.error+'</div>'; }
     }
     $("#pfRisk").innerHTML=html; showStatus("Selesai");
-  }catch(e){ $("#pfRisk").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#pfRisk").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
 }
 
 /* ---------- Trade journal ---------- */
@@ -279,7 +279,7 @@ function renderJournal(){
   const el=$("#jrList");
   if(!journal.length){ el.innerHTML='<div class="empty" style="padding:24px">Belum ada catatan.</div>'; return; }
   el.innerHTML='<div style="overflow-x:auto"><table><thead><tr><th>Waktu</th><th style="text-align:left">Kode</th><th style="text-align:left">Catatan</th><th>Hasil</th><th></th></tr></thead><tbody>'
-    +journal.map((j,i)=>'<tr><td>'+j.time+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(j.ticker)+'">'+escapeHtml(j.ticker)+'</td><td style="text-align:left;color:var(--muted)">'+j.note+'</td><td class="'+(j.result>=0?'v-up':'v-red')+'">'+(j.result!=null?(j.result>=0?'+':'')+j.result+'%':'-')+'</td><td><button class="btn ghost" style="padding:3px 8px" data-action="jrRemove" data-idx="'+i+'">x</button></td></tr>').join('')
+    +journal.map((j,i)=>'<tr><td>'+j.time+'</td><td style="text-align:left;font-weight:700;cursor:pointer" data-action="pick" data-arg="'+escapeHtml(j.ticker)+'">'+escapeHtml(j.ticker)+'</td><td style="text-align:left;color:var(--muted)">'+escapeHtml(j.note)+'</td><td class="'+(j.result>=0?'v-up':'v-red')+'">'+(j.result!=null?(j.result>=0?'+':'')+j.result+'%':'-')+'</td><td><button class="btn ghost" style="padding:3px 8px" data-action="jrRemove" data-idx="'+i+'">x</button></td></tr>').join('')
     +'</tbody></table></div>';
 }
 function jrRemove(i){ journal.splice(i,1); LS.set("sbl_journal",journal); renderJournal(); }

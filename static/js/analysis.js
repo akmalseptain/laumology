@@ -145,7 +145,7 @@ async function analyze(silent=false){
     if(d.error) throw new Error(d.error);
     render(d, {silent});
     if(!silent) showStatus("Selesai");
-  }catch(e){ if(!silent){ $("#result").innerHTML = `<div class="card empty">Gagal: ${e.message}</div>`; showStatus("Gagal"); } }
+  }catch(e){ if(!silent){ $("#result").innerHTML = `<div class="card empty">Gagal: ${escapeHtml(e.message)}</div>`; showStatus("Gagal"); } }
   finally{ $("#goBtn").disabled=false; }
 }
 
@@ -341,6 +341,12 @@ function renderScanRows(dataRows, totalUniverse, scanned){
   let cap = window.__scCap || 150;
   window.__scRows = dataRows;
   window.__scMeta = {total: totalUniverse, scanned: scanned};
+  const keepFocus = (function(){
+    const a = document.activeElement;
+    if(!a || !a.hasAttribute || a.getAttribute("data-action") !== "pick") return null;
+    const arg = a.getAttribute("data-arg");
+    return (arg && /^[A-Z0-9]+$/.test(arg)) ? arg : null;
+  })();
   const shown = dataRows.slice(0, cap);
   const rows = shown.map(x=>{
     const sc = signalClass(x.Signal);
@@ -369,6 +375,10 @@ function renderScanRows(dataRows, totalUniverse, scanned){
     <div style="overflow-x:auto"><table data-keep-scroll>
     <thead><tr><th>Ticker</th><th>Sektor</th><th>Harga</th><th>Sinyal</th><th>Reko</th><th>Aksi</th><th>Skor</th><th>Conf</th><th>Grade</th><th>Tren</th><th>Wk</th><th>MTF</th><th>ADX</th><th>ST</th><th>RSI</th><th>Vol</th><th>Sqz</th><th>Chop</th><th>Nilai</th><th>TP1</th><th>SL</th><th>RR</th><th>ATR%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
+  if(keepFocus){
+    const row = $("#scResult").querySelector('[data-action="pick"][data-arg="' + keepFocus + '"]');
+    if(row && row.focus){ try{ row.focus({preventScroll:true}); }catch(e){ try{ row.focus(); }catch(e2){} } }
+  }
 }
 function scShowAll(){ window.__scCap = 100000; const m=window.__scMeta||{total:0,scanned:0}; renderScanRows(window.__scRows||[], m.total, m.scanned); }
 async function runScreen(){
@@ -413,7 +423,7 @@ async function runScreen(){
     renderScanRows(finalRows(), tickers.length, scanned);
     showStatus(_scCancel ? "Dibatalkan" : "Selesai");
   }catch(e){
-    $("#scResult").innerHTML = '<div class="empty">Gagal: '+e.message+'. Server mungkin sedang bangun — coba lagi.</div>';
+    $("#scResult").innerHTML = '<div class="empty">Gagal: '+escapeHtml(e.message)+'. Server mungkin sedang bangun — coba lagi.</div>';
     showStatus("Gagal");
   }
   finally{ $("#scRun").disabled=false; }
@@ -481,7 +491,7 @@ async function runScreenBackground(list){
       tick();
     });
   }catch(e){
-    $("#scResult").innerHTML = '<div class="empty">Gagal: '+e.message+'. Server mungkin sedang bangun — coba lagi.</div>';
+    $("#scResult").innerHTML = '<div class="empty">Gagal: '+escapeHtml(e.message)+'. Server mungkin sedang bangun — coba lagi.</div>';
     showStatus("Gagal");
   } finally { $("#scRun").disabled=false; }
 }

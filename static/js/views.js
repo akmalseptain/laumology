@@ -81,7 +81,7 @@ async function loadMl(t){
       + '<div class="checks" style="grid-template-columns:1fr">'+wrows+'</div>'
       + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Heuristik statistik (bukan jaminan). Probabilitas = peluang historis naik dalam 10 bar.</div>'
       + '</div>';
-  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Model ML</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
+  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Model ML</span></div><div class="empty">Gagal: '+escapeHtml(e.message)+'</div></div>'; }
 }
 
 /* ---------- Berita: renderer bersama + sheet detail (W-0010) ---------- */
@@ -341,7 +341,7 @@ async function loadNews(t){
       + '<div class="metric"><div class="k">Jumlah berita</div><div class="v v-white">'+n.count+'</div></div></div>'
       + (items ? '<div style="margin-top:12px">'+items+'</div>' : (n.degraded ? '<div class="empty" style="padding:20px">Gagal memuat berita (sumber tidak tersedia).</div>' : '<div class="empty" style="padding:20px">Tidak ada berita.</div>'))
       + '</div>';
-  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sentimen Berita</span></div><div class="empty">Gagal: '+e.message+'</div></div>'; }
+  }catch(e){ el.innerHTML = '<div class="card"><div class="sec"><span class="badge">Sentimen Berita</span></div><div class="empty">Gagal: '+escapeHtml(e.message)+'</div></div>'; }
   loadReachInto(t, document.getElementById("reachCard"));
 }
 
@@ -542,7 +542,7 @@ async function loadFundamentalTab(){
       + ' Angka "-" berarti field itu tidak lolos cek atau tidak ada di sumber. Bukan rekomendasi beli.</p>'
       + '</div>';
     showStatus("Selesai");
-  }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
 }
 
 /* ---------- Tab: Berita ---------- */
@@ -575,7 +575,7 @@ async function loadNewsTab(){
       + '</div>';
     showStatus("Selesai");
     loadReachInto(t, document.getElementById("reachResult"), {bare: true});
-  }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ el.innerHTML='<div class="card empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
 }
 if($("#reachRun")) $("#reachRun").onclick = function(){
   const t = (($("#beTicker") && $("#beTicker").value) || "").trim().toUpperCase();
@@ -613,7 +613,7 @@ async function runOptimize(){
       + '<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>MinSkor</th><th>TP RR</th><th>SL ATR</th><th>Return</th><th>PF</th><th>Trade</th><th>Win</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">Hati-hati overfitting: validasi dengan Walk-forward.</div>';
     showStatus("Selesai");
-  }catch(e){ $("#optResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#optResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ $("#optRun").disabled=false; }
 }
 

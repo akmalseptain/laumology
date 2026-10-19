@@ -50,7 +50,7 @@ async function runMusyawarah(){
       + '<div class="my-log">'+String(d.text).replace(/</g,"&lt;")+'</div>'
       + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:8px">Engine: '+escapeHtml(d.engine||"")+'</div>';
     showStatus("Selesai");
-  }catch(e){ $("#myResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#myResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ $("#myRun").disabled=false; }
 }
 $("#myCopy").onclick = () => {
@@ -74,7 +74,7 @@ async function runOptimizeWeights(){
       + '<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Tech:Bandar</th><th>Thr</th><th>Return</th><th>PF</th><th>Win</th><th>Trade</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       + '<div class="mono" style="color:var(--muted);font-size:10px;margin-top:10px">'+d.note+'</div>';
     showStatus("Selesai");
-  }catch(e){ $("#myWeights").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#myWeights").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ $("#myWeightsBtn").disabled=false; }
 }
 
@@ -93,12 +93,21 @@ async function runDataQuality(){
     $("#dqResult").innerHTML='<div class="mono" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Kualitas data: '+(d.ok)+'/'+(d.total)+' OK</div>'
       +'<div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Kode</th><th>Bar</th><th>Terakhir</th><th>Status</th><th style="text-align:left">Catatan</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     showStatus("Selesai");
-  }catch(e){ $("#dqResult").innerHTML='<div class="empty">Gagal: '+e.message+'</div>'; showStatus("Gagal"); }
+  }catch(e){ $("#dqResult").innerHTML='<div class="empty">Gagal: '+escapeHtml(e.message)+'</div>'; showStatus("Gagal"); }
   finally{ $("#dqRun").disabled=false; }
 }
 
 /* ===================== UI/UX v2 ===================== */
+function enhanceActions(){
+  document.querySelectorAll("[data-action]").forEach(function(el){
+    var tag = (el.tagName || "").toLowerCase();
+    if(tag === "button" || tag === "a" || tag === "input" || tag === "select" || tag === "textarea") return;
+    if(!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+    if(tag !== "tr" && !el.hasAttribute("role")) el.setAttribute("role", "button");
+  });
+}
 function enhanceTables(){
+  enhanceActions();
   document.querySelectorAll("table:not(.as-cards)").forEach(function(tbl){
     if(tbl.hasAttribute("data-keep-scroll")) return;
     var heads = Array.prototype.map.call(tbl.querySelectorAll("thead th"), function(th){ return th.textContent.trim(); });

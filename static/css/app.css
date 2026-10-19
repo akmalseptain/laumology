@@ -251,6 +251,7 @@ th:first-child,td:first-child{text-align:left}
 th{color:var(--muted);font-size:11px;letter-spacing:.02em;font-weight:600;text-transform:uppercase}
 tbody tr{cursor:pointer;transition:.13s}
 tbody tr:hover{background:var(--accent-soft)}
+[data-action][tabindex]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .heat-cell{font-weight:600}
 .heat-pos-1{background:color-mix(in srgb,var(--up) 8%,transparent)}
 .heat-pos-2{background:color-mix(in srgb,var(--up) 16%,transparent)}

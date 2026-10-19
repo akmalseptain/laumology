@@ -2,7 +2,7 @@ const $ = (s) => document.querySelector(s);
 const statusEl = $("#status"), statusText = $("#statusText");
 let statusTimer, autoTimer = null, current = { ticker: "BBCA", interval: "1d" };
 let quoteTicker = null;
-function showStatus(msg, sticky=false){ statusText.textContent = msg; statusEl.style.display="flex";
+function showStatus(msg, sticky=false){ statusEl.style.display="flex"; statusText.textContent = msg;
   clearTimeout(statusTimer); if(!sticky) statusTimer = setTimeout(()=>statusEl.style.display="none", 1400); }
 const fmt = (n,d=0) => (n===null||n===undefined||isNaN(n)) ? "-" : Number(n).toLocaleString("id-ID",{minimumFractionDigits:d,maximumFractionDigits:d});
 const idr = (n) => "Rp " + fmt(n);
@@ -45,6 +45,25 @@ document.addEventListener("click", (e) => {
   if(!t || !t.closest) return;
   const el = t.closest("[data-action]");
   if(!el) return;
+  const action = el.dataset.action;
+  if(!Object.prototype.hasOwnProperty.call(CLICK_ACTIONS, action)) return;
+  e.preventDefault();
+  CLICK_ACTIONS[action](el);
+});
+/* Keyboard: Enter/Space memicu aksi `data-action` yang sama dengan klik,
+   supaya pengguna keyboard/screen-reader bisa membuka detail. Kontrol native
+   (button/a/input/select/textarea) sudah menangani Enter/Space via `click`
+   bawaan, jadi dilewati agar tidak dobel-fire. Space di-preventDefault agar
+   halaman tidak ikut scroll; repeat/modifier diabaikan. */
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if(!t || !t.closest) return;
+  if(e.key !== "Enter" && e.key !== " ") return;
+  if(e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+  const el = t.closest("[data-action]");
+  if(!el) return;
+  const tag = (el.tagName || "").toLowerCase();
+  if(tag === "button" || tag === "a" || tag === "input" || tag === "select" || tag === "textarea") return;
   const action = el.dataset.action;
   if(!Object.prototype.hasOwnProperty.call(CLICK_ACTIONS, action)) return;
   e.preventDefault();
@@ -276,7 +295,7 @@ async function loadChart(name, selector, ticker, interval, refresh) {
       if (!p.candles || !p.candles.length) throw new Error("data chart kosong");
       charts[name] = ChartKit.mount(wrap, p);
     } catch (e) {
-      wrap.innerHTML = `<div class="empty">Gagal: ${e.message}</div>`;
+      wrap.innerHTML = `<div class="empty">Gagal: ${escapeHtml(e.message)}</div>`;
     }
   });
 }
