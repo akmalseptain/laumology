@@ -913,6 +913,15 @@ class TestPublicBaseCanonical(unittest.TestCase):
         self.assertIn("application/ld+json", hb)
         self.assertIn('"url": "https://laumology.example"', hb)
 
+    def test_static_aset_dapat_dicache_browser(self):
+        """Optimasi: /static/* kini public, max-age=3600 — kunjungan
+        berikut tidak revalidasi tiap-request (dulu: no-cache)."""
+        for path in ("/static/css/app.css", "/static/laumology.svg"):
+            r = self.client.get(path)
+            self.assertEqual(r.status_code, 200, path)
+            self.assertEqual(
+                r.headers.get("Cache-Control"), "public, max-age=3600", path)
+
     @staticmethod
     def _ld_json_block(html: str) -> dict:
         import json
