@@ -10,7 +10,7 @@ Endpoint:
 """
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, Response, jsonify, render_template, request
 
 import metrics
 import store
@@ -161,4 +161,24 @@ def api_verdicts():
     except ValueError:
         return jsonify({"error": "Parameter tidak valid: horizon/limit harus berupa angka."}), 400
     return jsonify(store.outcome_verdicts(horizon, limit))
+
+
+@bp.get("/track-record.pdf")
+def pdf():
+    """Laporan PDF resmi track record: logo di header tiap halaman,
+    "Dibuat oleh Akmal Putra Septian" + disclaimer bukan nasihat finansial
+    di footer. Angka 100% dari summary() (DB lokal) - sama persis dengan
+    halaman /track-record; tanpa proyeksi. Skor/ambang tidak diubah.
+    """
+    try:
+        import pdf_report
+    except ImportError:
+        return jsonify({"error": "Dependensi reportlab belum terpasang."}), 503
+    try:
+        body = pdf_report.build_track_record_pdf(summary())
+    except Exception as exc:  # jangan 500 diam-diam
+        return jsonify({"error": "Gagal membuat PDF: {}".format(exc)}), 500
+    resp = Response(body, mimetype="application/pdf")
+    resp.headers["Content-Disposition"] = 'inline; filename="laumology-track-record.pdf"'
+    return resp
 
