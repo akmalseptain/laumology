@@ -6,3 +6,4 @@ flask>=3.0
 gunicorn>=21.2
 curl_cffi>=0.7
 reportlab>=4.0
+pillow>=10.0
