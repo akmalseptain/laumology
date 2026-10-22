@@ -4,7 +4,7 @@ Format mengikuti kaidah dokumen resmi konservatif (ala surat dinas): A4
 margin 2,5 cm, font serif Times, palet hitam/abu netral (hijau hanya logo),
 logo vektor asli LAUMOLOGY (replika persis /static/laumology.svg),
 garis ganda kop, nomor dokumen, seksi bernomor romawi, tabel bergaris
-kepala, blok pengesahan bertanda tangan penerbit, serta footer
+kepala, blok pengesahan bertanda tangan penerbit (gambar signature.png), serta footer
 "Halaman X dari Y" + disclaimer bukan nasihat finansial di setiap
 halaman. Semua angka murni dari summary() DB lokal - tanpa proyeksi.
 """
@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as _dt
 import re as _re
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -49,6 +50,37 @@ def _wib() -> _dt.datetime:
 
 def _tanggal(t: _dt.datetime) -> str:
     return "{} {} {}".format(t.day, _BULAN[t.month - 1], t.year)
+
+
+_SIGNATURE_PATH = Path(__file__).resolve().parent / "signature.png"
+_SIGNATURE_MAX_H = 46.0    # tinggi maksimum gambar tanda tangan (pt)
+_SIGNATURE_MAX_W = 120.0   # lebar maksimum gambar tanda tangan (pt)
+
+
+def _signature_image():
+    """Muat signature.png (tanda tangan penerbit), buang margin transparan.
+
+    Return ImageReader siap digambar; None bila file/PIL tidak tersedia
+    (blok pengesahan tetap terbit tanpa gambar - PDF tidak boleh gagal).
+    """
+    try:
+        from PIL import Image
+        from reportlab.lib.utils import ImageReader
+        if not _SIGNATURE_PATH.is_file():
+            return None
+        im = Image.open(_SIGNATURE_PATH)
+        im.load()
+        if im.mode not in ("RGBA", "LA", "PA"):
+            im = im.convert("RGBA")
+        try:
+            bbox = im.getchannel("A").getbbox() if im.mode in ("RGBA", "LA", "PA") else None
+        except Exception:
+            bbox = None
+        if bbox:
+            im = im.crop(bbox)
+        return ImageReader(im)
+    except Exception:
+        return None
 
 
 def _draw_logo(c, x: float, y: float, h: float) -> None:
@@ -267,23 +299,34 @@ class _Doc:
 
     def signature(self):
         """Blok pengesahan penerbit (kaidah surat resmi: tanggal, ruang ttd, nama, jabatan)."""
-        self.check_space(120)
+        self.check_space(130)
         c = self.c
         cx = _W - _MARGIN - 100
         c.setFont("Times-Roman", 9)
         c.setFillColor(_MUTED)
         c.drawCentredString(cx, self.y, "Diterbitkan secara daring,")
         c.drawCentredString(cx, self.y - 12, _tanggal(_wib()))
+        img = _signature_image()
+        if img is not None:
+            iw, ih = img.getSize()
+            h_img = _SIGNATURE_MAX_H
+            w_img = h_img * iw / ih if ih else 0.0
+            if w_img > _SIGNATURE_MAX_W:
+                w_img = _SIGNATURE_MAX_W
+                h_img = w_img * ih / iw if iw else 0.0
+            if w_img > 0 and h_img > 0:
+                c.drawImage(img, cx - w_img / 2.0, self.y - 13 - h_img,
+                            w_img, h_img, mask="auto")
         c.setFont("Times-Bold", 10)
         c.setFillColor(_DARK)
-        c.drawCentredString(cx, self.y - 62, _AUTHOR)
+        c.drawCentredString(cx, self.y - 68, _AUTHOR)
         c.setStrokeColor(_DARK)
         c.setLineWidth(0.75)
-        c.line(cx - 70, self.y - 65, cx + 70, self.y - 65)
+        c.line(cx - 70, self.y - 71, cx + 70, self.y - 71)
         c.setFont("Times-Roman", 8)
         c.setFillColor(_MUTED)
-        c.drawCentredString(cx, self.y - 75, _ROLE)
-        self.y -= 95
+        c.drawCentredString(cx, self.y - 81, _ROLE)
+        self.y -= 101
 
 
 def _render(data: dict, nomor: str, tanggal: str, total: int) -> bytes:

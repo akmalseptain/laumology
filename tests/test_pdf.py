@@ -87,5 +87,28 @@ class TrackRecordPdfTest(unittest.TestCase):
         self.assertIn(b'href="/track-record.pdf?download=1"', r.data)
 
 
+    def test_pdf_memuat_gambar_tanda_tangan(self):
+        """signature.png penerbit harus ter-embed sebagai XObject gambar."""
+        r = self.client.get("/track-record.pdf")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(
+            b"/Subtype /Image" in r.data or b"/Subtype/Image" in r.data,
+            "PDF tidak memuat gambar tanda tangan (signature.png)")
+        self.assertGreater(len(r.data), 5000)
+
+    def test_pdf_tetap_jalan_tanpa_gambar_ttd(self):
+        """Pertahanan fungsi: bila signature.png/PIL tak tersedia, blok
+        pengesahan tetap terbit tanpa gambar - PDF tidak boleh gagal."""
+        import pdf_report
+        asli = pdf_report._signature_image
+        pdf_report._signature_image = lambda: None
+        try:
+            r = self.client.get("/track-record.pdf")
+        finally:
+            pdf_report._signature_image = asli
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data[:4] == b"%PDF")
+
+
 if __name__ == "__main__":
     unittest.main()
