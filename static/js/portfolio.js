@@ -62,7 +62,7 @@ function renderAlerts(){
     const q = posQuotes[a.ticker];
     const fired = alertState[i];
     return '<div class="check" style="justify-content:space-between">'
-      + '<span>' + a.ticker + ' ' + (a.dir==='above'?'&ge;':'&le;') + ' ' + fmt(a.price) + ' ' + (fired?'<b style="color:#ef4444">TRIGGERED</b>':'') + '</span>'
+      + '<span>' + escapeHtml(a.ticker) + ' ' + (a.dir==='above'?'&ge;':'&le;') + ' ' + fmt(a.price) + ' ' + (fired?'<b style="color:#ef4444">TRIGGERED</b>':'') + '</span>'
       + '<span><span class="mono" style="color:var(--muted)">' + (q!=null?idr(q):"-") + '</span>'
       + '<button class="btn ghost" style="padding:3px 8px;margin-left:8px" data-action="alRemove" data-idx="' + i + '">x</button></span></div>';
   }).join("");

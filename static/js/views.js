@@ -43,8 +43,19 @@ $("#asToggle").onclick=()=>{
 
 /* ---------- Theme + compare + model/news + optimizer + paper ---------- */
 function applyTheme(t){
+  t = (t === "dark") ? "dark" : "light";
   document.documentElement.dataset.theme = t;
   try{ localStorage.setItem("sbl_theme", t); }catch(e){}
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute("content", t === "dark" ? "#0a0f0c" : "#16a34a");
+  const btn = $("#themeBtn");
+  if(btn){
+    const dark = t === "dark";
+    btn.innerHTML = '<span aria-hidden="true">' + (dark ? "&#9728;" : "&#9790;") + '</span>';
+    const label = dark ? "Aktifkan mode terang" : "Aktifkan mode gelap";
+    btn.setAttribute("aria-label", label);
+    btn.setAttribute("title", label);
+  }
 }
 function remountCharts(){
   if(charts.analysis) loadChart("analysis","#liveChart",charts.analysis.ticker,charts.analysis.interval,false);

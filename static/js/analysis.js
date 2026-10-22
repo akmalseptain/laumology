@@ -1,5 +1,5 @@
 function introOpenFlag(){
-  try{ return localStorage.getItem("sbl_intro_open")==="1"; }catch(e){ return false; }
+  try{ return localStorage.getItem("sbl_intro_open")!=="0"; }catch(e){ return true; }
 }
 function syncIntroToggle(){
   const btn = document.getElementById("introToggle");
@@ -18,7 +18,7 @@ function setIntro(name){
   syncIntroToggle();
 }
 function setIntroCollapsed(v){
-  try{ if(v) localStorage.removeItem("sbl_intro_open"); else localStorage.setItem("sbl_intro_open","1"); }catch(e){}
+  try{ localStorage.setItem("sbl_intro_open", v ? "0" : "1"); }catch(e){}
   const intro = document.querySelector(".intro");
   if(intro) intro.classList.toggle("off", v);
   syncIntroToggle();
