@@ -1,6 +1,8 @@
 """Endpoint analisis: OHLC, analyze, quote, history, ML, akurasi, kalibrasi, seasonality."""
 from __future__ import annotations
 
+import logging
+
 from flask import Blueprint, jsonify, request
 
 import data
@@ -17,6 +19,7 @@ import calibration
 TTL_CALIB = 1800.0  # 30 menit; studi statistik berubah hanya bila data/parameter berubah
 
 bp = Blueprint("analysis", __name__)
+_log = logging.getLogger("laumology.routes.analysis")
 
 
 @bp.route("/api/ohlc")
@@ -143,6 +146,10 @@ def api_accuracy():
                 band = validation.accuracy_by_horizon(df, horizons=(horizon,), d=d)
                 result["reliability"] = band["rows"][0]["reliability"]
             except Exception:
+                # Fail-soft by design (reliability=None jujur di payload), tapi
+                # alasan degradasi tidak boleh senyap (pola batch-49).
+                _log.warning("reliability gagal dihitung utk %s horizon=%d - reliability=None",
+                             ticker, horizon, exc_info=True)
                 result["reliability"] = None
             # Lampirkan gerbang uji out-of-sample (K-fold) — ADDITIVE, read-only,
             # tanpa menyentuh `score_frame`/rumus/bobot. Dibungkus try/except
@@ -151,6 +158,10 @@ def api_accuracy():
             try:
                 result["oos"] = validation.candidate_out_of_sample(df, horizon=horizon, d=d)
             except Exception:
+                # Fail-soft by design (oos=None jujur di payload), tapi alasan
+                # degradasi tidak boleh senyap (pola batch-49).
+                _log.warning("uji out-of-sample gagal utk %s horizon=%d - oos=None",
+                             ticker, horizon, exc_info=True)
                 result["oos"] = None
         result["ticker"] = ticker
         return jsonify(result)

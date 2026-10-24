@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import threading
 import time
@@ -8,6 +9,8 @@ import yfinance as yf
 
 import data
 from data import to_yahoo
+
+_log = logging.getLogger("laumology.fundamentals")
 
 # Entri cache: (stempel waktu, payload, TTL entri). TTL disimpan per-entri agar
 # hasil gagal/kosong (negatif) bisa dicache singkat tanpa mengubah bentuk respons.
@@ -568,7 +571,11 @@ def get_fundamentals(ticker: str) -> dict:
             ]
             out["snap_history"] = store.fund_snap_history(ticker)
         except Exception:
-            pass
+            # Arsip fundamental = fitur observabilitas; gagal menyimpan tidak
+            # boleh menjatuhkan payload, tapi arsip yang berhenti bertumbuh
+            # juga tidak boleh senyap (pola batch-39/41).
+            _log.warning("arsip fundamental gagal disimpan utk %s - fitur snap dilewati",
+                         ticker, exc_info=True)
     ttl = _TTL if out["available"] else _NEGATIVE_TTL
     with _cache_lock:
         _cache[yt] = (now, out, ttl)

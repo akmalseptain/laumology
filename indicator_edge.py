@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 
 import numpy as np
@@ -27,6 +28,8 @@ import pandas as pd
 import data
 import screener
 from indicators import add_indicators
+
+_log = logging.getLogger("laumology.indicator_edge")
 
 # (nama, kolom acuan, arah, ekspresi boolean) — a priori, jangan dituning.
 EVENT_RULES: list[tuple[str, int, object]] = [
@@ -93,7 +96,11 @@ def evaluate(universe: str = "lq45", horizon: int = 5, min_count: int = 30) -> d
                 mask = expr(ind).fillna(False) & valid
                 if mask.any():
                     per_event_fwd[name].append(fwd[mask])
-        except Exception:
+        except Exception as exc:
+            # Degradasi per-ticker terlihat di log; payload tetap jujur lewat
+            # tickers_evaluated vs tickers_total (pola batch-48).
+            _log.warning("ticker %s dilewati dari evaluasi edge - error: %s",
+                         t, exc.__class__.__name__)
             continue
 
     pool = pd.concat(all_fwd) if all_fwd else pd.Series(dtype=float)
