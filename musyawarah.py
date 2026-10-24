@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import numpy as np
 
@@ -14,6 +15,8 @@ import news
 from config import settings
 from indicators import add_indicators
 from signals import analyze
+
+_log = logging.getLogger("laumology.musyawarah")
 
 
 def _fmt(n) -> str:
@@ -245,7 +248,11 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     # --- Perspective 3: Fundamental ---
     try:
         f = fundamentals.get_fundamentals(ticker)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "fundamental %s gagal diambil (%s) - agen fundamental tanpa data",
+            ticker, type(exc).__name__,
+        )
         f = {}
     fund = _fundamental(f)
     fund_available = bool(f.get("available"))
@@ -259,11 +266,19 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
     # --- Perspective 4: Macro & Sentiment ---
     try:
         nw = news.get_news(ticker)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "berita emiten %s gagal diambil (%s) - sentimen default Netral",
+            ticker, type(exc).__name__,
+        )
         nw = {"label": "Netral", "avg_sentiment": 0, "count": 0}
     try:
         mk = market.ihsg()
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "ihsg gagal diambil (%s) - regime sentimen jadi n/a",
+            type(exc).__name__,
+        )
         mk = {}
     sent = {
         "label": nw.get("label"),
@@ -284,7 +299,11 @@ def musyawarah(ticker: str, use_llm: bool = False) -> dict:
             extra_items=list(nw.get("items") or []),
             our_signal=getattr(a, "signal", None),
         )
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "tekanan luar %s gagal dinilai (%s) - status tidak_tersedia",
+            ticker, type(exc).__name__,
+        )
         luar = {"status": "tidak_tersedia", "label": "Belum bisa dinilai",
                 "summary": "Tekanan luar belum bisa dinilai.", "drivers": []}
     cmp = luar.get("x_compare") if isinstance(luar.get("x_compare"), dict) else {}
