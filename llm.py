@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.request
 from pathlib import Path
+
+_log = logging.getLogger("laumology.llm")
 
 PROMPT_PATH = Path("gemini-code-1791271032904.md")
 CFG_PATH = Path("llm.json")
@@ -29,8 +32,11 @@ def _cfg() -> dict:
             data = json.loads(CFG_PATH.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 return data
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning(
+                "konfigurasi llm.json ada tapi tidak bisa dibaca/diparse (%s: %s) - lanjut tanpa llm.json",
+                type(exc).__name__, exc,
+            )
     return {}
 
 
@@ -65,8 +71,11 @@ def load_prompt() -> str:
                 if len(parts) == 3:
                     text = parts[2]
             return text.strip()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning(
+                "file prompt %s ada tapi tidak bisa dibaca (%s) - pakai prompt bawaan",
+                path.name, type(exc).__name__,
+            )
     return (
         "Kamu adalah Multi-Agent Consensus System untuk analisis saham IHSG: @technical, "
         "@bandarmologi, @fundamental, @sentiment, dan @risk_moderator yang punya hak veto."

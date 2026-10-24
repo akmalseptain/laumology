@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 
 import data
 from config import sector_of, settings
+
+_log = logging.getLogger("laumology.risk")
 
 
 def position_size(capital: float, risk_pct: float, entry: float, stop: float, lot: int = 100) -> dict:
@@ -30,7 +34,11 @@ def correlation(tickers: list[str], lookback: int = 120) -> dict:
         try:
             df = data.get_ohlcv(t)
             series[t] = df["Close"].pct_change()
-        except Exception:
+        except Exception as exc:
+            _log.warning(
+                "saham %s gagal masuk matriks korelasi (%s) - dilewati",
+                t, type(exc).__name__,
+            )
             continue
     if len(series) < 2:
         return {"error": "Butuh minimal 2 saham dengan data cukup"}

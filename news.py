@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import logging
 import re
 import threading
 import time
@@ -13,6 +14,8 @@ import pandas as pd
 import yfinance as yf
 
 from data import to_yahoo
+
+_log = logging.getLogger("laumology.news")
 
 _cache: dict[str, tuple[float, dict, float]] = {}
 _cache_lock = threading.Lock()
@@ -699,7 +702,11 @@ def headlines_for_query(query: str, limit: int = 12) -> tuple[list[dict], bool]:
     for url, parser in attempts:
         try:
             parsed = parser(_http_xml(url))
-        except Exception:
+        except Exception as exc:
+            _log.warning(
+                "sumber berita makro %s utk kueri %r gagal (%s) - dicoba sumber berikutnya",
+                urllib.parse.urlparse(url).netloc, q, type(exc).__name__,
+            )
             continue
         ok = True
         if parsed:
