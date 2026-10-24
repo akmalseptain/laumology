@@ -306,6 +306,89 @@ class PaperAutoTest(unittest.TestCase):
         self.assertIn("FLIP", closed[0]["note"] or "")
         self.assertEqual(closed[0]["pnl"], round((4900.0 - 5000.0) * 20 * 100, 0))
 
+    def test_settle_short_tp(self):
+        # Celah batch-40: exit TP untuk posisi SHORT belum pernah dites
+        # (long TP, long SL, short SL sudah; temuan drill Senin lokal).
+        pid = store.paper_open("GOTO", "SELL", 60.0, 16, 64.0, 55.0, "test",
+                               opened=_dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        self._OHLC["GOTO"] = _FakeDF(days=_future_days(1),
+                                     high=[61.0], low=[54.5])  # Low <= tp, High < stop
+        self.assertEqual(paper_auto.settle_open_positions(), 1)
+        row = [r for r in store.paper_rows() if r["id"] == pid][0]
+        self.assertEqual(row["status"], "CLOSED")
+        self.assertEqual(row["exit"], 55.0)
+        # short untung bila harga turun: (exit-entry) * lots * 100 * -1
+        self.assertEqual(row["pnl"], round((55.0 - 60.0) * 16 * 100 * -1.0, 0))
+        self.assertGreater(row["pnl"], 0)
+        self.assertIn("TP", row["note"] or "")
+
+    def test_settle_batch_banyak_posisi_satu_sync(self):
+        # Replika skenario Senin: banyak posisi OPEN, sebagian kena exit
+        # dalam SATU pass settle; sisanya tetap OPEN.
+        for tk, entry, stop, tp, high, low in [
+            ("ADRO", 100.0, 110.0, 85.0, 111.5, 105.0),  # short SL
+            ("ASII", 101.0, 111.0, 86.0, 108.0, 86.0),   # short TP
+            ("BBRI", 102.0, 112.0, 87.0, 105.0, 99.0),   # tanpa exit
+        ]:
+            store.paper_open(tk, "SELL", entry, 10, stop, tp, "test",
+                             opened=_dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            self._OHLC[tk] = _FakeDF(days=_future_days(1), high=[high], low=[low])
+        self.assertEqual(paper_auto.settle_open_positions(), 2)
+        rows = {r["ticker"]: r for r in store.paper_rows()}
+        self.assertEqual(rows["ADRO"]["status"], "CLOSED")
+        self.assertIn("SL", rows["ADRO"]["note"] or "")
+        self.assertEqual(rows["ASII"]["status"], "CLOSED")
+        self.assertIn("TP", rows["ASII"]["note"] or "")
+        self.assertEqual(rows["BBRI"]["status"], "OPEN")
+
+    def test_sync_kedua_idempoten(self):
+        # Sync ulang tanpa kejadian baru: semua nol, satu putaran saja -
+        # tidak ada settle/flip/open ganda (amankan KPI n_closed).
+        self._seed_signal("BBCA", "BUY", 5000.0, stop=4500.0, tp=5500.0)
+        self._OHLC["BBCA"] = _FakeDF(days=_future_days(1),
+                                     high=[5200.0], low=[4400.0])  # SL kena
+        r1 = paper_auto.sync_paper()
+        self.assertEqual(r1["opened"], 1)
+        self.assertEqual(r1["settled"], 1)
+        r2 = paper_auto.sync_paper()
+        self.assertEqual(r2, {"settled": 0, "flipped": 0, "opened": 0, "rounds": 1})
+
+    def test_settle_gagal_data_tidak_senyap(self):
+        # Observability (batch-40): gagal fetch/baca bar tidak boleh
+        # meledakkan sync, posisi dibiarkan OPEN, DAN kegagalan TERCATAT
+        # di log - ditemukan dari drill Senin: penelanan exception senyap
+        # membuat settle no-op tanpa jejak (tak teraudit).
+        pid = store.paper_open("EMTK", "BUY", 100.0, 1, 90.0, 120.0, "test",
+                               opened=_dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        # (a) fetch OHLCV meledak
+        def boom(ticker, *args, **kwargs):
+            raise RuntimeError("sumber data bermasalah")
+        orig = paper_auto.data.get_ohlcv
+        paper_auto.data.get_ohlcv = boom
+        try:
+            with self.assertLogs("laumology.paper_auto", level="WARNING") as lg:
+                n = paper_auto.settle_open_positions()
+        finally:
+            paper_auto.data.get_ohlcv = orig
+        self.assertEqual(n, 0)
+        row = [r for r in store.paper_rows() if r["id"] == pid][0]
+        self.assertEqual(row["status"], "OPEN")
+        self.assertTrue(any("EMTK" in str(x) for x in lg.output), lg.output)
+        # (b) bar ada tapi bentuk salah (kolom High hilang)
+        class _BrokenDF:
+            index = _future_days(1)
+            def __len__(self):
+                return 1
+            def __getitem__(self, key):
+                raise KeyError(key)
+        self._OHLC["EMTK"] = _BrokenDF()
+        with self.assertLogs("laumology.paper_auto", level="WARNING") as lg2:
+            n2 = paper_auto.settle_open_positions()
+        self.assertEqual(n2, 0)
+        self.assertTrue(any("gagal membaca bar" in str(x) for x in lg2.output), lg2.output)
+        row = [r for r in store.paper_rows() if r["id"] == pid][0]
+        self.assertEqual(row["status"], "OPEN")
+
     def test_purge_endpoint_ci_flask(self):
         # POST /api/paper/purge: 400 tanpa reason, 404 untuk posisi engine,
         # 200 untuk posisi uji (ticker tanpa sinyal) dan hilang dari ledger.
