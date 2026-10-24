@@ -7,6 +7,7 @@ Pos ini konteks, bukan harga dan bukan broker summary.
 """
 from __future__ import annotations
 
+import logging
 import re
 import threading
 import time
@@ -14,6 +15,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+
+_log = logging.getLogger("laumology.xsource")
 
 # Beberapa kueri supaya pembanding tidak hanya judul MSCI yang sama.
 _QUERIES = (
@@ -213,7 +216,11 @@ def _fetch_query(query: str) -> tuple[list[dict], bool]:
         )
         with urllib.request.urlopen(req, timeout=12) as resp:
             return _titles_from_rss(resp.read(500_000)), True
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "feed X %r gagal diambil (%s) - sumber dilewati",
+            query, type(exc).__name__,
+        )
         return [], False
 
 
@@ -232,7 +239,11 @@ def headlines() -> tuple[list[dict], bool]:
                     ok = True
                 rows.extend(found)
         items = keep_market_posts(rows)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "pos X pasar gagal total (%s: %s) - ok=False",
+            type(exc).__name__, exc,
+        )
         items, ok = [], False
     with _lock:
         _cache["ts"] = time.time()
@@ -265,7 +276,11 @@ def headlines_for(ticker: str) -> tuple[list[dict], bool]:
                     ok = True
                 rows.extend(found)
         items = keep_ticker_posts(rows, code)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "pos X emiten %s gagal total (%s: %s) - ok=False",
+            code, type(exc).__name__, exc,
+        )
         items, ok = [], False
     with _lock:
         _ticker_cache[code] = (time.time(), items, ok)

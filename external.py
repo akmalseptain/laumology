@@ -9,6 +9,7 @@ berita atau proksi harga benar-benar menunjuk ke sana.
 """
 from __future__ import annotations
 
+import logging
 import re
 import threading
 import time
@@ -17,6 +18,8 @@ from concurrent.futures import ThreadPoolExecutor
 import data
 import market
 import news
+
+_log = logging.getLogger("laumology.external")
 
 # Ambang persen. Didokumentasikan supaya bukan angka siluman:
 # - IHSG 1 hari ±1% atau 5 hari ±3% = gejolak pasar yang layak dijelaskan.
@@ -526,7 +529,11 @@ def _proxy(symbol: str) -> dict:
     try:
         frame = data.get_ohlcv(symbol, suffix="", period="6mo")
         close = frame["Close"].astype(float)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "proksi harga %s gagal diambil (%s) - ok=False, tekanan_luar buta proksi ini",
+            symbol, type(exc).__name__,
+        )
         return {"ret_1d": None, "ret_5d": None, "ok": False}
 
     def _ret(n: int) -> float | None:
@@ -544,7 +551,11 @@ def _macro_headlines() -> tuple[list[dict], bool]:
     def _one(query: str) -> tuple[list[dict], bool]:
         try:
             return news.headlines_for_query(query, limit=8)
-        except Exception:
+        except Exception as exc:
+            _log.warning(
+                "kueri berita makro %r gagal (%s) - dilewati",
+                query, type(exc).__name__,
+            )
             return [], False
 
     with ThreadPoolExecutor(max_workers=len(MACRO_QUERIES)) as pool:
@@ -566,7 +577,11 @@ def _macro_headlines() -> tuple[list[dict], bool]:
 def _build_bundle() -> dict:
     try:
         headlines, news_ok = _macro_headlines()
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "berita makro gagal total (%s: %s) - bundle tanpa berita makro",
+            type(exc).__name__, exc,
+        )
         headlines, news_ok = [], False
     x_ok = False
     x_items: list = []
@@ -574,11 +589,19 @@ def _build_bundle() -> dict:
         import xsource
         x_items, x_ok = xsource.headlines()
         headlines = list(headlines) + list(x_items)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "sumber X gagal (%s: %s) - x_ok=False, pos X tidak masuk bundle",
+            type(exc).__name__, exc,
+        )
         x_ok = False
     try:
         ihsg = market.ihsg()
     except Exception as exc:
+        _log.warning(
+            "ihsg gagal diambil (%s: %s) - bundle memakai stub error",
+            type(exc).__name__, exc,
+        )
         ihsg = {"error": type(exc).__name__}
     return {
         "headlines": headlines,
@@ -623,7 +646,11 @@ def for_stock(
         if extra_items is None and ticker:
             try:
                 extra_items = (news.get_news(ticker).get("items") or [])
-            except Exception:
+            except Exception as exc:
+                _log.warning(
+                    "berita emiten %s gagal diambil (%s) - dilanjutkan tanpa berita emiten",
+                    ticker, type(exc).__name__,
+                )
                 extra_items = []
         usdidr = bundle.get("usdidr") or {}
         glob = bundle.get("global") or {}
@@ -659,7 +686,11 @@ def for_stock(
             result["watched"] = watched
         result["x_compare"] = xsource.compare_signal(our_signal, ticker_posts, subject=code)
         return result
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "for_stock %s gagal total (%s: %s) - status jujur tidak_tersedia",
+            ticker or "(pasar)", type(exc).__name__, exc,
+        )
         return assess(news_ok=False, usdidr_ok=False, global_ok=False)
 
 
