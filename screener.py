@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 import data
+import logging
 from config import WATCHLIST_PRESETS, sector_of, settings
 from signals import analyze
 from universe import auto_universe, full_universe
@@ -16,6 +17,8 @@ _AUTO_KEYS = {"auto", "top", "most-active", "paling aktif", "palingaktif", "liku
 _ALL_KEYS = {"all", "allidx", "all-idx", "semua-emiten", "seluruh", "idx-all", "allidx2"}
 
 # Cache baris hasil analisis (key ticker+bar) agar scan ulang instan (memori + disk).
+_log = logging.getLogger("laumology.screener")
+
 _ROW_CACHE: dict[str, tuple[float, dict]] = {}
 _ROW_TTL = 900.0
 _ROW_CACHE_MAX = 20000
@@ -80,6 +83,9 @@ def _row_from_df(t: str, df: pd.DataFrame) -> dict | None:
         turnover = (df["Close"] * df["Volume"]).tail(20).mean()
         row["Value"] = float(turnover) if pd.notna(turnover) else 0.0
     except Exception:
+        # Nilai turnover 0.0 bisa menyingkirkan saham dari filter min_value -
+        # degradasi hasil harus terlihat, bukan senyap.
+        _log.warning("hitung Value (turnover) %s gagal - fallback 0.0", t, exc_info=True)
         row["Value"] = 0.0
     row["Sector"] = sector_of(t)
     return row
@@ -94,6 +100,7 @@ def _screen_one(payload: tuple) -> dict | None:
             return None
         return _row_from_df(t, df)
     except Exception:
+        _log.warning("screen worker %s gagal - dilewati", t, exc_info=True)
         return None
 
 
@@ -126,7 +133,8 @@ def screen(
         try:
             data.prefetch(tickers, period=period)
         except Exception:
-            pass
+            # best-effort (scan lanjut satu-per-satu), tapi TIDAK senyap.
+            _log.warning("prefetch batch gagal saat screen - lanjut satu-per-satu", exc_info=True)
 
     now = time.time()
     rows: list[dict] = []
@@ -139,6 +147,9 @@ def screen(
                 continue
             key_suffix = f"{t}:{str(df.index[-1])[:10]}"
         except Exception:
+            # Best-effort (ticker lain tetap dipindai), tapi TIDAK senyap:
+            # ticker yang hilang dari hasil scan harus terlihat di log.
+            _log.warning("ticker %s gagal difetch saat screen - dilewati", t, exc_info=True)
             continue
         cached = _ROW_CACHE.get(key_suffix) if key_suffix else None
         if cached and not refresh and now - cached[0] < _ROW_TTL:
@@ -157,7 +168,7 @@ def screen(
                 data.get_ohlcv(settings.benchmark, suffix=settings.benchmark_suffix,
                                period=period, use_cache=not refresh)
             except Exception:
-                pass
+                _log.warning("prefetch benchmark gagal - paralel tetap dicoba", exc_info=True)
             try:
                 from concurrent.futures import ProcessPoolExecutor
                 with ProcessPoolExecutor(max_workers=workers) as ex:
@@ -169,6 +180,7 @@ def screen(
                     if row:
                         computed.append((key_suffix, row))
             except Exception:
+                _log.warning("screen paralel gagal - fallback serial", exc_info=True)
                 computed = []
         if not computed:
             for t, key_suffix, df in todo:
