@@ -189,7 +189,9 @@ def screen(
                         continue
                     computed.append((key_suffix, _row_from_df(t, df)))
                 except Exception:
-                    pass
+                    # Best-effort (ticker lain tetap dianalisis), tapi TIDAK
+                    # senyap: baris yang hilang dari hasil scan harus terlihat.
+                    _log.warning("analisis baris %s gagal saat screen - dilewati", t, exc_info=True)
         if len(_ROW_CACHE) + len(computed) > _ROW_CACHE_MAX:
             _ROW_CACHE.clear()
         for key_suffix, row in computed:
