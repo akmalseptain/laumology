@@ -1,6 +1,7 @@
 """Endpoint riset: berita, fundamental, kondisi pasar, musyawarah, LLM."""
 from __future__ import annotations
 
+import logging
 import time
 
 from flask import Blueprint, jsonify, request
@@ -17,6 +18,8 @@ import store
 import ttlcache
 
 bp = Blueprint("research", __name__)
+
+_log = logging.getLogger("laumology.routes.research")
 
 TTL_MARKET = 300.0  # 5 menit; data harian, mengubah hasil hanya bila data baru
 
@@ -136,7 +139,11 @@ def api_summary():
     out: dict = {}
     try:
         out["ihsg"] = market.ihsg()
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "ihsg gagal dimuat untuk ringkasan (%s: %s) - tampilkan kosong",
+            type(exc).__name__, exc,
+        )
         out["ihsg"] = {}
     try:
         rows = store.recent_signals(limit=300)
@@ -145,11 +152,19 @@ def api_summary():
                 and r.get("signal") in ("BUY", "STRONG BUY")]
         out["signals_today"] = len(buys)
         out["latest_signals"] = rows[:8]
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "riwayat sinyal gagal dimuat untuk ringkasan (%s: %s) - hitungan hari ini 0",
+            type(exc).__name__, exc,
+        )
         out["signals_today"] = 0
         out["latest_signals"] = []
     try:
         out["scans"] = store.recent_scans(limit=3)
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "riwayat scan gagal dimuat untuk ringkasan (%s: %s) - tampilkan kosong",
+            type(exc).__name__, exc,
+        )
         out["scans"] = []
     return jsonify(out)

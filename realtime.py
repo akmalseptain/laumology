@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import urllib.parse
@@ -9,6 +10,8 @@ from pathlib import Path
 
 CONFIG_PATH = Path("realtime.json")
 EXAMPLE_PATH = Path("realtime.example.json")
+
+_log = logging.getLogger("laumology.realtime")
 
 _DEFAULT = {
     "provider": "auto",
@@ -45,8 +48,11 @@ def load_config() -> dict:
             if isinstance(data, dict):
                 for k, v in data.items():
                     cfg[k] = v
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning(
+                "konfigurasi realtime.json ada tapi tidak bisa dibaca/diparse (%s: %s) - pakai default",
+                type(exc).__name__, exc,
+            )
     return cfg
 
 
