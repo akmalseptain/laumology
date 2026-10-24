@@ -4140,7 +4140,12 @@ class TestSchedulerEnvRobustness(unittest.TestCase):
         self._os.environ["WARM_INTERVAL"] = ""
         with patch.object(webapp.threading, "Thread") as th:
             webapp._maybe_start_scheduler()  # tidak boleh melempar
-        th.assert_called_once()
+        # Dua worker sejak batch-35: scanner (jendela bursa) + paper sync
+        # 24 jam. Niat tes tetap: env buruk tidak boleh melempar.
+        names = [c.kwargs.get("name") for c in th.call_args_list]
+        self.assertEqual(th.call_count, 2)
+        self.assertIn("laumology-scanner", names)
+        self.assertIn("laumology-paper", names)
 
 
 class TestCachePathConfinement(unittest.TestCase):
