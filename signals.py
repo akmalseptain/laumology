@@ -99,7 +99,7 @@ def relative_strength(df: pd.DataFrame) -> tuple[float | None, bool | None]:
         return None, None
 
 
-_MKT_CACHE: dict = {"ts": 0.0, "regime": "unknown"}
+_MKT_CACHE: dict = {"ts": 0.0, "regime": "unknown", "recovery": False}
 
 
 def market_regime() -> str:
@@ -130,10 +130,41 @@ def market_regime() -> str:
             regime = "downtrend"
         else:
             regime = "ranging"
+        ma20_prev = float(b["ma20"].iloc[-6]) if len(b) >= 6 else ma20
+        recovery = _recovery_flag(regime, c, ma20, ma20_prev)
     except Exception:
         regime = "unknown"
-    _MKT_CACHE.update(ts=now, regime=regime)
+        recovery = False
+    _MKT_CACHE.update(ts=now, regime=regime, recovery=recovery)
     return regime
+
+
+def market_recovery() -> bool:
+    """Deteksi pemulihan awal IHSG (informasional; tidak mengubah sinyal).
+
+    Pemulihan awal = belum uptrend, tapi harga sudah di atas MA20 dan MA20
+    mulai naik. Dipakai untuk MENERANGKAN gerbang regime, bukan membukanya.
+    """
+    market_regime()
+    return bool(_MKT_CACHE.get("recovery", False))
+
+
+def _recovery_flag(regime: str, c: float, ma20_now: float, ma20_prev: float) -> bool:
+    """True bila IHSG mulai pulih: belum uptrend, harga > MA20, MA20 naik."""
+    if regime == "uptrend":
+        return False
+    return c > ma20_now > ma20_prev
+
+
+def _apply_regime_gate(signal: str, action: str, mkt_regime: str) -> tuple[str, str, str]:
+    """Gerbang IHSG: tahan sinyal beli saat downtrend (perilaku LAMA, tidak berubah).
+
+    Mengembalikan (signal, action, gate_blocked); gate_blocked = sinyal asli
+    yang tertahan supaya analisa TRANSPARAN (bukan perubahan logika sinyal).
+    """
+    if settings.regime_filter and mkt_regime == "downtrend" and signal in ("BUY", "STRONG BUY"):
+        return "HOLD", "TAHAN (IHSG downtrend)", signal
+    return signal, action, ""
 
 
 @dataclass
@@ -231,6 +262,8 @@ class Analysis:
     prob_up: float | None = None
     model_used: bool = False
     market_regime: str = "unknown"
+    regime_gate: str = ""
+    market_recovery: bool = False
     decision: dict = field(default_factory=dict)
     stock: dict = field(default_factory=dict)
 
@@ -449,8 +482,8 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
     grade = _grade(score, confidence, uptrend)
 
     mkt_regime = market_regime() if settings.regime_filter else "unknown"
-    if settings.regime_filter and mkt_regime == "downtrend" and signal in ("BUY", "STRONG BUY"):
-        signal, action = "HOLD", "TAHAN (IHSG downtrend)"
+    signal, action, gate_blocked = _apply_regime_gate(signal, action, mkt_regime)
+    mkt_recovery = market_recovery()
 
     stop_loss = min(
         price - settings.atr_sl_mult * atr_val,
@@ -656,6 +689,10 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
         warnings.append(f"TP1 > 3x ADR harian ({adr_pct:.1f}%) - butuh waktu lebih lama")
     if mkt_regime == "downtrend":
         warnings.append("IHSG downtrend - sinyal beli ditahan (regime filter)")
+        if mkt_recovery:
+            warnings.append("Pemulihan awal IHSG: harga > MA20 & MA20 mulai naik (gerbang terbuka saat IHSG > MA50 & MA20 > MA50)")
+        if gate_blocked:
+            warnings.append("Sinyal " + gate_blocked + " ditahan gerbang IHSG - akan aktif saat IHSG konfirmasi")
     elif mkt_regime == "ranging":
         warnings.append("IHSG ranging - edge faktor lemah, utamakan saham terkuat")
     if mkt_regime == "uptrend":
@@ -728,6 +765,8 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
         prob_up=prob_up,
         model_used=model_used,
         market_regime=mkt_regime,
+        regime_gate=gate_blocked,
+        market_recovery=mkt_recovery,
         decision=decision_data,
         stock=stock_data,
         st_dir_up=bool(last["st_dir"] == 1),
