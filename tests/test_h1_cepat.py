@@ -82,6 +82,31 @@ class H1CepatTest(unittest.TestCase):
         self.assertIn(1, scheduler.EVAL_HORIZONS)
         self.assertIn(5, scheduler.EVAL_HORIZONS)  # patokan resmi tetap
 
+    def test_evaluate_endpoint_tanpa_sinyal_baru(self):
+        """POST /api/outcomes/evaluate menjalankan evaluasi feedback loop
+        untuk semua EVAL_HORIZONS TANPA menulis sinyal baru (aman di akhir
+        pekan: beda dengan scan, tidak ada duplikasi stempel hari ini)."""
+        import outcomes
+        calls = []
+        orig = outcomes.evaluate_signals
+
+        def _fake(horizon=5, limit=500, **kw):
+            calls.append((horizon, limit))
+            return {"horizon": horizon, "eligible": 0, "evaluated": 0,
+                    "still_pending": 0, "failed": 0}
+
+        outcomes.evaluate_signals = _fake
+        try:
+            r = self.client.post("/api/outcomes/evaluate?limit=123")
+        finally:
+            outcomes.evaluate_signals = orig
+        self.assertEqual(r.status_code, 200)
+        js = r.get_json()
+        self.assertTrue(js["ok"])
+        self.assertEqual(sorted(h for h, _ in calls), [1, 5, 10])
+        self.assertTrue(all(l == 123 for _, l in calls))
+        self.assertEqual(store.count_signals(), 0)  # tidak menulis sinyal baru
+
 
 if __name__ == "__main__":
     unittest.main()

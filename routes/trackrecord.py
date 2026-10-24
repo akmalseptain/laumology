@@ -167,6 +167,35 @@ def api_verdicts():
     return jsonify(store.outcome_verdicts(horizon, limit))
 
 
+@bp.post("/api/outcomes/evaluate")
+def api_outcomes_evaluate():
+    """Picu evaluasi feedback loop SEKARANG - tanpa scan, tanpa sinyal baru.
+
+    Scheduler mengevaluasi hasil sinyal hanya setelah scan (dan idle di
+    akhir pekan), padahal bar harga D+1 bisa sudah final sebelum scan
+    berikutnya. Endpoint ini menjalankan evaluasi yang sama persis
+    (best-effort; hanya menulis signal_outcomes untuk sinyal yang sudah
+    cukup tua) sehingga win rate bisa terbit lebih awal tanpa menunggu
+    jendela bursa. Skor/ambang tidak diubah; tidak pernah menulis sinyal
+    (beda dengan scan - tidak ada duplikasi stempel hari ini).
+    """
+    try:
+        limit = _int_arg("limit", 500, 1, 2000)
+    except ValueError:
+        return jsonify({"error": "Parameter tidak valid: limit harus berupa angka."}), 400
+    import scheduler as sched_mod
+    import outcomes as outcomes_mod
+    results = {}
+    ok = True
+    for h in sched_mod.EVAL_HORIZONS:
+        try:
+            results[str(h)] = outcomes_mod.evaluate_signals(horizon=h, limit=limit)
+        except Exception as exc:  # satu horizon gagal jangan mematikan yang lain
+            ok = False
+            results[str(h)] = {"error": str(exc)[:200]}
+    return jsonify(ok=ok, horizons=results)
+
+
 @bp.get("/track-record.pdf")
 def pdf():
     """Laporan PDF resmi track record: logo di header tiap halaman,
