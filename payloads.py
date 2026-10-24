@@ -1,6 +1,7 @@
 """Payload builders untuk endpoint analisis & OHLC (dipakai blueprint analysis)."""
 from __future__ import annotations
 
+import logging
 import math
 
 import pandas as pd
@@ -12,6 +13,8 @@ import ttlcache
 from config import settings
 from signals import analyze
 from validate import MAX_STALE_DAYS, check_df
+
+_log = logging.getLogger("laumology.payloads")
 
 INTERVAL_PERIOD = {
     "1d": "1y",
@@ -297,7 +300,11 @@ def ohlc_payload(ticker: str, interval: str, bars: int, refresh: bool = False) -
                 fv = num_or_none(v)
                 if fv is not None:
                     benchmark.append({"time": fmt_time(ts), "value": round(fv * scale, 4)})
-    except Exception:
+    except Exception as exc:
+        _log.warning(
+            "benchmark IHSG (^JKSE) gagal dimuat utk chart %s (%s: %s) - overlay benchmark dilewati",
+            ticker, type(exc).__name__, exc,
+        )
         benchmark = []
 
     return {
