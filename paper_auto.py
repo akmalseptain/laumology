@@ -6,12 +6,18 @@ mengubah skor, bobot, ambang, atau keputusan sinyal sedikit pun.
 - settle_open_positions(): tutup posisi OPEN yang TP/SL tersentuh pada
   bar SETELAH hari sinyal (kausal; TP dan SL kena di bar yang sama
   dihitung SL dulu - konservatif, konsisten outcomes.evaluate_window).
+- close_flipped_positions(): tutup posisi OPEN yang sinyal TERBARU
+  ticker-nya sudah BERBALIK ARAH (long lalu SELL; short lalu BUY/STRONG
+  BUY/ACCUMULATE), di harga sinyal pembalik (harga saat engine berubah
+  pikiran - kausal). HOLD/AVOID bukan pembalikan (tidak actionable,
+  tidak menutup apa pun); sinyal pembuka tidak menutup posisinya sendiri.
 - open_from_signals(): buka posisi paper dari sinyal actionable TERBARU
   per ticker (STRONG BUY/BUY/ACCUMULATE -> long, SELL -> short paper),
   hanya bila belum ada posisi terbuka ticker itu DAN sinyal lebih baru
   dari posisi terakhirnya (anti daur ulang sinyal basi).
-- sync_paper(): settle dulu, lalu buka. Dipanggil pasca-scan
-  (scheduler.run_once, best-effort) dan manual via POST /api/paper/sync.
+- sync_paper(): settle -> flip -> open, di-loop sampai stabil. Dipanggil
+  pasca-scan (scheduler.run_once), thread laumology-paper 24 jam
+  (best-effort), dan manual via POST /api/paper/sync.
 
 Dedup: satu posisi terbuka maksimal per ticker - scan berjalan tiap
 beberapa menit; tanpa dedup posisi akan menumpuk dari sinyal yang sama.
@@ -162,24 +168,78 @@ def open_from_signals(limit: int = 400, target_value: float = TARGET_VALUE) -> i
     return opened
 
 
-def sync_paper(limit: int = 400, target_value: float = TARGET_VALUE, max_rounds: int = 5) -> dict:
-    """Sinkron paper trading SAMPAI MUTAKHIR: loop settle -> open hingga stabil.
+def close_flipped_positions(limit: int = 400) -> int:
+    """Tutup posisi OPEN yang sinyal TERBARU ticker-nya BERBALIK ARAH.
 
-    Satu putaran settle-then-open bisa meninggalkan pekerjaan: posisi yang
-    baru dibuka dari sinyal LAMA bisa langsung layak ditutup (TP/SL sudah
-    tersentuh pada bar antara hari sinyal dan sekarang). Loop berhenti saat
-    satu putaran tidak mengubah apa pun (stabil / mutakhir), dibatasi
-    max_rounds agar tidak bisa berputar selamanya.
+    Pencatatan mengikuti engine: posisi long ditutup bila sinyal terbaru
+    ticker adalah SELL; posisi short bila BUY/STRONG BUY/ACCUMULATE.
+    Exit di harga sinyal pembalik - harga saat engine berubah pikiran,
+    kausal dan tidak butuh bar baru (beda dengan settle TP/SL). Alasan
+    dicatat "auto: FLIP ke <sinyal>" agar jejak keputusan bisa diaudit.
+
+    HOLD/AVOID bukan pembalikan (tidak actionable, tidak menutup apa pun);
+    sinyal yang membuka posisi tidak menutup posisinya sendiri (harus
+    LEBIH BARU dari stempel posisi - anti flip palsu dari sinyal lama).
+    """
+    latest: dict = {}
+    for s in store.recent_signals(limit=limit):
+        tk = str(s.get("ticker") or "").upper()
+        if tk and tk not in latest:
+            latest[tk] = s  # recent_signals urut terbaru dulu
+    closed = 0
+    for r in store.paper_rows(status="OPEN"):
+        tk = str(r.get("ticker") or "").upper()
+        s = latest.get(tk)
+        if not s:
+            continue
+        if str(s.get("ts") or "") <= str(r.get("opened") or ""):
+            continue  # sinyal tidak lebih baru: bisa jadi sinyal pembuka
+        side = str(r.get("side") or "BUY").strip().upper()
+        new_side = _side_of(s.get("signal"))
+        if new_side is None or new_side == side:
+            continue  # bukan pembalikan (HOLD/AVOID atau masih searah)
+        try:
+            price = float(s.get("price") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+        sign = -1.0 if side == "SELL" else 1.0
+        try:
+            pnl = round((price - float(r["entry"])) * int(r["lots"]) * 100 * sign, 0)
+        except (KeyError, TypeError, ValueError):
+            continue
+        store.paper_close(
+            int(r["id"]), price, pnl,
+            "auto: FLIP ke " + str(s.get("signal") or "") + " (" + str(s.get("ts") or "") + ")",
+        )
+        closed += 1
+    return closed
+
+
+def sync_paper(limit: int = 400, target_value: float = TARGET_VALUE, max_rounds: int = 5) -> dict:
+    """Sinkron paper trading SAMPAI MUTAKHIR: loop settle -> flip -> open hingga stabil.
+
+    Satu putaran bisa meninggalkan pekerjaan: posisi yang baru dibuka dari
+    sinyal LAMA bisa langsung layak ditutup (TP/SL sudah tersentuh pada bar
+    antara hari sinyal dan sekarang), dan posisi yang sinyal TERBARU-nya
+    sudah berbalik arah ditutup dulu supaya putaran yang sama bisa membuka
+    posisi arah baru. Urutan per putaran konservatif: TP/SL dulu, lalu
+    pembalikan arah, lalu buka. Loop berhenti saat satu putaran tidak
+    mengubah apa pun (stabil / mutakhir), dibatasi max_rounds.
     """
     settled = 0
+    flipped = 0
     opened = 0
     rounds = 0
     for _ in range(max(1, int(max_rounds))):
         rounds += 1
         s = settle_open_positions()
+        f = close_flipped_positions(limit=limit)
         o = open_from_signals(limit=limit, target_value=target_value)
         settled += s
+        flipped += f
         opened += o
-        if s == 0 and o == 0:
+        if s == 0 and f == 0 and o == 0:
             break
-    return {"settled": settled, "opened": opened, "rounds": rounds}
+    return {"settled": settled, "flipped": flipped, "opened": opened, "rounds": rounds}
