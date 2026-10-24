@@ -94,10 +94,12 @@ def warm(universe: str = "auto") -> int:
         try:
             screener.screen(tickers, top=0)  # isi cache baris persisten (tanpa ubah hasil)
         except Exception:
-            pass
+            # best-effort: warm baris gagal tidak boleh memutus prefetch,
+            # tapi TIDAK senyap (pola batch-41/42).
+            _log.warning("screen warm %s gagal - best-effort", universe, exc_info=True)
         return n
-    except Exception as exc:
-        print(f"  ! warm {universe}: {exc}")
+    except Exception:
+        _log.warning("warm %s gagal - dilewati", universe, exc_info=True)
         return 0
 
 

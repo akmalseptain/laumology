@@ -139,6 +139,30 @@ class SchedulerFlowTest(unittest.TestCase):
         # Ticker sehat tetap tercatat penuh walau satu ticker gagal.
         self.assertEqual(self._count(), 1)
 
+    def test_warm_gagal_tidak_senyap(self):
+        # Observability (batch-43): kegagalan jalur warm tidak senyap.
+        # screen warm gagal -> warning, prefetch tetap dihitung (return n).
+        def boom_screen(*args, **kwargs):
+            raise RuntimeError("screen meledak")
+
+        self._patch(sched.screener, "resolve_watchlist", lambda universe: ["AAA"])
+        self._patch(sched.data, "prefetch", lambda tickers: 1)
+        self._patch(sched.screener, "screen", boom_screen)
+        with self.assertLogs("laumology.scheduler", level="WARNING") as lg:
+            n = sched.warm("lq45")
+        self.assertEqual(n, 1)
+        self.assertTrue(any("screen warm" in str(x) for x in lg.output), lg.output)
+
+        # watchlist sendiri gagal -> warning, return 0 (dulu print senyap).
+        def boom_resolve(universe):
+            raise RuntimeError("watchlist mati")
+
+        self._patch(sched.screener, "resolve_watchlist", boom_resolve)
+        with self.assertLogs("laumology.scheduler", level="WARNING") as lg2:
+            n2 = sched.warm("lq45")
+        self.assertEqual(n2, 0)
+        self.assertTrue(any("warm lq45 gagal" in str(x) for x in lg2.output), lg2.output)
+
     def test_alert_gagal_tidak_senyap(self):
         # Observability (batch-42): alert best-effort gagal -> warning
         # tercatat (dulu pass senyap), scan tetap sehat.
