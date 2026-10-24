@@ -123,6 +123,35 @@ class SchedulerFlowTest(unittest.TestCase):
         sched.run_once("lq45")
         self.assertEqual(self._count("SELECT COUNT(*) FROM scans"), 1)
 
+    def test_ticker_gagal_tidak_senyap(self):
+        # Observability (batch-42): kegagalan per-ticker saat scan boleh
+        # dilewati (ticker lain tetap dipindai), tapi TIDAK boleh senyap -
+        # dulu hanya print tanpa traceback, kini warning laumology.scheduler.
+        def flaky(t, *args, **kwargs):
+            if t == "AAA":
+                raise RuntimeError("sumber data mati")
+            return list(range(120))
+
+        self._patch(sched.data, "get_ohlcv", flaky)
+        with self.assertLogs("laumology.scheduler", level="WARNING") as lg:
+            sched.run_once("lq45")
+        self.assertTrue(any("AAA" in str(x) for x in lg.output), lg.output)
+        # Ticker sehat tetap tercatat penuh walau satu ticker gagal.
+        self.assertEqual(self._count(), 1)
+
+    def test_alert_gagal_tidak_senyap(self):
+        # Observability (batch-42): alert best-effort gagal -> warning
+        # tercatat (dulu pass senyap), scan tetap sehat.
+        def flaky(row):
+            raise RuntimeError("webhook mati")
+
+        self._patch(sched.notify, "signal_alert", flaky)
+        with self.assertLogs("laumology.scheduler", level="WARNING") as lg:
+            sched.run_once("lq45")
+        self.assertTrue(any("alert" in str(x) for x in lg.output), lg.output)
+        # Sinyal tetap tercatat penuh walau semua alert error.
+        self.assertEqual(self._count(), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
