@@ -3,8 +3,11 @@ from __future__ import annotations
 import pandas as pd
 
 import data
+import logging
 from config import sector_of
 from indicators import add_indicators
+
+_log = logging.getLogger("laumology.market")
 
 
 def _pct(series: pd.Series, n: int) -> float:
@@ -89,6 +92,10 @@ def overview(tickers: list[str]) -> dict:
 
             rs_rows.append({"ticker": t, "sector": sec, "chg_1d": chg_1d, "chg_20d": chg_20d})
         except Exception:
+            # Ticker hilang dari breadth/heat map harus terlihat (pola
+            # batch-43 di screener); ticker data-terlalu-pendek tetap
+            # senyap (kondisi data, bukan error).
+            _log.warning("ticker %s gagal masuk overview pasar - dilewati", t, exc_info=True)
             continue
 
     heat = [

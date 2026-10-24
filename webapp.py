@@ -272,6 +272,10 @@ def _maybe_start_scheduler() -> None:
     try:
         import scheduler as sched_mod
     except Exception:
+        # Bila import gagal, auto-scanner tidak jalan SAMA SEKALI - Senin
+        # tanpa sinyal tanpa jejak. Ini satu-satunya titik kegagalan itu
+        # bisa terlihat (boot-time), maka TIDAK boleh senyap.
+        _log.warning("import scheduler gagal - auto-scanner TIDAK AKAN JALAN", exc_info=True)
         return
     import datetime as _dt
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.request
 
 from config import IDX_LIQUID
+
+_log = logging.getLogger("laumology.universe")
 
 _SCAN_URL = "https://scanner.tradingview.com/indonesia/scan"
 _cache: dict = {"t": 0.0, "data": []}
@@ -50,8 +53,11 @@ def auto_universe(limit: int = 150) -> list[str]:
             _cache["t"] = now
             _cache["data"] = data
             return data[:limit]
+        _log.warning("respons TradingView kosong - universe auto fallback statis (limit %d)", limit)
     except Exception:
-        pass
+        # Universe berganti dari dinamis ke statis - cakupan scan berubah.
+        # Fallback tetap jalan (best-effort), tapi TIDAK boleh senyap.
+        _log.warning("query TradingView gagal - universe auto fallback statis (limit %d)", limit, exc_info=True)
     return IDX_LIQUID[:limit]
 
 
@@ -66,6 +72,9 @@ def full_universe(limit: int = 1000) -> list[str]:
             _full["t"] = now
             _full["data"] = data
             return data[:limit]
+        _log.warning("respons TradingView terlalu sedikit (%d baris) - universe penuh fallback statis", len(data))
     except Exception:
-        pass
+        # Cakupan "seluruh emiten" menyusut ke daftar statis tanpa jejak =
+        # hasil scan tidak bisa dibandingkan antar hari bila senyap.
+        _log.warning("query TradingView gagal - universe penuh fallback statis (limit %d)", limit, exc_info=True)
     return IDX_LIQUID[:limit]
