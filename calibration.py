@@ -20,10 +20,16 @@ import pandas as pd
 from config import settings
 from factors import COMPONENT_MAX, SCORE_COMPONENTS, score_frame
 from indicators import add_indicators
+import store
 
 _log = logging.getLogger("laumology.calibration")
 
 MIN_BARS = 140
+
+# Kunci baris model skor di tabel store.model_state. File .cache di Render
+# ephemeral (hilang tiap deploy); DB sqlite direplika Litestream - bobot
+# hasil kalibrasi harus hidup di DB agar tidak hilang begitu saja.
+MODEL_NAME = "score_model"
 
 
 def _model_path() -> Path:
@@ -209,6 +215,40 @@ def save_model(model: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(model, indent=2), encoding="utf-8")
     _MODEL_CACHE.update(mtime=path.stat().st_mtime, model=model, path=str(path))
+    # Persist ke DB (tahan deploy via Litestream). Kegagalan DB tidak boleh
+    # membatalkan training: file lokal tetap dipakai proses ini.
+    try:
+        store.model_save(MODEL_NAME, json.dumps(model))
+    except Exception:  # noqa: BLE001
+        _log.warning("Gagal persist model ke DB; hanya tersimpan di file sementara.", exc_info=True)
+
+
+def _load_from_db() -> dict | None:
+    """Fallback tahan-deploy: file .cache hilang tiap deploy di Render,
+    sedangkan DB sqlite direplika Litestream. Muat bobot dari DB lalu
+    hidrasikan file lokal agar baca berikutnya kembali ke jalur file mtime
+    (tanpa query DB per sinyal). Jujur: None bila DB juga kosong."""
+    try:
+        payload = store.model_load(MODEL_NAME)
+    except Exception:  # noqa: BLE001
+        return None
+    if not payload:
+        return None
+    try:
+        model = json.loads(payload)
+    except Exception:  # noqa: BLE001
+        _log.warning("Payload model %s di DB tidak valid; diabaikan.", MODEL_NAME, exc_info=True)
+        return None
+    try:
+        path = _model_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(model, indent=2), encoding="utf-8")
+        _MODEL_CACHE.update(mtime=path.stat().st_mtime, model=model, path=str(path))
+    except OSError:
+        _log.warning("Gagal rehidrasi file model dari DB; pakai salinan memori.", exc_info=True)
+        _MODEL_CACHE.update(mtime=None, model=model, path=None)
+    _log.info("Model skor direstorasi dari DB (%s).", MODEL_NAME)
+    return model
 
 
 def load_model() -> dict | None:
@@ -216,7 +256,7 @@ def load_model() -> dict | None:
     try:
         mtime = path.stat().st_mtime
     except OSError:
-        return None
+        return _load_from_db()
     if (_MODEL_CACHE["model"] is not None and _MODEL_CACHE["mtime"] == mtime
             and _MODEL_CACHE["path"] == str(path)):
         return _MODEL_CACHE["model"]
@@ -224,11 +264,11 @@ def load_model() -> dict | None:
         model = json.loads(path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         _log.warning(
-            "Model skor ada di %s tetapi gagal dibaca; diabaikan (pakai skor heuristik).",
+            "Model skor ada di %s tetapi gagal dibaca; coba salinan DB.",
             path,
             exc_info=True,
         )
-        return None
+        return _load_from_db()
     _MODEL_CACHE.update(mtime=mtime, model=model, path=str(path))
     return model
 
@@ -255,10 +295,15 @@ def prob_to_score(prob: float, base: float) -> float:
 
 def status() -> dict:
     model = load_model()
+    try:
+        persisted = store.model_load(MODEL_NAME) is not None
+    except Exception:  # noqa: BLE001
+        persisted = False
     if not model:
-        return {"available": False, "path": str(_model_path())}
+        return {"available": False, "path": str(_model_path()), "db_persisted": persisted}
     return {
         "available": True,
         "path": str(_model_path()),
+        "db_persisted": persisted,
         "model": model,
     }

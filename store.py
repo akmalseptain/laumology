@@ -64,6 +64,11 @@ def init() -> None:
               pe REAL, pb REAL, roe REAL, der REAL, eps REAL, price REAL,
               PRIMARY KEY(day, ticker)
             );
+            CREATE TABLE IF NOT EXISTS model_state(
+              name TEXT PRIMARY KEY,
+              payload TEXT NOT NULL,
+              ts TEXT NOT NULL
+            );
             """
         )
 
@@ -699,3 +704,29 @@ def paper_purge(pid: int) -> bool:
                 return False
         cur = c.execute("DELETE FROM paper WHERE id=?", (pid,))
         return cur.rowcount > 0
+
+
+def model_save(name: str, payload: str) -> None:
+    """Simpan bobot model (teks JSON) ke DB - tahan deploy: .cache di Render
+    ephemeral, DB sqlite direplika Litestream. Upsert per name."""
+    init()
+    key = (name or "").strip()
+    if not key:
+        raise ValueError("Nama model kosong")
+    with _lock, _conn() as c:
+        c.execute(
+            "INSERT INTO model_state(name,payload,ts) VALUES(?,?,?)"
+            " ON CONFLICT(name) DO UPDATE SET payload=excluded.payload, ts=excluded.ts",
+            (key, payload, _now()),
+        )
+
+
+def model_load(name: str) -> str | None:
+    """Payload model tersimpan (teks JSON), atau None bila belum ada."""
+    init()
+    key = (name or "").strip()
+    if not key:
+        return None
+    with _lock, _conn() as c:
+        row = c.execute("SELECT payload FROM model_state WHERE name=?", (key,)).fetchone()
+    return row["payload"] if row else None
