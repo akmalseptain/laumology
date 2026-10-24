@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 
 from flask import Blueprint, Response, jsonify, request, stream_with_context
@@ -14,6 +15,8 @@ from config import SECTORS, WATCHLIST_PRESETS
 from routes._util import json_object
 
 bp = Blueprint("screener", __name__)
+
+_log = logging.getLogger("laumology.routes.screener")
 
 
 def _scan_worker(job_id: str, params: dict) -> None:
@@ -46,8 +49,11 @@ def _scan_worker(job_id: str, params: dict) -> None:
                 decision=(params.get("decision") or None),
             )
             rows.extend(r.to_dict("records"))
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning(
+                "chunk scan latar %d saham gagal (%s: %s) - dilewati",
+                len(part), type(exc).__name__, exc,
+            )
         i += chunk
         first = False
         state.update_scan_job(job_id, scanned=min(i, total), rows=rows)
@@ -115,7 +121,11 @@ def api_screen_stream():
                     sector=sector or None, min_value=min_value, decision=decision,
                 )
                 rows = r.to_dict("records")
-            except Exception:
+            except Exception as exc:
+                _log.warning(
+                    "chunk screener %d saham gagal di stream (%s: %s) - dilewati",
+                    len(part), type(exc).__name__, exc,
+                )
                 rows = []
             i += chunk
             first = False
