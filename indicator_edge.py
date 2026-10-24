@@ -77,7 +77,7 @@ def evaluate(universe: str = "lq45", horizon: int = 5, min_count: int = 30) -> d
 
     for t in tickers:
         try:
-            df = data.get_ohlcv(t)
+            df = data.get_ohlcv(t, period="3y")
             if df is None or len(df) < WARMUP_BARS + horizon + 5:
                 continue
             ind = add_indicators(df)
@@ -103,6 +103,9 @@ def evaluate(universe: str = "lq45", horizon: int = 5, min_count: int = 30) -> d
                          t, exc.__class__.__name__)
             continue
 
+    if not n_ok and tickers:
+        _log.warning("event study %s: 0/%d emiten lolos ambang riwayat (> %d bar) - hasil kosong",
+                     universe, len(tickers), WARMUP_BARS + horizon + 5)
     pool = pd.concat(all_fwd) if all_fwd else pd.Series(dtype=float)
     base_hit = float((pool > 0).mean()) if len(pool) else 0.0
     base_med = float(pool.median()) if len(pool) else 0.0
