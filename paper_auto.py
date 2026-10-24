@@ -24,8 +24,12 @@ beberapa menit; tanpa dedup posisi akan menumpuk dari sinyal yang sama.
 """
 from __future__ import annotations
 
+import logging
+
 import data
 import store
+
+_log = logging.getLogger("laumology.paper_auto")
 
 LONG_SIGNALS = ("STRONG BUY", "BUY", "ACCUMULATE")
 SHORT_SIGNALS = ("SELL",)
@@ -84,7 +88,8 @@ def _first_exit(row: dict, df):
                     return stop, "auto: SL"
                 if tp > 0 and float(hi.iloc[i]) >= tp:
                     return tp, "auto: TP"
-    except Exception:
+    except Exception:  # noqa: BLE001
+        _log.warning("settle %s: gagal membaca bar TP/SL", row.get("ticker"), exc_info=True)
         return None
     return None
 
@@ -96,7 +101,11 @@ def settle_open_positions(max_rows: int = 200) -> int:
         exit_hit = None
         try:
             exit_hit = _first_exit(r, data.get_ohlcv(r.get("ticker")))
-        except Exception:
+        except Exception:  # noqa: BLE001
+            # Jangan meledak, tapi JANGAN senyap: posisi yang tak bisa
+            # dicek harus kelihatan di log (auditabilitas loop paper).
+            _log.warning("settle: lewati posisi %s (gagal fetch OHLCV)",
+                         r.get("ticker"), exc_info=True)
             continue
         if exit_hit is None:
             continue
