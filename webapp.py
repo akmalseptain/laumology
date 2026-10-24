@@ -313,6 +313,29 @@ def _maybe_start_scheduler() -> None:
 
     threading.Thread(target=loop, daemon=True, name="laumology-scanner").start()
 
+    # Paper trading otomatis (batch-35): loop 24 jam TANPA jendela bursa.
+    # Aman kapan pun karena sync hanya MEMBACA sinyal/OHLC dan menulis tabel
+    # paper - tidak menulis sinyal (beda dengan scan). Tujuan: track record
+    # paper selalu mutakhir; posisi ditutup begitu bar terbaru menunjukkan
+    # TP/SL tersentuh, termasuk setelah jam bursa dan di akhir pekan.
+    paper_interval = max(300, _env_int("PAPER_SYNC_INTERVAL", 1800))
+
+    def paper_loop() -> None:
+        time.sleep(start_delay)
+        try:
+            store.init()
+        except Exception:
+            pass
+        while True:
+            try:
+                import paper_auto
+                paper_auto.sync_paper()
+            except Exception:
+                pass
+            time.sleep(paper_interval)
+
+    threading.Thread(target=paper_loop, daemon=True, name="laumology-paper").start()
+
 
 _maybe_start_scheduler()
 

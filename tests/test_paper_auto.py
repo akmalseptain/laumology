@@ -15,6 +15,7 @@ pola tests/test_h1_cepat.py. store stdlib murni; paper_auto.data di-patch.
 """
 import datetime as _dt
 import pathlib
+import sqlite3
 import tempfile
 import unittest
 
@@ -181,6 +182,31 @@ class PaperAutoTest(unittest.TestCase):
         self.assertEqual(d.get("settled"), 3)
         self.assertEqual(d.get("opened"), 5)
         self.assertEqual(calls, [400])
+
+
+    def test_sync_loop_sampai_mutakhir(self):
+        # Sinyal LAMA (3 hari lalu) yang SL-nya sudah tersentuh pada bar
+        # setelahnya: satu putaran settle-then-open TIDAK cukup (posisi baru
+        # dibuka di putaran 1, baru bisa ditutup di putaran 2) -> loop harus
+        # jalan sampai stabil dan hasil akhirnya mutakhir (0 posisi terbuka).
+        self._seed_signal("BBCA", "BUY", 5000.0, stop=4500.0, tp=5500.0)
+        old = (_dt.date.today() - _dt.timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
+        conn = sqlite3.connect(store.DB_PATH)
+        try:
+            conn.execute("UPDATE signals SET ts=? WHERE ticker='BBCA'", (old,))
+            conn.commit()
+        finally:
+            conn.close()
+        d1 = (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
+        self._OHLC["BBCA"] = _FakeDF(days=[d1], high=[5200.0], low=[4400.0])  # SL kena
+        res = paper_auto.sync_paper()
+        self.assertEqual(res["opened"], 1)
+        self.assertEqual(res["settled"], 1)
+        self.assertGreaterEqual(res["rounds"], 2)
+        self.assertEqual(len(store.paper_rows(status="OPEN")), 0)  # mutakhir
+        closed = store.paper_rows(status="CLOSED")
+        self.assertEqual(len(closed), 1)
+        self.assertEqual(closed[0]["exit"], 4500.0)
 
 
 if __name__ == "__main__":
