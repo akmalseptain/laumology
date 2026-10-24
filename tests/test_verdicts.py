@@ -138,6 +138,7 @@ class TestDirectionAwareVerdicts(VerdictTestBase):
         self._seed([("TSTA", 1.5, 0.5, "NONE", "AVOID", "AVOID")])
         rep = store.outcome_verdicts(5)
         self.assertAlmostEqual(rep["verdict_pct"]["salah"], 100.0)
+        self.assertEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
 
     def test_label_produksi_tetap_sadar_arah(self):
         """Regresi batch-31: label action produksi tidak berawalan kata bearish.
@@ -160,7 +161,6 @@ class TestDirectionAwareVerdicts(VerdictTestBase):
         self.assertAlmostEqual(rep["verdict_pct"]["salah"], 50.0)
         self.assertEqual(rep["wrong_n"], 2)
         self.assertAlmostEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
-        self.assertEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
 
 
 if __name__ == "__main__":
