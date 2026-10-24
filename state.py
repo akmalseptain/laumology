@@ -20,6 +20,7 @@ START = time.time()
 PROTECTED = {
     "/api/paper/open",
     "/api/paper/close",
+    "/api/paper/purge",
     "/api/notify",
     "/api/warroom/control",
     "/api/warroom/loop",

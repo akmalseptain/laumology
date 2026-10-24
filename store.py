@@ -675,3 +675,27 @@ def paper_close(pid: int, exit_price: float, pnl: float, note: str = "") -> None
             "UPDATE paper SET status='CLOSED', closed=?, exit=?, pnl=?, note=COALESCE(NULLIF(?,''),note) WHERE id=?",
             (_now(), exit_price, pnl, note, pid),
         )
+
+def paper_purge(pid: int) -> bool:
+    """Hapus permanen baris posisi paper (id) - khusus pembersihan data uji.
+
+    HANYA bila ticker posisi tidak punya sinyal tercatat apa pun: posisi
+    otomatis selalu berasal dari sinyal engine, dan hasilnya adalah jejak
+    audit KPI track record (n_closed/win_rate/expectancy) yang tidak boleh
+    dihapus. Data uji/sampah (mis. ticker TEST dari pengujian proteksi
+    endpoint) tidak punya sinyal dan aman dihapus. Return True bila baris
+    terhapus, False bila tidak ada / dilindungi sinyal.
+    """
+    with _lock, _conn() as c:
+        row = c.execute("SELECT ticker FROM paper WHERE id=?", (pid,)).fetchone()
+        if not row:
+            return False
+        tk = str(row["ticker"] or "").upper().strip()
+        if tk:
+            sig = c.execute(
+                "SELECT 1 FROM signals WHERE ticker=? LIMIT 1", (tk,)
+            ).fetchone()
+            if sig:
+                return False
+        cur = c.execute("DELETE FROM paper WHERE id=?", (pid,))
+        return cur.rowcount > 0
