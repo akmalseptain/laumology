@@ -1,4 +1,4 @@
-""""Tes observabilitas fundamentals: arsip snap gagal disimpan tidak senyap.
+"""Tes observabilitas fundamentals: arsip snap gagal disimpan tidak senyap.
 
 CI-only: fundamentals butuh yfinance & pandas (via data).
 save_fund_snap gagal -> payload tetap utuh TANPA snap_*, kini dengan jejak

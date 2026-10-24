@@ -99,6 +99,7 @@ _YAHOO_SECTOR = {
 }
 ROE_BAIK = 0.15
 
+
 def _clean(v):
     try:
         f = float(v)
@@ -108,12 +109,14 @@ def _clean(v):
         return None
     return f
 
+
 def _ratio(v, maxv: float = _RATIO_MAX, minv: float = 0.0):
     """Bersihkan rasio lalu buang hanya nilai mustahil (negatif / > batas)."""
     f = _clean(v)
     if f is None or f < minv or f > maxv:
         return None
     return f
+
 
 def _yield_from_cash(rate, price) -> float | None:
     """Yield persen = dividen per saham / harga × 100. Definisi, bukan label Yahoo."""
@@ -126,6 +129,7 @@ def _yield_from_cash(rate, price) -> float | None:
         return None
     return y
 
+
 def _published_yield_pct(raw) -> float | None:
     """Satu satuan persen untuk field yield Yahoo (pecahan lama atau persen baru)."""
     y = _clean(raw)
@@ -136,6 +140,7 @@ def _published_yield_pct(raw) -> float | None:
     if y > _YIELD_PCT_MAX:
         return None
     return round(y, 4)
+
 
 def _normalize_dividend(raw, price, rate) -> tuple[float | None, str | None, str | None]:
     """Yield yang ditampilkan, basis, dan catatan bila angka tunai bertentangan.
@@ -165,6 +170,7 @@ def _normalize_dividend(raw, price, rate) -> tuple[float | None, str | None, str
         return round(cash, 4), "dividen per saham / harga", None
     return None, None, None
 
+
 def sector_band_name(ticker: str, yahoo_sector: str | None = None) -> str:
     """Nama sektor untuk pita PER. Peta lokal menang; Yahoo hanya bila ticker belum dikenal."""
     from config import sector_of
@@ -174,12 +180,14 @@ def sector_band_name(ticker: str, yahoo_sector: str | None = None) -> str:
         return local
     return _YAHOO_SECTOR.get((yahoo_sector or "").strip().lower(), "")
 
+
 def _pe_limits(sector: str | None) -> tuple[float, float, str]:
     name = (sector or "").strip()
     band = _SECTOR_PE_BAND.get(name)
     if band is None:
         return PE_RENDAH, PE_WAJAR, ""
     return band[0], band[1], name
+
 
 def classify_ratios(pe, roe, der, sector: str | None = None) -> dict:
     """Label fundamental yang sama untuk layar dan musyawarah.
@@ -243,6 +251,7 @@ def classify_ratios(pe, roe, der, sector: str | None = None) -> dict:
         "pe_band_high": high,
     }
 
+
 def _prune_cache_locked() -> None:
     """Buang entri fundamental kedaluwarsa lalu tertua bila melebihi batas.
 
@@ -262,13 +271,14 @@ def _prune_cache_locked() -> None:
     for key, _entry in oldest:
         _cache.pop(key, None)
 
+
 def _fallback_price(yt: str) -> float | None:
     """Resolusi harga terakhir dari layer ``data`` saat ``.info`` parsial.
 
     Memakai ``data.get_quote`` (fast_info + fallback riwayat 1m yang sudah
     ter-cache) lalu ``data.get_ohlcv`` untuk emiten tanpa ``currentPrice``.
     Semua kegagalan ditelan (best-effort) agar resolusi fundamental tak pernah
-    melempar ke pemanggil dan nilai non-finit tetap mengembalikan ``None".
+    melempar ke pemanggil dan nilai non-finit tetap mengembalikan ``None``.
     """
     try:
         quote = data.get_quote(yt)
@@ -289,12 +299,14 @@ def _fallback_price(yt: str) -> float | None:
         return None
     return None
 
+
 def _as_frame(value):
     """Hanya DataFrame berisi angka. Objek mock atau kosong diabaikan."""
     import pandas as pd
     if isinstance(value, pd.DataFrame) and not value.empty:
         return value
     return None
+
 
 def _series_numbers(frame, labels: tuple[str, ...]) -> list[float]:
     """Nilai baris laporan, dari periode terbaru. Label dicocokkan tanpa besar-kecil."""
@@ -315,6 +327,7 @@ def _series_numbers(frame, labels: tuple[str, ...]) -> list[float]:
         if number is not None:
             numbers.append(number)
     return numbers
+
 
 def _fill_from_statements(ticker_obj, out: dict, checks: list[str]) -> None:
     """Isi rasio dari laporan bila ringkasan Yahoo kosong.
@@ -371,6 +384,7 @@ def _fill_from_statements(ticker_obj, out: dict, checks: list[str]) -> None:
             out["revenue"] = annual_rev[0]
     if out.get("eps") is not None or out.get("book_value") is not None:
         checks.append("Rasio dihitung dari laporan Yahoo karena ringkasan emiten kosong.")
+
 
 def get_fundamentals(ticker: str) -> dict:
     yt = to_yahoo(ticker)
@@ -474,7 +488,7 @@ def get_fundamentals(ticker: str) -> dict:
                     checks.append("PER TTM dihitung dari harga / EPS.")
                 out["pe"] = round(calc_pe, 4)
             else:
-                checks.append("PER TTM selaras dengan harga/EPS (selisih ≤ 2%).")
+                checks.append("PER TTM selaras dengan harga / EPS (selisih ≤ 2%).")
         else:
             out["pe"] = None
             checks.append("PER harga/EPS di luar batas 500 dan dibuang.")

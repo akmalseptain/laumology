@@ -59,12 +59,15 @@ EVENT_RULES: list[tuple[str, int, object]] = [
 
 WARMUP_BARS = 250
 
+
 def _hits(fwd: pd.Series, dir_: int) -> pd.Series:
     """Hit = forward return searah dengan prediksi event."""
     return (fwd * dir_ > 0).astype(float)
 
+
 def _halfyear(ts: pd.Index) -> pd.Series:
     return pd.Series([(t.year, 1 if t.month <= 6 else 2) for t in ts], index=ts, dtype="object")
+
 
 def evaluate(universe: str = "lq45", horizon: int = 5, min_count: int = 30) -> dict:
     tickers = screener.resolve_watchlist(universe)
@@ -155,6 +158,7 @@ def evaluate(universe: str = "lq45", horizon: int = 5, min_count: int = 30) -> d
             "berarti edge tidak stabil antar periode — jangan dipakai untuk skoring."
         ),
     }
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="LAUMOLOGY uji edge indikator (event study kausal)")

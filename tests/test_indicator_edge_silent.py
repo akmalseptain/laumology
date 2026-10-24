@@ -1,4 +1,4 @@
-""""Tes observabilitas indicator_edge: ticker gagal dievaluasi tidak senyap.
+"""Tes observabilitas indicator_edge: ticker gagal dievaluasi tidak senyap.
 
 CI-only: indicator_edge butuh pandas/numpy + modul data/screener/indicators.
 Ticker yang melempar exception saat event study dilewati - payload tetap
