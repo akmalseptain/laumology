@@ -55,6 +55,18 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
     for col in keep:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["Open", "High", "Low", "Close"])
+    # Sanitasi konsistensi High/Low (batch-38). Sumber (yfinance, harga
+    # ter-adjust) bisa mengirim bar dengan High/Low persis = Open/Close plus
+    # noise floating-point (mis. Low > Close ~1e-9) - validate.check_df
+    # menandainya "High/Low tidak konsisten" (hard error, ticker dianggap
+    # data rusak) padahal nilai bar valid (kasus nyata: BBCA 10 Nov 2025).
+    # Perbaikan konservatif: lebarkan bar agar selalu mengapit Open/Close.
+    # Bar valid tak tersentuh sama sekali (High sudah >= max(O,C)); hanya
+    # bar inkonsisten yang diperbaiki. _normalize adalah choke point tunggal
+    # semua fetch (get_ohlcv + prefetch) sehingga cache yang ditulis pun
+    # sudah bersih.
+    df["High"] = df[["High", "Open", "Close"]].max(axis=1)
+    df["Low"] = df[["Low", "Open", "Close"]].min(axis=1)
     df.index = pd.to_datetime(df.index)
     return df
 
