@@ -4,11 +4,15 @@ import argparse
 import time
 import traceback
 
+import logging
+
 import data
 import notify
 import screener
 import store
 from signals import analyze
+
+_log = logging.getLogger("laumology.scheduler")
 
 EVAL_HORIZONS = (1, 5, 10)
 """Horizon evaluasi feedback loop (hari bursa SETELAH hari sinyal).
@@ -53,8 +57,8 @@ def run_once(universe: str = "lq45") -> int:
         # scan. H+1 hanya puls cepat arah - patokan resmi tetap H+5.
         for horizon in EVAL_HORIZONS:
             outcomes_mod.evaluate_signals(horizon=horizon, limit=25)
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        _log.warning("evaluasi outcomes best-effort gagal", exc_info=True)
 
     # Paper trading otomatis (batch-34): buka/tutup posisi paper mengikuti
     # sinyal engine yang sudah tercatat. Murni pencatatan (tabel paper);
@@ -62,8 +66,8 @@ def run_once(universe: str = "lq45") -> int:
     try:
         import paper_auto
         paper_auto.sync_paper()
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        _log.warning("sync paper best-effort gagal", exc_info=True)
     for a in buys:
         try:
             notify.signal_alert({

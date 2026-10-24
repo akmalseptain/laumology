@@ -289,8 +289,8 @@ def _maybe_start_scheduler() -> None:
         time.sleep(start_delay)  # beri waktu server siap sebelum kerja berat
         try:
             store.init()
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001
+            _log.warning("scanner: store.init() gagal", exc_info=True)
         running = False
         last_warm = 0.0
         while True:
@@ -300,14 +300,15 @@ def _maybe_start_scheduler() -> None:
                 try:
                     if warm_universe:
                         sched_mod.warm(warm_universe)
-                except Exception:
-                    pass
+                except Exception:  # noqa: BLE001
+                    _log.warning("scanner: warm cache gagal", exc_info=True)
             if _in_window() and not running:
                 running = True
                 try:
                     sched_mod.run_once(universe)
-                except Exception:
-                    pass
+                except Exception:  # noqa: BLE001
+                    _log.warning("scanner: run_once gagal (scan dilewati)",
+                                 exc_info=True)
                 running = False
             time.sleep(interval)
 
@@ -324,14 +325,16 @@ def _maybe_start_scheduler() -> None:
         time.sleep(start_delay)
         try:
             store.init()
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001
+            _log.warning("paper loop: store.init() gagal", exc_info=True)
         while True:
             try:
                 import paper_auto
                 paper_auto.sync_paper()
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001
+                # jangan matikan thread 24 jam, tapi jangan senyap:
+                # settle Senin harus kelihatan bila gagal
+                _log.warning("paper loop: sync_paper gagal", exc_info=True)
             time.sleep(paper_interval)
 
     threading.Thread(target=paper_loop, daemon=True, name="laumology-paper").start()
