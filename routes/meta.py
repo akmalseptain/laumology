@@ -259,6 +259,7 @@ def api_schema():
         {"method": "GET", "path": "/api/paper", "params": []},
         {"method": "POST", "path": "/api/paper/open", "params": ["ticker", "entry", "lots", "stop", "tp"]},
         {"method": "POST", "path": "/api/paper/close", "params": ["id", "exit"]},
+        {"method": "POST", "path": "/api/paper/purge", "params": ["id", "reason"]},
         {"method": "GET", "path": "/api/data/quality", "params": ["list"]},
         {"method": "GET", "path": "/api/seasonality", "params": ["ticker"]},
         {"method": "GET", "path": "/health", "params": []},

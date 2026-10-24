@@ -306,6 +306,31 @@ class PaperAutoTest(unittest.TestCase):
         self.assertIn("FLIP", closed[0]["note"] or "")
         self.assertEqual(closed[0]["pnl"], round((4900.0 - 5000.0) * 20 * 100, 0))
 
+    def test_purge_endpoint_ci_flask(self):
+        # POST /api/paper/purge: 400 tanpa reason, 404 untuk posisi engine,
+        # 200 untuk posisi uji (ticker tanpa sinyal) dan hilang dari ledger.
+        if type(webapp.app).__name__ != "Flask":
+            self.skipTest("butuh Flask asli (CI); stub lokal tidak merutekan")
+        pid = store.paper_open("TEST", "BUY", 100.0, 1, 0.0, 0.0, "test audit")
+        self.assertTrue(store.add_signal({
+            "ticker": "BBCA", "signal": "BUY", "score": 50,
+            "confidence": 50, "grade": "C", "price": 5000.0,
+        }, source="test"))
+        auto_pid = store.paper_open("BBCA", "BUY", 5000.0, 1, 0.0, 0.0, "auto")
+        r0 = self._client.post("/api/paper/purge", json={"id": pid})
+        self.assertEqual(r0.status_code, 400)  # reason wajib
+        r1 = self._client.post("/api/paper/purge",
+                               json={"id": auto_pid, "reason": "bersih-bersih"})
+        self.assertEqual(r1.status_code, 404)  # ticker punya sinyal engine
+        r2 = self._client.post("/api/paper/purge",
+                               json={"id": pid, "reason": "bersih-bersih"})
+        self.assertEqual(r2.status_code, 200)
+        self.assertTrue(r2.get_json().get("ok"))
+        self.assertEqual([r for r in store.paper_rows() if r["id"] == pid], [])
+        self.assertEqual(
+            [r for r in store.paper_rows() if r["id"] == auto_pid][0]["status"], "OPEN"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -135,6 +135,32 @@ def api_paper_close():
     return jsonify(ok=True, exit=exit_price, pnl=pnl)
 
 
+@bp.route("/api/paper/purge", methods=["POST"])
+def api_paper_purge():
+    """Hapus posisi paper UJI dari ledger - pembersihan data, bukan trading.
+
+    Syarat ketat (jaga kejujuran KPI): ticker posisi tidak boleh punya
+    sinyal tercatat apa pun - posisi otomatis berasal dari sinyal engine
+    dan jejaknya tidak boleh dihapus. Guard reason wajib supaya setiap
+    pembersihan meninggalkan jejak niat di log request.
+    """
+    b = json_object()
+    if b is None:
+        return jsonify(error="Body harus berupa objek JSON"), 400
+    try:
+        pid = int(b.get("id"))
+    except (TypeError, ValueError):
+        return jsonify(error="id tidak valid"), 400
+    reason = b.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return jsonify(error="reason wajib diisi (jejak pembersihan)"), 400
+    if not store.paper_purge(pid):
+        return jsonify(
+            error="Posisi tidak ditemukan, atau ticker-nya punya sinyal engine (jejak KPI tidak boleh dihapus)"
+        ), 404
+    return jsonify(ok=True, id=pid, reason=reason.strip())
+
+
 @bp.route("/api/paper/sync", methods=["POST"])
 def api_paper_sync():
     """Sinkron paper trading otomatis SEKARANG (pola batch-32 /api/outcomes/evaluate).
