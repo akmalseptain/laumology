@@ -8,6 +8,10 @@ Yang dijaga:
 - settle_open_positions: bar SETELAH hari sinyal saja (kausal), SL duluan
   bila satu bar (konservatif), arah short dibalik, exit tepat di harga
   TP/SL.
+- close_flipped_positions: posisi ditutup bila sinyal TERBARU ticker
+  berbalik arah (long -> SELL, short -> BUY/STRONG BUY/ACCUMULATE), di
+  harga sinyal pembalik; HOLD/AVOID dan sinyal searah tidak menutup;
+  sinyal pembuka tidak menutup posisinya sendiri (harus lebih baru).
 - POST /api/paper/sync: pola batch-32 (monkeypatch, tanpa jaringan).
 
 Tanpa jaringan: DB sqlite sementara (swap store.DB_PATH) + OHLC palsu,
@@ -79,6 +83,24 @@ class PaperAutoTest(unittest.TestCase):
             "price": price, "entry": price, "stop_loss": stop, "tp1": tp,
         }, source="test")
         self.assertTrue(ok)
+
+    def _set_ts(self, ticker, signal, ts):
+        """Geser stempel sinyal TERBARU (id maks) ticker+jenis - urutan pasti.
+
+        add_signal memakai resolusi DETIK; beberapa seed dalam detik yang
+        sama menghasilkan ts yang SAMA sehingga urutan sinyal vs posisi tidak
+        teruji. Ts eksplisit membuat urutan deterministik (kausalitas flip).
+        """
+        conn = sqlite3.connect(store.DB_PATH)
+        try:
+            conn.execute(
+                "UPDATE signals SET ts=? WHERE id=(SELECT MAX(id) FROM signals"
+                " WHERE ticker=? AND signal=?)",
+                (ts, ticker, signal),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def test_side_mapping(self):
         self.assertEqual(paper_auto._side_of("SELL"), "SELL")
@@ -207,6 +229,82 @@ class PaperAutoTest(unittest.TestCase):
         closed = store.paper_rows(status="CLOSED")
         self.assertEqual(len(closed), 1)
         self.assertEqual(closed[0]["exit"], 4500.0)
+
+    def test_flip_tutup_long_saat_engine_jadi_sell(self):
+        self._seed_signal("BBCA", "BUY", 5000.0, stop=4500.0, tp=5500.0)
+        self._set_ts("BBCA", "BUY", "2026-01-01 08:00:00")
+        self.assertEqual(paper_auto.open_from_signals(), 1)  # posisi stempel 08:00
+        # engine berbalik arah: sinyal SELL lebih baru
+        self._seed_signal("BBCA", "SELL", 4900.0, stop=5100.0, tp=4600.0)
+        self._set_ts("BBCA", "SELL", "2026-01-01 09:00:00")
+        self.assertEqual(paper_auto.close_flipped_positions(), 1)
+        rows = store.paper_rows(status="CLOSED")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["exit"], 4900.0)  # exit di harga sinyal pembalik
+        self.assertEqual(rows[0]["pnl"], round((4900.0 - 5000.0) * 20 * 100, 0))
+        self.assertIn("FLIP", rows[0]["note"] or "")
+
+    def test_flip_tutup_short_saat_engine_jadi_accumulate(self):
+        self._seed_signal("TLKM", "SELL", 3200.0, stop=3400.0, tp=3000.0)
+        self._set_ts("TLKM", "SELL", "2026-01-01 08:00:00")
+        self.assertEqual(paper_auto.open_from_signals(), 1)  # 31 lot short
+        self._seed_signal("TLKM", "ACCUMULATE", 3350.0, stop=3100.0, tp=3600.0)
+        self._set_ts("TLKM", "ACCUMULATE", "2026-01-01 09:00:00")
+        self.assertEqual(paper_auto.close_flipped_positions(), 1)
+        rows = store.paper_rows(status="CLOSED")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["exit"], 3350.0)
+        # short rugi bila harga naik: (exit-entry) * lots * 100 * -1
+        self.assertEqual(rows[0]["pnl"], round((3350.0 - 3200.0) * 31 * 100 * -1.0, 0))
+
+    def test_flip_hanya_sinyal_baru_yang_membalik(self):
+        self._seed_signal("BBCA", "BUY", 5000.0, stop=4500.0, tp=5500.0)
+        self._set_ts("BBCA", "BUY", "2026-01-01 08:00:00")
+        self.assertEqual(paper_auto.open_from_signals(), 1)
+        pid = store.paper_rows(status="OPEN")[0]["id"]
+        # (a) HOLD lebih baru: tidak actionable, bukan pembalikan
+        self._seed_signal("BBCA", "HOLD", 4950.0)
+        self._set_ts("BBCA", "HOLD", "2026-01-01 09:00:00")
+        self.assertEqual(paper_auto.close_flipped_positions(), 0)
+        # (b) sinyal searah (BUY) lebih baru: bukan pembalikan
+        conn = sqlite3.connect(store.DB_PATH)
+        try:
+            conn.execute("UPDATE signals SET signal='BUY' WHERE ticker='BBCA' AND signal='HOLD'")
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertEqual(paper_auto.close_flipped_positions(), 0)
+        self.assertEqual(len(store.paper_rows(status="OPEN")), 1)
+        # (c) SELL lebih baru: pembalikan -> tutup di harga sinyal pembalik
+        self._seed_signal("BBCA", "SELL", 4850.0, stop=5050.0, tp=4550.0)
+        self._set_ts("BBCA", "SELL", "2026-01-01 10:00:00")
+        self.assertEqual(paper_auto.close_flipped_positions(), 1)
+        row = [r for r in store.paper_rows() if r["id"] == pid][0]
+        self.assertEqual(row["status"], "CLOSED")
+        self.assertEqual(row["exit"], 4850.0)
+
+    def test_sync_flip_membalik_posisi_paper(self):
+        # End-to-end: engine berbalik arah -> posisi lama ditutup (FLIP),
+        # posisi baru dibuka SEARAH sinyal baru - paper mengikuti engine.
+        self._seed_signal("BBCA", "BUY", 5000.0, stop=4500.0, tp=5500.0)
+        self._set_ts("BBCA", "BUY", "2026-01-01 08:00:00")
+        res1 = paper_auto.sync_paper()
+        self.assertEqual(res1["opened"], 1)
+        self.assertEqual(res1["flipped"], 0)
+        self._seed_signal("BBCA", "SELL", 4900.0, stop=5100.0, tp=4600.0)
+        self._set_ts("BBCA", "SELL", "2026-01-01 09:00:00")
+        res2 = paper_auto.sync_paper()
+        self.assertEqual(res2["flipped"], 1)
+        self.assertEqual(res2["settled"], 0)
+        self.assertEqual(res2["opened"], 1)  # posisi baru searah sinyal baru
+        opens = store.paper_rows(status="OPEN")
+        self.assertEqual(len(opens), 1)
+        self.assertEqual(opens[0]["side"], "SELL")
+        self.assertEqual(opens[0]["entry"], 4900.0)
+        closed = store.paper_rows(status="CLOSED")
+        self.assertEqual(len(closed), 1)
+        self.assertIn("FLIP", closed[0]["note"] or "")
+        self.assertEqual(closed[0]["pnl"], round((4900.0 - 5000.0) * 20 * 100, 0))
 
 
 if __name__ == "__main__":
