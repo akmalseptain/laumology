@@ -138,6 +138,28 @@ class TestDirectionAwareVerdicts(VerdictTestBase):
         self._seed([("TSTA", 1.5, 0.5, "NONE", "AVOID", "AVOID")])
         rep = store.outcome_verdicts(5)
         self.assertAlmostEqual(rep["verdict_pct"]["salah"], 100.0)
+
+    def test_label_produksi_tetap_sadar_arah(self):
+        """Regresi batch-31: label action produksi tidak berawalan kata bearish.
+
+        Scan nyata mencatat action 'REDUCE / JUAL' / 'HINDARI / TUNGGU' -
+        versi lama menempel 'action signal' sehingga SELL/AVOID produksi
+        dinilai bullish semua (arah_sinyal selalu 'naik'). Arah harus
+        mengikuti kolom signal (enum mesin), bukan awalan label action."""
+        self._seed([
+            ("TSTA", -2.0, -1.0, "NONE", "SELL", "REDUCE / JUAL"),    # turun -> benar_nyata
+            ("TSTB", 2.0, 1.0, "NONE", "SELL", "REDUCE / JUAL"),     # naik -> salah
+            ("TSTC", -1.0, -0.5, "NONE", "AVOID", "HINDARI / TUNGGU"),  # turun -> benar_nyata
+            ("TSTD", 1.5, 0.5, "NONE", "AVOID", "HINDARI / TUNGGU"),    # naik -> salah
+        ])
+        rep = store.outcome_verdicts(5)
+        v = {x["ticker"]: x for x in rep["recent"]}
+        self.assertTrue(all(x["arah_sinyal"] == "turun" for x in v.values()),
+                        "SELL/AVOID produksi harus dinilai menurunkan")
+        self.assertAlmostEqual(rep["verdict_pct"]["benar_nyata"], 50.0)
+        self.assertAlmostEqual(rep["verdict_pct"]["salah"], 50.0)
+        self.assertEqual(rep["wrong_n"], 2)
+        self.assertAlmostEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
         self.assertEqual(rep["wrong_where_pct"]["naik_padahal_turun"], 100.0)
 
 

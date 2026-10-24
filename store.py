@@ -451,7 +451,10 @@ def outcome_verdicts(horizon: int = 5, limit: int = 200) -> dict:
     _BEARISH = ("SELL", "JUAL", "AVOID", "TUTUP")
 
     def _direction(signal, action):
-        txt = f"{action or ''} {signal or ''}".strip().upper()
+        # Enum signal (SELL/AVOID/...) adalah klasifikasi kanonik mesin;
+        # label action produksi ('REDUCE / JUAL', 'HINDARI / TUNGGU')
+        # TIDAK berawalan kata bearish, jadi signal harus diperiksa dulu.
+        txt = f"{signal or ''} {action or ''}".strip().upper()
         return -1 if txt.startswith(_BEARISH) else 1
 
     def _verdict(adj_fwd, adj_exc):
@@ -585,7 +588,10 @@ def outcome_bucket_verdicts(horizon: int = 5, min_n: int = 5) -> dict:
     _BEARISH = ("SELL", "JUAL", "AVOID", "TUTUP")
 
     def _direction(signal, action):
-        txt = f"{action or ''} {signal or ''}".strip().upper()
+        # Enum signal (SELL/AVOID/...) adalah klasifikasi kanonik mesin;
+        # label action produksi ('REDUCE / JUAL', 'HINDARI / TUNGGU')
+        # TIDAK berawalan kata bearish, jadi signal harus diperiksa dulu.
+        txt = f"{signal or ''} {action or ''}".strip().upper()
         return -1 if txt.startswith(_BEARISH) else 1
 
     def _verdict(adj_fwd, adj_exc):
