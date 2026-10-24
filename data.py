@@ -11,6 +11,9 @@ import pandas as pd
 import yfinance as yf
 
 from config import settings
+import logging
+
+_log = logging.getLogger("laumology.data")
 
 # Hanya karakter ini yang boleh muncul pada komponen nama berkas cache.
 # Pemisah path (``/`` dan ``\``) serta ``:`` (drive Windows/UNC) diganti ``_``
@@ -96,6 +99,10 @@ def _read_cache(path: Path) -> pd.DataFrame | None:
     try:
         return pd.read_csv(path, index_col=0, parse_dates=True)
     except (pd.errors.EmptyDataError, pd.errors.ParserError, OSError):
+        # Berkas rusak DILEWATI + dihapus (refetch otomatis), tapi TIDAK
+        # senyap: kerusakan cache berulang = gejala disk/kill yang perlu
+        # terlihat.
+        _log.warning("cache rusak/terpotong dihapus: %s", path.name, exc_info=True)
         _drop_corrupt(path)
         return None
 
@@ -180,6 +187,13 @@ def get_ohlcv(
         if path.exists():
             cached = _read_cache(path)
             if cached is not None and not cached.empty:
+                # Cache basi DILAYANI daripada gagal total (best-effort by
+                # design), tapi TIDAK senyap: sinyal dari data basi harus
+                # terlihat - umur cache + bar terakhir ikut dicatat.
+                age_h = (time.time() - path.stat().st_mtime) / 3600.0
+                _log.warning(
+                    "fetch %s gagal - fallback cache basi (umur %.1f jam, bar terakhir %s)",
+                    ticker, age_h, str(cached.index[-1])[:10])
                 return cached
         if last_err is not None:
             raise last_err
@@ -202,8 +216,8 @@ def get_many(
             df = get_ohlcv(t, period, interval, use_cache)
             if len(df) > 60:
                 out[t.upper()] = df
-        except Exception as exc:
-            print(f"  ! {t}: {exc}")
+        except Exception:
+            _log.warning("get_many %s gagal - dilewati", t, exc_info=True)
     return out
 
 
@@ -231,6 +245,10 @@ def prefetch(
                 progress=False, threads=True, group_by="ticker",
             )
         except Exception:
+            # Satu chunk bisa berisi puluhan ticker - kegagalannya tidak
+            # boleh menghilang (warmup jadi "seolah sehat").
+            _log.warning("prefetch chunk gagal (%d ticker: %s..%s) - chunk dilewati",
+                         len(part), part[0], part[-1], exc_info=True)
             continue
         if raw is None or raw.empty:
             continue
@@ -255,6 +273,7 @@ def prefetch(
                     _write_cache(df, path)
                     done += 1
             except Exception:
+                _log.warning("prefetch %s gagal dinormalisasi - dilewati", yt, exc_info=True)
                 continue
     return done
 
@@ -354,6 +373,9 @@ def get_quote(ticker: str, suffix: str = ".JK", ttl: float | None = None) -> dic
             _quote_cache[yt] = (now, quote)
             _prune_quote_cache_locked()
         return quote
+    # Quote kosong wajar di UI, tapi kegagalan SEMUA sumber (realtime ->
+    # fast_info -> riwayat) adalah gejala hulu yang harus terlihat.
+    _log.warning("quote %s gagal dari semua sumber", yt)
     return None
 
 
