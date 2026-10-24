@@ -1,1 +1,47 @@
-"\"\"\"Tes observabilitas risk: saham gagal masuk korelasi tidak lagi senyap.\n\nCI-only: risk butuh numpy/pandas. data.get_ohlcv diganti fake.\nMatriks hasil tetap jujur (ticker gagal tidak ikut) - hanya jejak log baru.\n\"\"\"\nimport types\nimport unittest\nfrom unittest import mock\n\ntry:\n    import pandas as pd\n    import risk\n    _OK = True\nexcept Exception:\n    _OK = False\n\n\ndef _frame():\n    return pd.DataFrame({\"Close\": [100.0, 101.0, 99.5, 102.0, 103.0]})\n\n\n@unittest.skipUnless(_OK, \"risk/pandas tidak tersedia (CI-only)\")\nclass RiskSilentTest(unittest.TestCase):\n    def _fake_data(self):\n        def get_ohlcv(t, *_a, **_k):\n            if t == \"TLKM\":\n                raise RuntimeError(\"no data\")\n            return _frame()\n        return types.SimpleNamespace(get_ohlcv=get_ohlcv)\n\n    def test_korelasi_satu_saham_gagal_warning_dan_dilewati(self):\n        with mock.patch.object(risk, \"data\", self._fake_data()):\n            with self.assertLogs(\"laumology.risk\", level=\"WARNING\") as ctx:\n                res = risk.correlation([\"BBCA\", \"TLKM\", \"BBRI\"])\n        self.assertTrue(any(\"TLKM\" in m and \"korelasi\" in m for m in ctx.output))\n        self.assertIn(\"BBCA\", res[\"tickers\"])\n        self.assertIn(\"BBRI\", res[\"tickers\"])\n        self.assertNotIn(\"TLKM\", res[\"tickers\"])\n\n    def test_korelasi_sehat_tanpa_warning(self):\n        with mock.patch.object(risk, \"data\", self._fake_data()):\n            with self.assertNoLogs(\"laumology.risk\", level=\"WARNING\"):\n                res = risk.correlation([\"BBCA\", \"BBRI\", \"MEDC\"])\n        self.assertEqual(sorted(res[\"tickers\"]), [\"BBCA\", \"BBRI\", \"MEDC\"])\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+"""Tes observabilitas risk: saham gagal masuk korelasi tidak lagi senyap.
+
+CI-only: risk butuh numpy/pandas. data.get_ohlcv diganti fake.
+Matriks hasil tetap jujur (ticker gagal tidak ikut) - hanya jejak log baru.
+"""
+import types
+import unittest
+from unittest import mock
+
+try:
+    import pandas as pd
+    import risk
+    _OK = True
+except Exception:
+    _OK = False
+
+
+def _frame():
+    return pd.DataFrame({"Close": [100.0, 101.0, 99.5, 102.0, 103.0]})
+
+@unittest.skipUnless(_OK, "risk/pandas tidak tersedia (CI-only)")
+class RiskSilentTest(unittest.TestCase):
+    def _fake_data(self):
+        def get_ohlcv(t, *_a, **_k):
+            if t == "TLKM":
+                raise RuntimeError("no data")
+            return _frame()
+        return types.SimpleNamespace(get_ohlcv=get_ohlcv)
+
+    def test_korelasi_satu_saham_gagal_warning_dan_dilewati(self):
+        with mock.patch.object(risk, "data", self._fake_data()):
+            with self.assertLogs("laumology.risk", level="WARNING") as ctx:
+                res = risk.correlation(["BBCA", "TLKM", "BBRI"])
+        self.assertTrue(any("TLKM" in m and "korelasi" in m for m in ctx.output))
+        self.assertIn("BBCA", res["tickers"])
+        self.assertIn("BBRI", res["tickers"])
+        self.assertNotIn("TLKM", res["tickers"])
+
+    def test_korelasi_sehat_tanpa_warning(self):
+        with mock.patch.object(risk, "data", self._fake_data()):
+            with self.assertNoLogs("laumology.risk", level="WARNING"):
+                res = risk.correlation(["BBCA", "BBRI", "MEDC"])
+        self.assertEqual(sorted(res["tickers"]), ["BBCA", "BBRI", "MEDC"])
+
+
+if __name__ == "__main__":
+    unittest.main()
