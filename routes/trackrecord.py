@@ -89,6 +89,7 @@ def summary() -> dict:
     rows_ticker = sorted(per_ticker.values(), key=lambda s: s["ret"], reverse=True)
 
     outcomes = store.outcomes_summary(5)
+    outcomes_h1 = store.outcomes_summary(1)  # puls cepat arah; patokan resmi tetap H+5
     attribution = store.outcomes_by_bucket(5)
     verdicts = store.outcome_verdicts(5)
     bucket_verdicts = store.outcome_bucket_verdicts(5)
@@ -119,6 +120,7 @@ def summary() -> dict:
         "per_ticker": rows_ticker,
         "signals_by_action": signals_by_action,
         "outcomes": outcomes,
+        "outcomes_h1": outcomes_h1,
         "attribution": attribution,
         "verdicts": verdicts,
         "bucket_verdicts": bucket_verdicts,
