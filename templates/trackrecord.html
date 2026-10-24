@@ -214,6 +214,20 @@
     {% else %}<p class="empty">Belum ada sinyal tercatat.</p>{% endif %}
   </div>
 
+  <h2>Akurasi cepat (H+1 &mdash; puls arah, bukan patokan)</h2>
+  {% if outcomes_h1.n %}
+  <div class="kpis">
+    <div class="kpi"><div class="lab">Sinyal dievaluasi (H+1)</div><div class="val">{{ outcomes_h1.n }}</div></div>
+    <div class="kpi"><div class="lab">Arah benar 1 hari</div>
+      <div class="val {{ 'pos' if outcomes_h1.win_rate > 50 else ('neg' if outcomes_h1.win_rate < 50 else 'neu') }}">{{ '%.1f'|format(outcomes_h1.win_rate) }}%</div></div>
+    <div class="kpi"><div class="lab">Rata-rata return 1 hari</div>
+      <div class="val {{ 'pos' if outcomes_h1.avg_fwd_pct > 0 else ('neg' if outcomes_h1.avg_fwd_pct < 0 else 'neu') }}">{{ '%+.2f'|format(outcomes_h1.avg_fwd_pct) }}%</div></div>
+  </div>
+  <p class="sub">Puls cepat: return 1 hari perdagangan setelah hari sinyal. TP/SL praktis tak terukur dalam 1 bar &mdash; patokan resmi tetap H+{{ outcomes.horizon }} di bawah.</p>
+  {% else %}
+  <p class="empty">Belum ada sinyal cukup tua untuk H+1 (dievaluasi setelah umur 4 hari kalender + 1 bar bursa). Patokan resmi tetap H+{{ outcomes.horizon }}.</p>
+  {% endif %}
+
   <h2>Akurasi sinyal terukur (H+{{ outcomes.horizon }}, feedback loop)</h2>
   {% if outcomes.n %}
   <div class="kpis">

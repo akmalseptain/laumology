@@ -10,6 +10,12 @@ import screener
 import store
 from signals import analyze
 
+EVAL_HORIZONS = (1, 5, 10)
+"""Horizon evaluasi feedback loop (hari bursa SETELAH hari sinyal).
+
+H+1 = puls cepat arah 1 hari (bukan patokan; TP/SL dalam 1 bar praktis
+selalu TIMEOUT - konsisten temuan validasi). H+5 tetap patokan resmi."""
+
 
 def run_once(universe: str = "lq45") -> int:
     tickers = screener.resolve_watchlist(universe)
@@ -42,9 +48,10 @@ def run_once(universe: str = "lq45") -> int:
     try:
         import outcomes as outcomes_mod
 
-        # Multi-horizon: ukur H+5 dan H+10 agar track record tidak menyetir
-        # satu horizon saja; keduanya best-effort, jangan ganggu scan.
-        for horizon in (5, 10):
+        # Multi-horizon: ukur H+1, H+5, dan H+10 agar track record tidak
+        # menyetir satu horizon saja; semuanya best-effort, jangan ganggu
+        # scan. H+1 hanya puls cepat arah - patokan resmi tetap H+5.
+        for horizon in EVAL_HORIZONS:
             outcomes_mod.evaluate_signals(horizon=horizon, limit=25)
     except Exception:
         pass
