@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 
 import data
 import notify
+import paper_auto
 import risk
 import store
 from routes._util import json_object
@@ -132,6 +133,26 @@ def api_paper_close():
     pnl = _pnl(row["entry"], exit_price, row["lots"], row.get("side"))
     store.paper_close(pid, exit_price, pnl, note)
     return jsonify(ok=True, exit=exit_price, pnl=pnl)
+
+
+@bp.route("/api/paper/sync", methods=["POST"])
+def api_paper_sync():
+    """Sinkron paper trading otomatis SEKARANG (pola batch-32 /api/outcomes/evaluate).
+
+    (1) Tutup posisi OPEN yang TP/SL tersentuh pada bar SETELAH hari sinyal;
+    (2) buka posisi paper dari sinyal actionable terbaru per ticker. Best-effort,
+    hanya menulis tabel paper - TIDAK menulis sinyal (aman di akhir pekan, beda
+    dengan scan), tidak mengubah skor/ambang.
+    """
+    try:
+        limit = max(50, min(int(request.args.get("limit", 400)), 1000))
+    except ValueError:
+        limit = 400
+    try:
+        res = paper_auto.sync_paper(limit=limit)
+    except Exception as exc:
+        return jsonify(error=str(exc)), 502
+    return jsonify(ok=True, **res)
 
 
 @bp.route("/api/correlation")
