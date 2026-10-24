@@ -57,6 +57,7 @@ def weekly_trend(df: pd.DataFrame) -> str:
             return "Bearish"
         return "Netral"
     except Exception:
+        _log.warning("weekly_trend gagal - fallback Netral", exc_info=True)
         return "Netral"
 
 
@@ -78,6 +79,7 @@ def monthly_trend(df: pd.DataFrame) -> str:
             return "Bearish"
         return "Netral"
     except Exception:
+        _log.warning("monthly_trend gagal - fallback Netral", exc_info=True)
         return "Netral"
 
 
@@ -96,6 +98,7 @@ def relative_strength(df: pd.DataFrame) -> tuple[float | None, bool | None]:
         change = float(rs.iloc[-1] / rs.iloc[-21] - 1.0) * 100.0
         return change, bool(rs.iloc[-1] > rs_ma.iloc[-1])
     except Exception:
+        _log.warning("relative_strength gagal - fallback None", exc_info=True)
         return None, None
 
 
@@ -133,6 +136,7 @@ def market_regime() -> str:
         ma20_prev = float(b["ma20"].iloc[-6]) if len(b) >= 6 else ma20
         recovery = _recovery_flag(regime, c, ma20, ma20_prev)
     except Exception:
+        _log.warning("market_regime gagal - fallback unknown", exc_info=True)
         regime = "unknown"
         recovery = False
     _MKT_CACHE.update(ts=now, regime=regime, recovery=recovery)
@@ -568,6 +572,11 @@ def analyze(df: pd.DataFrame, ticker: str = "", light: bool = False,
         except Exception:
             decision_data = {}
             stock_data = {}
+            # Best-effort by design (sinyal tetap keluar), tapi TIDAK senyap:
+            # sinyal terdegradasi harus terlihat di log (pola batch-40/41).
+            _log.warning(
+                "decision/stock evaluate gagal utk %s - sinyal diteruskan tanpa data keputusan",
+                ticker, exc_info=True)
 
     patterns: list[str] = []
     for name, label in [

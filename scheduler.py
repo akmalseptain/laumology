@@ -44,8 +44,10 @@ def run_once(universe: str = "lq45") -> int:
             )
             if a.signal in ("STRONG BUY", "BUY") and prev.get(a.ticker) != a.signal:
                 buys.append(a)
-        except Exception as exc:
-            print(f"  ! {t}: {exc}")
+        except Exception:
+            # Best-effort (ticker lain tetap dipindai), tapi TIDAK senyap:
+            # print tanpa traceback sulit diaudit - warning + exc_info.
+            _log.warning("ticker %s gagal dipindai - dilewati", t, exc_info=True)
     store.add_scan(universe, n, len(buys))
 
     # Feedback loop akurasi: evaluasi sinyal lama (best-effort, jangan ganggu scan).
@@ -77,7 +79,9 @@ def run_once(universe: str = "lq45") -> int:
                 "source": "scan",
             })
         except Exception:
-            pass  # best-effort: satu alert gagal tidak boleh memutus sisa alert
+            # best-effort: satu alert gagal tidak boleh memutus sisa alert,
+            # tapi TIDAK senyap - warning tercatat (pola batch-41).
+            _log.warning("alert %s gagal dikirim - best-effort", a.ticker, exc_info=True)
         print(f"ALERT {a.ticker} {a.signal} skor {a.score} conf {a.confidence}%")
     return len(buys)
 
