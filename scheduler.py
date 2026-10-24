@@ -55,6 +55,15 @@ def run_once(universe: str = "lq45") -> int:
             outcomes_mod.evaluate_signals(horizon=horizon, limit=25)
     except Exception:
         pass
+
+    # Paper trading otomatis (batch-34): buka/tutup posisi paper mengikuti
+    # sinyal engine yang sudah tercatat. Murni pencatatan (tabel paper);
+    # best-effort, jangan ganggu scan; skor/ambang/sinyal tidak disentuh.
+    try:
+        import paper_auto
+        paper_auto.sync_paper()
+    except Exception:
+        pass
     for a in buys:
         try:
             notify.signal_alert({

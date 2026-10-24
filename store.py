@@ -209,11 +209,15 @@ def last_scan() -> dict | None:
     return dict(row) if row else None
 
 
-def paper_open(ticker: str, side: str, entry: float, lots: int, stop: float, tp: float, note: str = "") -> int:
+def paper_open(ticker: str, side: str, entry: float, lots: int, stop: float, tp: float, note: str = "",
+               opened: str | None = None) -> int:
+    """Buka posisi paper. Param "opened" opsional: stempel waktu SINYAL dipakai
+    paper otomatis (posisi tercatat sejak sinyal, bukan sejak sinkronisasi);
+    default waktu sekarang - perilaku pemanggil lama tidak berubah."""
     with _lock, _conn() as c:
         cur = c.execute(
             "INSERT INTO paper(ticker,side,entry,lots,stop,tp,opened,status,note) VALUES(?,?,?,?,?,?,?,?,?)",
-            (ticker.upper(), side, entry, lots, stop, tp, _now(), "OPEN", note),
+            (ticker.upper(), side, entry, lots, stop, tp, opened or _now(), "OPEN", note),
         )
         return int(cur.lastrowid)
 
