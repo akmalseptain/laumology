@@ -162,8 +162,24 @@ def open_from_signals(limit: int = 400, target_value: float = TARGET_VALUE) -> i
     return opened
 
 
-def sync_paper(limit: int = 400, target_value: float = TARGET_VALUE) -> dict:
-    """Sinkron paper trading: settle posisi yang TP/SL kena, lalu buka baru."""
-    settled = settle_open_positions()
-    opened = open_from_signals(limit=limit, target_value=target_value)
-    return {"settled": settled, "opened": opened}
+def sync_paper(limit: int = 400, target_value: float = TARGET_VALUE, max_rounds: int = 5) -> dict:
+    """Sinkron paper trading SAMPAI MUTAKHIR: loop settle -> open hingga stabil.
+
+    Satu putaran settle-then-open bisa meninggalkan pekerjaan: posisi yang
+    baru dibuka dari sinyal LAMA bisa langsung layak ditutup (TP/SL sudah
+    tersentuh pada bar antara hari sinyal dan sekarang). Loop berhenti saat
+    satu putaran tidak mengubah apa pun (stabil / mutakhir), dibatasi
+    max_rounds agar tidak bisa berputar selamanya.
+    """
+    settled = 0
+    opened = 0
+    rounds = 0
+    for _ in range(max(1, int(max_rounds))):
+        rounds += 1
+        s = settle_open_positions()
+        o = open_from_signals(limit=limit, target_value=target_value)
+        settled += s
+        opened += o
+        if s == 0 and o == 0:
+            break
+    return {"settled": settled, "opened": opened, "rounds": rounds}
