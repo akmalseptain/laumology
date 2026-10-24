@@ -93,6 +93,32 @@ class SchedulerFlowTest(unittest.TestCase):
         # Sinyal tetap tercatat penuh walau alert bermasalah.
         self.assertEqual(self._count(), 2)
 
+    def test_outcomes_gagal_tidak_memutus_scan_dan_tercatat(self):
+        # Observability (batch-41): blok best-effort boleh gagal, tapi
+        # TIDAK boleh senyap - warning harus tercatat dan scan tetap hidup.
+        import sys
+        import types as _types
+
+        fake = _types.ModuleType("outcomes")
+
+        def _boom(**kwargs):
+            raise RuntimeError("evaluator meledak")
+
+        fake.evaluate_signals = _boom
+        old = sys.modules.get("outcomes")
+        sys.modules["outcomes"] = fake
+        try:
+            with self.assertLogs("laumology.scheduler", level="WARNING") as lg:
+                sched.run_once("lq45")
+        finally:
+            if old is None:
+                sys.modules.pop("outcomes", None)
+            else:
+                sys.modules["outcomes"] = old
+        # scan tetap sehat: sinyal tercatat penuh walau evaluator error
+        self.assertEqual(self._count(), 2)
+        self.assertTrue(any("outcomes" in str(x) for x in lg.output), lg.output)
+
     def test_scan_tercatat_di_riwayat_scan(self):
         sched.run_once("lq45")
         self.assertEqual(self._count("SELECT COUNT(*) FROM scans"), 1)
